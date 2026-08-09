@@ -11,11 +11,10 @@
 <!--
   Este archivo es intencionalmente solo un redirector: el hub de formatos
   (repo sig-fo-115, rama "main") vive en hub/ como una app autocontenida
-  (su propio css/js con rutas relativas ../css, ../js desde sus subcarpetas
-  sig-fo-115/, sig-fo-101/, verificacion-transporte/). No se movió ese
-  contenido a la raíz del sitio para no chocar con los archivos propios de
-  Reportes (css/styles.css, js/auth.js, etc. son completamente distintos
-  entre ambos proyectos).
+  con su propio JS. El CSS SÍ es compartido: los 3 sistemas (Reportes, hub,
+  SIG-FO-101) cargan el mismo /css/estilos.css, escopado por sistema con
+  una clase en <body> (tema-reportes / tema-hub / tema-sig-fo-101) — ver el
+  comentario al inicio de ese archivo.
 
   El login propio de Reportes (antes en index.html) ahora vive en
   login.html (raíz del sitio, /login.html) — sigue funcionando igual, solo
