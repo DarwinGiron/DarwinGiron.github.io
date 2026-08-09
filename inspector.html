@@ -20,8 +20,9 @@
       </div>
     </div>
     <nav>
+      <a href="/hub/index.html">← Formatos</a>
       <a href="reportes.html">Reportes</a>
-      <a href="inspector.html" class="activo">Nuevo reporte</a>
+      <a href="inspector.html" class="activo" data-modulo="nuevo-reporte">Nuevo reporte</a>
       <a href="admin/dashboard.html" data-modulo="dashboard" style="display:none;">Dashboard</a>
       <a href="admin/validacion.html" data-modulo="validacion" style="display:none;">Validación</a>
       <a href="admin/catalogos.html" data-modulo="configuraciones" style="display:none;">Configuraciones</a>
@@ -118,6 +119,9 @@
       </div>
       <h2>¡Reporte enviado!</h2>
       <p>Su reporte quedó registrado como <strong>pendiente</strong> de validación por el coordinador SGI.</p>
+      <!-- Solo aparece si se llegó desde un criterio "No cumple" de SIG-FO-115:
+           devuelve al recorrido, al mismo proceso y aspecto donde se quedó. -->
+      <button class="btn btn-bloque btn-primario" id="btn-volver-inspeccion" style="display:none;">Volver a la inspección</button>
       <button class="btn btn-bloque btn-primario" id="btn-nuevo-reporte">Registrar otro reporte</button>
     </div>
   </main>
@@ -142,6 +146,57 @@ let planoPunto = null;
 let zonaSeleccionId = null;
 let promesaMarcoPlano = null;
 let reporteEnviadoConExito = false;
+
+// ---------------------------------------------------------------------------
+// INTEGRACIÓN CON SIG-FO-115: cuando un inspector marca un criterio como "No
+// cumple" en ese sistema, un botón "+ Agregar reporte" abre esta página con
+// estos query params (todos opcionales, se ignoran si no vienen):
+//   ?turno=1&fecha=YYYY-MM-DD&proceso=...&categoria=...&descripcion=...
+//
+// Además del query string, SIG-FO-115 deja el MISMO contenido en
+// localStorage (clave CLAVE_SIGFO115_PENDIENTE) junto con el contexto para
+// volver al recorrido (área y aspecto exactos). Son dos canales a propósito:
+// algunos servidores locales reescriben la URL y se comen el query string,
+// y ambas páginas viven en el mismo origen, así que localStorage siempre
+// llega. El query string manda cuando está presente.
+// ---------------------------------------------------------------------------
+const MAPA_TURNO_SIGFO115 = { "1": "Turno #1", "2": "Turno #2", "3": "Turno #3" };
+const CLAVE_SIGFO115_PENDIENTE = "sigfo115_reporte_pendiente";
+const CLAVE_SIGFO115_CREADO = "sigfo115_reporte_creado";
+
+// Un contexto abandonado (el inspector abrió el formulario y nunca lo envió)
+// no debe precargar un reporte suelto que se cree horas después: pasado este
+// margen se ignora. Un reporte se llena en minutos, no en horas.
+const VIGENCIA_CONTEXTO_MS = 2 * 60 * 60 * 1000;
+
+function leerContextoSigFo115Guardado() {
+  try {
+    const crudo = localStorage.getItem(CLAVE_SIGFO115_PENDIENTE);
+    if (!crudo) return null;
+    const ctx = JSON.parse(crudo);
+    if (!ctx?.creadoEn || Date.now() - ctx.creadoEn > VIGENCIA_CONTEXTO_MS) {
+      localStorage.removeItem(CLAVE_SIGFO115_PENDIENTE);
+      return null;
+    }
+    return ctx;
+  } catch {
+    return null; // localStorage no disponible o dato corrupto
+  }
+}
+
+function leerParametrosSigFo115() {
+  const params = new URLSearchParams(location.search);
+  const ctx = leerContextoSigFo115Guardado();
+  return {
+    turno: params.get("turno") || ctx?.turno || null,
+    fecha: params.get("fecha") || ctx?.fecha || null,
+    proceso: params.get("proceso") || ctx?.proceso || null,
+    categoria: params.get("categoria") || ctx?.categoria || null,
+    descripcion: params.get("descripcion") || ctx?.descripcion || null,
+    contexto: ctx
+  };
+}
+const parametrosSigFo115 = leerParametrosSigFo115();
 
 // Se permite cualquier rol (null): tanto inspectores como el admin pueden
 // registrar reportes desde esta misma pantalla.
@@ -183,8 +238,8 @@ async function inicializarFormulario() {
 
   // Await select populations to ensure we can restore select draft values
   await Promise.all([
-    poblarSelectProcesos(document.getElementById("proceso")),
-    poblarSelectCategorias(document.getElementById("categoria"))
+    poblarSelectProcesos(document.getElementById("proceso"), parametrosSigFo115.proceso || undefined, "(desde SIG-FO-115)"),
+    poblarSelectCategorias(document.getElementById("categoria"), parametrosSigFo115.categoria || undefined, "(desde SIG-FO-115)")
   ]);
 
   // Plano real de la planta (imagen). El toque manual siempre queda
@@ -217,6 +272,129 @@ async function inicializarFormulario() {
 
   // Registrar escuchadores para guardado automático del borrador
   registrarEscuchadoresBorrador();
+
+  // Precarga de SIG-FO-115: se aplica AL FINAL a propósito, para que gane
+  // sobre cualquier borrador local viejo que hubiera quedado guardado (esta
+  // pestaña se abre nueva desde otro sistema con datos frescos del criterio
+  // incumplido, no debe pisarla un borrador de un reporte anterior sin
+  // relación con esto).
+  aplicarPrellenadoDesdeSigFo115(parametrosSigFo115);
+}
+
+function aplicarPrellenadoDesdeSigFo115(params) {
+  const huboPrellenado =
+    params.turno || params.fecha || params.proceso || params.categoria || params.descripcion;
+  if (!huboPrellenado) return;
+
+  if (params.turno && MAPA_TURNO_SIGFO115[params.turno]) {
+    document.getElementById("turno").value = MAPA_TURNO_SIGFO115[params.turno];
+  }
+
+  if (params.fecha) {
+    const [anio, mes, dia] = params.fecha.split("-").map(Number);
+    if (anio && mes && dia) {
+      const actual = document.getElementById("fechaHora").value; // "YYYY-MM-DDTHH:MM"
+      const horaActual = actual && actual.includes("T") ? actual.split("T")[1] : new Date().toTimeString().slice(0, 5);
+      const fechaFormateada = `${String(anio).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+      document.getElementById("fechaHora").value = `${fechaFormateada}T${horaActual}`;
+    }
+  }
+
+  if (params.descripcion) {
+    document.getElementById("descripcion").value = params.descripcion;
+  }
+
+  // Proceso: ya se preseleccionó al poblar el <select> (ver
+  // poblarSelectProcesos más arriba, que ya resuelve el valor recibido
+  // contra el catálogo sin distinguir mayúsculas/acentos); aquí solo lo
+  // bloqueamos y avisamos por qué, porque ya se sabe de qué proceso viene
+  // la inspección. NO se reasigna .value aquí para no pisar esa resolución
+  // con el texto crudo que mandó SIG-FO-115.
+  if (params.proceso) {
+    const selectProceso = document.getElementById("proceso");
+    selectProceso.disabled = true;
+    if (!document.getElementById("ayuda-proceso-bloqueado")) {
+      const ayuda = document.createElement("p");
+      ayuda.id = "ayuda-proceso-bloqueado";
+      ayuda.className = "ayuda";
+      ayuda.textContent = "Precargado desde SIG-FO-115: el proceso no se puede cambiar en este reporte.";
+      selectProceso.insertAdjacentElement("afterend", ayuda);
+    }
+  }
+
+  // Categoría: viene del título de la sección del checklist (el "campo de
+  // inspección"). A diferencia del proceso, SÍ queda editable a propósito —
+  // la sección del checklist y el catálogo de categorías de Reportes no
+  // siempre son la misma clasificación, así que el inspector la corrige si
+  // hace falta. Ya quedó preseleccionada al poblar el <select>; aquí solo se
+  // explica de dónde salió.
+  if (params.categoria) {
+    const selectCategoria = document.getElementById("categoria");
+    if (!document.getElementById("ayuda-categoria-precargada")) {
+      const ayuda = document.createElement("p");
+      ayuda.id = "ayuda-categoria-precargada";
+      ayuda.className = "ayuda";
+      ayuda.textContent = "Precargada desde el checklist de SIG-FO-115. Puede cambiarla si corresponde a otra categoría.";
+      selectCategoria.insertAdjacentElement("afterend", ayuda);
+    }
+  }
+
+  // Si se llegó desde un criterio "No cumple" concreto, el botón de la
+  // pantalla de confirmación debe regresar al recorrido en vez de ofrecer
+  // solo "registrar otro reporte" (ver enviarReporte).
+  if (params.contexto?.aspectoId) {
+    mostrarAviso(
+      "Reporte precargado desde el recorrido de SIG-FO-115. Al enviarlo volverá a la inspección.",
+      "info"
+    );
+  }
+
+  // El borrador local se actualiza para que quede consistente si el
+  // inspector recarga la página sin haber enviado el reporte todavía.
+  guardarBorrador();
+}
+
+/**
+ * Cierra el círculo con SIG-FO-115 cuando el reporte se creó desde un
+ * criterio "No cumple" de un recorrido: deja en localStorage un resumen
+ * SIN fotos (solo texto: qué se encontró, categoría, zona y hora) para que
+ * el recorrido lo muestre como historial bajo ese mismo aspecto, y activa
+ * el botón que devuelve al inspector justo donde se quedó.
+ *
+ * Las fotos se omiten a propósito: ya viven en el reporte de este sistema y
+ * el recorrido solo necesita la constancia de que el hallazgo se reportó.
+ */
+function notificarReporteCreadoASigFo115(reporteId, datos) {
+  const ctx = parametrosSigFo115.contexto;
+  if (!ctx?.aspectoId) return;
+
+  try {
+    localStorage.setItem(CLAVE_SIGFO115_CREADO, JSON.stringify({
+      reporteId,
+      fecha: ctx.fecha,
+      turno: ctx.turno,
+      areaId: ctx.areaId,
+      aspectoId: ctx.aspectoId,
+      resumen: {
+        descripcion: datos.descripcion,
+        categoria: datos.categoria,
+        zona: datos.zona,
+        proceso: datos.proceso,
+        fechaHora: datos.fechaHoraInput
+      },
+      creadoEn: Date.now()
+    }));
+    // El contexto de ida ya se consumió: si el inspector se queda en esta
+    // pantalla y crea otro reporte suelto, no debe reusarse.
+    localStorage.removeItem(CLAVE_SIGFO115_PENDIENTE);
+  } catch {
+    /* Sin localStorage no se puede pasar el resumen; el reporte igual se creó. */
+  }
+
+  const btnVolver = document.getElementById("btn-volver-inspeccion");
+  const destino = ctx.volver || "/hub/sig-fo-115/index.html";
+  btnVolver.style.display = "block";
+  btnVolver.addEventListener("click", () => { window.location.href = destino; });
 }
 
 /**
@@ -283,7 +461,20 @@ async function reiniciarFormularioParaNuevoReporte() {
   document.getElementById("fechaHora").value = ahora.toISOString().slice(0, 16);
   document.getElementById("turno").value = "";
   document.getElementById("zona").value = "";
-  document.getElementById("proceso").value = "";
+  // El "Registrar otro reporte" arranca un reporte nuevo sin relación con el
+  // que llegó precargado desde SIG-FO-115 (si fue el caso): se libera el
+  // proceso para que el inspector pueda elegir cualquiera normalmente.
+  const selectProceso = document.getElementById("proceso");
+  selectProceso.disabled = false;
+  selectProceso.value = "";
+  document.getElementById("ayuda-proceso-bloqueado")?.remove();
+  document.getElementById("ayuda-categoria-precargada")?.remove();
+  document.getElementById("btn-volver-inspeccion").style.display = "none";
+  // Este reporte nuevo ya no pertenece al criterio de SIG-FO-115 del que se
+  // venía: se corta el vínculo para no volver a mandar un resumen al
+  // recorrido ni reusar la precarga.
+  parametrosSigFo115.contexto = null;
+  try { localStorage.removeItem(CLAVE_SIGFO115_PENDIENTE); } catch {}
   document.getElementById("categoria").value = "";
   document.getElementById("descripcion").value = "";
   renderizarFotos();
@@ -397,7 +588,7 @@ async function enviarReporte(e) {
   const fechaHoraInput = document.getElementById("fechaHora").value;
 
   try {
-    await colReportes.add({
+    const referencia = await colReportes.add({
       fechaHora: firebase.firestore.Timestamp.fromDate(new Date(fechaHoraInput)),
       inspectorUid: usuarioActual.uid,
       inspectorNombre: perfilActual.nombre || perfilActual.correo,
@@ -422,6 +613,9 @@ async function enviarReporte(e) {
 
     limpiarBorrador();
     reporteEnviadoConExito = true;
+    notificarReporteCreadoASigFo115(referencia.id, {
+      turno, zona, proceso, categoria, descripcion, fechaHoraInput
+    });
     document.getElementById("vista-formulario").style.display = "none";
     document.getElementById("vista-confirmacion").style.display = "block";
   } catch (err) {

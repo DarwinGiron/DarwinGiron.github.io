@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <base href="/hub/sig-fo-101/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Administración · SIG-FO-101</title>
+  <link rel="stylesheet" href="/hub/sig-fo-101/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <div class="app-header__titulo">SIG-FO-101 · Administración</div>
+        <div class="app-header__subtitulo" id="texto-usuario">—</div>
+      </div>
+      <div class="app-header__acciones">
+        <button id="btn-salir" class="btn btn-texto btn-sm" type="button" style="color:#fff;">Salir</button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <a href="../configuraciones.html" class="btn btn-secundario btn-sm btn-ancho-auto" style="margin-bottom: 16px;">
+        ← Volver a Configuraciones
+      </a>
+
+      <section class="tarjeta">
+        <div class="flex-entre mb-1">
+          <h2 class="tarjeta__titulo mb-0">Máquinas</h2>
+          <button type="button" id="btn-agregar-maquina" class="btn btn-secundario btn-sm btn-ancho-auto">
+            + Agregar
+          </button>
+        </div>
+        <p class="texto-suave texto-sm">
+          Aparecen como botones al capturar una liberación, en el orden de esta lista.
+        </p>
+        <div id="lista-maquinas"></div>
+      </section>
+
+      <section class="tarjeta">
+        <div class="flex-entre mb-1">
+          <h2 class="tarjeta__titulo mb-0">Preguntas de Limpieza y Sanitización</h2>
+          <button type="button" id="btn-agregar-pregunta" class="btn btn-secundario btn-sm btn-ancho-auto">
+            + Agregar
+          </button>
+        </div>
+        <p class="texto-suave texto-sm">
+          Cada una se captura como SÍ/NO al liberar una máquina. Si alguna queda en NO, las
+          observaciones se vuelven obligatorias.
+        </p>
+        <div id="lista-preguntas"></div>
+      </section>
+    </main>
+
+    <nav class="nav-inferior" aria-label="Navegación principal">
+      <a href="index.html" class="nav-inferior__item">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nuevo
+      </a>
+      <a href="historial.html" class="nav-inferior__item">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+        Historial
+      </a>
+      <a href="../configuraciones.html" class="nav-inferior__item activo" aria-current="page">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.07 14H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.63c.6-.26 1.02-.85 1.04-1.51V3a2 2 0 0 1 4 0v.09c.02.66.44 1.25 1.04 1.51.66.28 1.42.14 1.93-.37l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.5.5-.65 1.27-.37 1.93.26.6.85 1.02 1.51 1.04H21a2 2 0 0 1 0 4h-.09c-.66.02-1.25.44-1.51 1.04Z"/></svg>
+        Config
+      </a>
+    </nav>
+  </div>
+
+  <!-- Modal genérico para agregar/editar un texto (máquina o pregunta) -->
+  <div id="modal-texto" class="modal-fondo oculto">
+    <div class="modal-caja">
+      <div class="modal-caja__cabecera">
+        <h3 id="modal-texto-titulo">Agregar</h3>
+        <button type="button" id="btn-cerrar-modal-texto" class="btn btn-texto btn-sm">✕</button>
+      </div>
+      <div class="campo mb-0">
+        <label for="modal-texto-input" id="modal-texto-etiqueta">Texto</label>
+        <textarea id="modal-texto-input" rows="2"></textarea>
+      </div>
+      <button type="button" id="btn-guardar-texto" class="btn btn-primario" style="margin-top: 16px;">
+        Guardar
+      </button>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+  <script type="module" src="/hub/sig-fo-101/admin.js"></script>
+</body>
+</html>

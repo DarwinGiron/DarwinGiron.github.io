@@ -29,7 +29,7 @@ async function obtenerPermisosInspector() {
 /**
  * Protege una página: exige sesión iniciada y, opcionalmente, un módulo
  * específico habilitado para el rol del usuario.
- * Redirige a index.html si no hay sesión, o a la página que le corresponde
+ * Redirige a login.html si no hay sesión, o a la página que le corresponde
  * si no tiene acceso al módulo pedido.
  * @param {string|null} modulo clave del módulo requerido ("dashboard",
  *   "validacion", "configuraciones", "informes") o null (cualquier usuario
@@ -78,7 +78,16 @@ function protegerPagina(modulo, callback) {
 /**
  * Oculta del menú los enlaces <a data-modulo="..."> a los que el usuario
  * actual (inspector) no tiene acceso. El admin y los enlaces sin
- * data-modulo (ej. "Nuevo reporte") nunca se ocultan.
+ * data-modulo nunca se ocultan.
+ *
+ * data-modulo="nuevo-reporte" es un caso especial: a propósito NO tiene
+ * checkbox en la pestaña Permisos (configuracion/permisosInspector nunca
+ * trae esa clave), así que para cualquier inspector siempre evalúa a "sin
+ * acceso" y el enlace queda oculto de forma permanente. La página
+ * inspector.html sigue funcionando igual para ellos vía el botón "+ Agregar
+ * reporte" de SIG-FO-115 (que abre la URL directo, sin pasar por el nav);
+ * lo único que cambia es que no aparece como opción de menú para crear un
+ * reporte "suelto". El admin conserva el enlace siempre (bypass de rol).
  * @param {object} perfil perfil del usuario actual
  * @param {object|null} permisos permisos del inspector (null para admin)
  */
@@ -91,8 +100,11 @@ function aplicarVisibilidadNav(perfil, permisos) {
 }
 
 function rutaRelativaIndex() {
-  // Calcula ruta relativa a index.html según profundidad de carpetas
-  return window.location.pathname.includes("/admin/") ? "../index.html" : "index.html";
+  // Calcula ruta relativa al login de Reportes según profundidad de carpetas.
+  // index.html en la raíz del sitio ahora es el hub de formatos (redirige a
+  // hub/index.html); el login propio de Reportes se movió a login.html
+  // para no chocar con esa ruta.
+  return window.location.pathname.includes("/admin/") ? "../login.html" : "login.html";
 }
 function rutaAdminDashboard() {
   return window.location.pathname.includes("/admin/") ? "dashboard.html" : "admin/dashboard.html";
@@ -115,7 +127,7 @@ function cerrarSesionYSalir() {
 }
 
 /**
- * Inicia sesión con correo/contraseña. Usado desde index.html.
+ * Inicia sesión con correo/contraseña. Usado desde login.html.
  */
 async function iniciarSesion(correo, contrasena) {
   return auth.signInWithEmailAndPassword(correo, contrasena);

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <base href="/hub/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Iniciar Sesión · COGUSA</title>
+  <link rel="stylesheet" href="/hub/css/styles.css" />
+</head>
+<body>
+  <main class="pantalla-acceso">
+    <div class="acceso-caja">
+      <header class="acceso-marca">
+        <div class="acceso-marca__logo">PPR</div>
+        <div class="acceso-marca__codigo">COGUSA</div>
+        <p class="acceso-marca__nombre">
+          Plataforma Digital de Verificación y Control
+        </p>
+      </header>
+
+      <section class="acceso-tarjeta">
+        <h1 style="font-size: var(--txt-lg); margin-bottom: var(--e2);">Iniciar sesión</h1>
+        <p class="texto-suave texto-sm" style="margin-bottom: var(--e5);">
+          Ingresa con tu cuenta institucional para registrar o consultar inspecciones.
+        </p>
+
+        <form id="form-login" novalidate>
+          <div class="campo">
+            <label for="campo-email">Correo electrónico</label>
+            <input
+              type="email"
+              id="campo-email"
+              name="email"
+              autocomplete="username"
+              inputmode="email"
+              required
+              placeholder="nombre@empresasgalindo.com"
+            />
+          </div>
+
+          <div class="campo" style="margin-bottom: var(--e5);">
+            <label for="campo-password">Contraseña</label>
+            <input
+              type="password"
+              id="campo-password"
+              name="password"
+              autocomplete="current-password"
+              required
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button type="submit" id="btn-entrar" class="btn btn-primario">
+            Entrar
+          </button>
+        </form>
+      </section>
+
+      <p class="acceso-pie">
+        ¿Sin acceso? Solicítalo con el administrador del sistema de gestión.
+      </p>
+    </div>
+  </main>
+
+  <script type="module" src="/hub/js/login.js"></script>
+</body>
+</html>

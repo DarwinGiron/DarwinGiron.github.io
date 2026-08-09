@@ -1,58 +1,47 @@
 rules_version = '2';
 
 // ============================================================================
-// REGLAS DE SEGURIDAD DE FIRESTORE - COGUSA SGI Inspecciones
+// REGLAS DE SEGURIDAD DE FIRESTORE — proyecto compartido "reportes-5e94c"
 // ============================================================================
-// Resumen del modelo de permisos:
-//  - usuarios:      cada quien lee su propio documento; solo el admin lee/
-//                    escribe cualquier documento de usuario. Nadie puede
-//                    crear su propio documento (lo crea el admin al invitar).
-//  - reportes:      un inspector (o el admin) puede CREAR reportes propios y
-//                    LEER solo los reportes que él mismo creó, salvo que su
-//                    rol tenga el permiso "dashboard", "validacion" o
-//                    "informes" habilitado (ver configuracion/permisosInspector),
-//                    en cuyo caso puede leer TODOS los reportes.
-//                    Editar cualquier reporte (validación/correcciones)
-//                    requiere el permiso "validacion". Borrar reportes es
-//                    SIEMPRE exclusivo del admin, incluso con permiso de
-//                    validación.
-//                    Excepciones puntuales sobre SU PROPIO reporte, sin
-//                    permiso de validación: puede marcar como "visto" el
-//                    aviso de que el admin corrigió el reporte (cambioSinVer:
-//                    true -> false), y puede actualizar "estadoHallazgo"
-//                    (seguimiento propio de si el hallazgo físico ya se
-//                    corrigió en planta), cada una sin tocar ningún otro campo.
-//  - zonas/procesos: cualquier usuario autenticado puede LEER; los
-//                    inspectores pueden CREAR documentos nuevos (alta en
-//                    línea desde el formulario); editar (renombrar/fusionar/
-//                    desactivar) requiere el permiso de esa sección
-//                    ("configSeccionZonas"/"configSeccionProcesos"). El admin
-//                    puede crear, editar y borrar sin restricción.
-//  - categorias:     igual que zonas/procesos, con "configSeccionCategorias".
-//  - configuracion:  cualquier usuario autenticado puede LEER cualquier doc.
-//                    Escribir el doc "permisosInspector" (los permisos en sí)
-//                    es SIEMPRE exclusivo del admin. Escribir los documentos
-//                    de ubicación de planta (planta/planoImagen/
-//                    calibracionGPS/planoArchivo) requiere el permiso
-//                    "configSeccionUbicacionPlanta"; escribir "planoReporte"
-//                    requiere "configSeccionPlanoReporte".
-//  - usuarios:       SIEMPRE exclusivo del admin (invitar/activar/roles), sin
-//                    importar los permisos del inspector.
-//  - puntosNorma:    solo el admin puede crear/editar/borrar; cualquier
-//                    usuario autenticado puede leer (legado, reemplazado por
-//                    "categorias" en el formulario de reportes).
+// Este proyecto de Firebase ahora es COMPARTIDO por dos repos/apps distintas
+// que se están unificando (transición en curso, sin migrar datos todavía):
+//   1. "Reportes" (este repo) — colecciones: usuarios, reportes, zonas,
+//      procesos, categorias, configuracion, puntosNorma.
+//   2. "hub" (repo sig-fo-115, copiado a hub/ dentro de este mismo sitio) —
+//      colecciones: usuarios (COMPARTIDA con Reportes), checklists,
+//      inspecciones (SIG-FO-115), liberaciones (SIG-FO-101), sigfo101Config,
+//      verificaciones_transporte.
+// Un proyecto de Firebase publica un ÚNICO archivo de reglas para TODA la
+// base de datos, así que ESTE archivo es el único que existe y el único que
+// se publica. Antes había copias "de referencia" en hub/ y hub/sig-fo-101/;
+// se eliminaron a propósito para que no haya duda de cuál es el bueno.
 //
-// NOTA IMPORTANTE: las funciones auxiliares (estaAutenticado, rolDe, esAdmin,
-// esInspectorActivo, permisoInspector) DEBEN declararse DENTRO de
-// "match /databases/{database}/documents { ... }", porque usan la variable
-// $(database) para construir rutas en get()/exists(). Si se declaran fuera
-// de ese bloque, $(database) no está en alcance y las comprobaciones
-// get()/exists() fallan silenciosamente (siempre deniegan el acceso).
+// Cada app conserva sus propias funciones auxiliares con sus propios
+// nombres (no se unificó la nomenclatura para no tener que reescribir cada
+// bloque de reglas ya probado):
+//   - Reportes usa: estaAutenticado(), esAdmin(), esInspectorActivo(),
+//     rolDe(), permisoInspector().
+//   - hub usa: autenticado(), esGestor(), esUsuarioActivo(), perfil().
+// La ÚNICA colección realmente compartida es "usuarios": se unificó bajo
+// esGestor() (admin O coordinador, mismo nivel de privilegio, solo cambia
+// el título mostrado) porque es un superconjunto de lo que ya permitía
+// Reportes (rol == 'admin' siempre cumple esGestor()), así que ninguna
+// cuenta admin existente pierde acceso.
+//
+// NOTA IMPORTANTE: TODAS las funciones auxiliares DEBEN declararse DENTRO
+// de "match /databases/{database}/documents { ... }", porque usan la
+// variable $(database) para construir rutas en get()/exists(). Si se
+// declaran fuera de ese bloque, $(database) no está en alcance y las
+// comprobaciones get()/exists() fallan silenciosamente (siempre deniegan
+// el acceso).
 // ============================================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ------------------------------------------------------------------
+    // HELPERS — Reportes
+    // ------------------------------------------------------------------
     function estaAutenticado() {
       return request.auth != null;
     }
@@ -83,14 +72,50 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------
-    // USUARIOS
+    // HELPERS — hub (sig-fo-115/sig-fo-101/verificación de transporte)
+    // ------------------------------------------------------------------
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function perfil() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    // Roles de gestión: 'admin' y 'coordinador' (Coordinador de SGIA) tienen
+    // exactamente los mismos permisos; se distinguen solo por el título visible.
+    function esGestor() {
+      return autenticado()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && perfil().rol in ['admin', 'coordinador']
+        && perfil().activo != false;
+    }
+
+    // Cualquier usuario con perfil activo (inspector, admin o coordinador).
+    function esUsuarioActivo() {
+      return autenticado()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && perfil().activo != false;
+    }
+
+    // ------------------------------------------------------------------
+    // USUARIOS — colección COMPARTIDA por Reportes y el hub. Cada quien lee
+    // su propio perfil (para resolver su rol al iniciar sesión). Solo un
+    // gestor (admin o coordinador) lee la lista completa, crea perfiles o
+    // cambia roles/estado activo. Nadie puede crear su propio documento
+    // (lo crea un gestor al invitar). Nunca se borra: se desactiva
+    // (campo "activo").
     // ------------------------------------------------------------------
     match /usuarios/{uid} {
-      allow read: if estaAutenticado() && (request.auth.uid == uid || esAdmin());
-      allow create: if esAdmin(); // el admin crea el documento al invitar
-      allow update: if esAdmin();
-      allow delete: if false; // nunca se borra: se desactiva (campo "activo")
+      allow get: if autenticado() && (request.auth.uid == uid || esGestor());
+      allow list: if esGestor();
+      allow write: if esGestor();
     }
+
+    // ==================================================================
+    // COLECCIONES DE "Reportes" (sin cambios respecto a antes de la
+    // integración con el hub)
+    // ==================================================================
 
     // ------------------------------------------------------------------
     // REPORTES
@@ -112,8 +137,8 @@ service cloud.firestore {
       //  - marcar como "visto" el aviso de cambios del admin
       //    (cambioSinVer: true -> false), sin tocar ningún otro campo;
       //  - actualizar "estadoHallazgo" (seguimiento propio de si el hallazgo
-      //    físico ya se corrigió en planta: abierto/en_proceso/corregido),
-      //    un campo aparte de la validación de datos que hace el admin.
+      //    físico ya se corrigió en planta), un campo aparte de la
+      //    validación de datos que hace el admin.
       allow update: if esAdmin() || permisoInspector('validacion') ||
         (estaAutenticado() && resource.data.inspectorUid == request.auth.uid &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cambioSinVer']) &&
@@ -203,6 +228,107 @@ service cloud.firestore {
          permisoInspector('configSeccionUbicacionPlanta')) ||
         (configId == 'planoReporte' && permisoInspector('configSeccionPlanoReporte'));
       allow delete: if false;
+    }
+
+    // ==================================================================
+    // COLECCIONES del "hub" (repo sig-fo-115: checklists SIG-FO-115,
+    // liberaciones SIG-FO-101, verificaciones de transporte). Sin cambios
+    // respecto a como estaban en el proyecto "reportes-inocuidad" original.
+    // ==================================================================
+
+    // ---- checklists (borrador de trabajo) -------------------
+    // Cualquier usuario activo puede leer la estructura vigente.
+    // Solo los roles de gestión pueden crear, editar o publicar cambios.
+    match /checklists/{checklistId} {
+      allow read: if esUsuarioActivo();
+      allow write: if esGestor();
+
+      // ---- versiones publicadas (inmutables) ----------------
+      match /versiones/{numero} {
+        allow read: if esUsuarioActivo();
+        // Una versión publicada nunca se edita ni se borra, solo se crea.
+        allow create: if esGestor();
+        allow update, delete: if false;
+      }
+    }
+
+    // ---- inspecciones (recorridos SIG-FO-115) ----------------------------
+    // Un recorrido cubre TODAS las áreas de un turno en un solo documento
+    // (id determinístico fecha_turno_uid, ver idRecorrido() en firestore.js).
+    match /inspecciones/{recorridoId} {
+      // El inspector solo ve los suyos; admin y coordinador ven todos.
+      allow get: if autenticado()
+        && (esGestor() || resource.data.inspectorUid == request.auth.uid);
+
+      // Firestore evalúa "list" contra el resultado potencial de la consulta:
+      // si el inspector no incluye where("inspectorUid","==", su uid) en la
+      // consulta, la petición completa se rechaza (no se filtra parcialmente).
+      allow list: if esGestor()
+        || (esUsuarioActivo() && resource.data.inspectorUid == request.auth.uid);
+
+      // Todo usuario activo (incluidos admin y coordinador, que también
+      // inspeccionan) solo puede crear recorridos a su propio nombre, ya
+      // sea un borrador en curso o uno ya finalizado (si nunca usó "Guardar").
+      allow create: if esUsuarioActivo()
+        && request.resource.data.inspectorUid == request.auth.uid
+        && request.resource.data.estado in ['borrador', 'enviada'];
+
+      // Un borrador solo lo sigue editando su propio autor, y solo mientras
+      // SIGA siendo borrador: puede pasar a "enviada" (finalizarlo), nunca
+      // al revés. En cuanto queda "enviada" se vuelve inmutable para
+      // actualizar, preservando la integridad del registro histórico.
+      allow update: if esUsuarioActivo()
+        && resource.data.inspectorUid == request.auth.uid
+        && resource.data.estado == 'borrador'
+        && request.resource.data.inspectorUid == request.auth.uid
+        && request.resource.data.estado in ['borrador', 'enviada'];
+
+      // Un inspector solo descarta su propio borrador (nunca uno ya enviado).
+      // Un gestor puede eliminar cualquier recorrido, para depurar registros.
+      allow delete: if esUsuarioActivo()
+        && (
+          esGestor()
+          || (resource.data.inspectorUid == request.auth.uid && resource.data.estado == 'borrador')
+        );
+    }
+
+    // ---- liberaciones (SIG-FO-101) -----------------------------
+    match /liberaciones/{liberacionId} {
+      allow read: if esUsuarioActivo();
+
+      allow create: if esUsuarioActivo()
+        && request.resource.data.inspectorUid == request.auth.uid;
+
+      // El autor corrige su propio registro; un gestor corrige cualquiera.
+      // Ninguno de los dos puede cambiar de dueño el registro ni alterar
+      // su timestamp original de creación.
+      allow update: if esUsuarioActivo()
+        && (resource.data.inspectorUid == request.auth.uid || esGestor())
+        && request.resource.data.inspectorUid == resource.data.inspectorUid
+        && request.resource.data.timestamp == resource.data.timestamp;
+
+      allow delete: if esGestor();
+    }
+
+    // ---- sigfo101Config (catálogo de máquinas + preguntas SI/NO) ------
+    match /sigfo101Config/{docId} {
+      allow read: if esUsuarioActivo();
+      allow write: if esGestor();
+    }
+
+    // ---- verificaciones_transporte (Verificación de Transporte) ------
+    match /verificaciones_transporte/{verificacionId} {
+      allow read: if esUsuarioActivo();
+
+      allow create: if esUsuarioActivo()
+        && request.resource.data.inspectorUid == request.auth.uid;
+
+      allow update: if esUsuarioActivo()
+        && (resource.data.inspectorUid == request.auth.uid || esGestor())
+        && request.resource.data.inspectorUid == resource.data.inspectorUid
+        && request.resource.data.fechaCreacion == resource.data.fechaCreacion;
+
+      allow delete: if esGestor();
     }
   }
 }

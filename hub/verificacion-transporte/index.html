@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <base href="/hub/verificacion-transporte/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Verificación de Transporte · COGUSA</title>
+  <link rel="stylesheet" href="/hub/css/styles.css" />
+</head>
+<body class="pantalla-recorrido">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="../index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">TRP</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Verificación de Transporte</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <nav class="nav-superior" aria-label="Secciones">
+        <a href="../index.html" class="nav-superior__item">
+          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Inicio
+        </a>
+        <a href="../sig-fo-115/inspecciones.html" class="nav-superior__item">
+          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>PPRs
+        </a>
+        <a href="../sig-fo-101/historial.html" class="nav-superior__item">
+          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Liberación
+        </a>
+        <a href="historial.html" class="nav-superior__item activo">
+          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Transporte
+        </a>
+        <a href="../configuraciones.html" class="nav-superior__item" id="link-admin-superior">
+          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.07 14H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.63c.6-.26 1.02-.85 1.04-1.51V3a2 2 0 0 1 4 0v.09c.02.66.44 1.25 1.04 1.51.66.28 1.42.14 1.93-.37l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.5.5-.65 1.27-.37 1.93.26.6.85 1.02 1.51 1.04H21a2 2 0 0 1 0 4h-.09c-.66.02-1.25.44-1.51 1.04Z"/></svg>Configuraciones
+        </a>
+      </nav>
+      <div class="app-header__acciones">
+        <div class="perfil-menu" id="perfil-menu">
+          <button type="button" class="avatar avatar--claro avatar--sm perfil-menu__disparador" id="avatar-usuario">—</button>
+          <div class="perfil-menu__panel oculto" id="perfil-menu-panel">
+            <div class="perfil-menu__nombre" id="perfil-menu-nombre">—</div>
+            <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <section class="tarjeta oculto" id="zona-cargando"></section>
+
+      <form id="form-transporte" style="max-width: 760px; margin: 0 auto;">
+
+        <!-- Datos Generales de la Unidad -->
+        <section class="tarjeta">
+          <h2 class="tarjeta__titulo">Datos de la Unidad y Piloto</h2>
+          <div class="filtros" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+            <div class="campo">
+              <label for="campo-transporte">Empresa / Transporte *</label>
+              <input type="text" id="campo-transporte" required placeholder="Ej. Transportes Galindo" />
+            </div>
+
+            <div class="campo">
+              <label for="campo-piloto">Nombre del Piloto *</label>
+              <input type="text" id="campo-piloto" required placeholder="Ej. Juan Pérez" />
+            </div>
+
+            <div class="campo">
+              <label for="campo-tc">Tarjeta de Circulación (TC) *</label>
+              <input type="text" id="campo-tc" required placeholder="Ej. TC-987654" />
+            </div>
+
+            <div class="campo">
+              <label for="campo-placa">Placa de Camión *</label>
+              <input type="text" id="campo-placa" required placeholder="Ej. C-123XYZ" />
+            </div>
+
+            <div class="campo">
+              <label for="campo-fecha">Fecha de Verificación</label>
+              <input type="date" id="campo-fecha" required />
+            </div>
+          </div>
+        </section>
+
+        <!-- Preguntas de Verificación (Sí / No) -->
+        <section class="tarjeta mb-4">
+          <h2 class="tarjeta__titulo">Lista de Verificación de Unidad</h2>
+          <p class="texto-suave texto-sm mb-3">Evalúa cada uno de los aspectos de la unidad con **Sí** (Cumple) o **No** (Incumple).</p>
+
+          <div id="contenedor-preguntas-transporte" class="editor-lista"></div>
+        </section>
+
+        <!-- Observaciones -->
+        <section class="tarjeta mb-5">
+          <h2 class="tarjeta__titulo">Observaciones Generales</h2>
+          <div class="campo mb-0">
+            <textarea id="campo-observaciones-generales" placeholder="Notas u observaciones adicionales del transporte (opcional)"></textarea>
+          </div>
+        </section>
+
+        <!-- Acciones -->
+        <div class="flex-fin gap-2 mb-6">
+          <a href="historial.html" class="btn btn-secundario btn-ancho-auto">Cancelar</a>
+          <button type="submit" id="btn-guardar-transporte" class="btn btn-dorado btn-ancho-auto">
+            Guardar Verificación
+          </button>
+        </div>
+
+      </form>
+    </main>
+
+    <nav class="nav-inferior">
+      <a href="../index.html" class="nav-inferior__item">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Inicio
+      </a>
+      <a href="../sig-fo-115/inspecciones.html" class="nav-inferior__item">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+        PPRs
+      </a>
+      <a href="../sig-fo-101/historial.html" class="nav-inferior__item">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Liberación
+      </a>
+      <a href="historial.html" class="nav-inferior__item activo">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        Transporte
+      </a>
+    </nav>
+  </div>
+
+  <script type="module" src="/hub/js/transporte.js"></script>
+</body>
+</html>

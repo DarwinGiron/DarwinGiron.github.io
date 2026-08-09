@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <base href="/hub/sig-fo-115/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Panel Administrador · SIG-FO-115</title>
+  <link rel="stylesheet" href="/hub/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="../index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">PPR</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Administración SIG-FO-115</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <nav class="nav-superior" aria-label="Secciones">
+        <a href="../index.html" class="nav-superior__item"><svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Inicio</a>
+        <a href="inspecciones.html" class="nav-superior__item"><svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>Inspecciones</a>
+        <a href="../sig-fo-101/historial.html" class="nav-superior__item"><svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Liberación</a>
+        <a href="../configuraciones.html" class="nav-superior__item activo" id="link-admin-superior" aria-current="page"><svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.07 14H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.63c.6-.26 1.02-.85 1.04-1.51V3a2 2 0 0 1 4 0v.09c.02.66.44 1.25 1.04 1.51.66.28 1.42.14 1.93-.37l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.5.5-.65 1.27-.37 1.93.26.6.85 1.02 1.51 1.04H21a2 2 0 0 1 0 4h-.09c-.66.02-1.25.44-1.51 1.04Z"/></svg>Configuraciones</a>
+      </nav>
+      <div class="app-header__acciones">
+        <span class="avatar avatar--claro avatar--sm" id="avatar-usuario" aria-hidden="true">—</span>
+        <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <a href="../configuraciones.html" class="btn btn-secundario btn-sm btn-ancho-auto mb-2">
+        ← Volver a Configuraciones
+      </a>
+
+      <div id="zona-semilla" class="oculto"></div>
+
+      <div class="tabs">
+        <button type="button" class="tabs__item activo" data-tab="estructura">Estructura</button>
+        <button type="button" class="tabs__item" data-tab="areas">Áreas</button>
+        <button type="button" class="tabs__item" data-tab="criterios">Criterios</button>
+        <button type="button" class="tabs__item" data-tab="usuarios">Usuarios</button>
+        <button type="button" class="tabs__item" data-tab="publicar">Publicar</button>
+      </div>
+
+      <!-- ESTRUCTURA -->
+      <section class="pestana activa" data-pestana="estructura">
+        <div class="flex-entre mb-2">
+          <p class="texto-suave texto-sm mb-0">
+            Secciones y aspectos del checklist vigente (borrador editable).
+          </p>
+          <div class="grupo-botones">
+            <button
+              type="button"
+              id="btn-aplicabilidad-excel"
+              class="btn btn-secundario btn-sm btn-ancho-auto"
+            >
+              Aplicabilidad del Excel
+            </button>
+            <button type="button" id="btn-nueva-seccion" class="btn btn-dorado btn-sm btn-ancho-auto">
+              + Sección
+            </button>
+          </div>
+        </div>
+        <p class="campo-ayuda mb-2">
+          El botón <strong>Áreas</strong> de cada sección define en qué procesos se evalúa.
+        </p>
+        <div id="lista-secciones" class="editor-lista"></div>
+      </section>
+
+      <!-- AREAS -->
+      <section class="pestana" data-pestana="areas">
+        <div class="flex-entre mb-2">
+          <p class="texto-suave texto-sm mb-0">
+            Áreas / procesos evaluables (visibles al elegir una nueva inspección).
+          </p>
+          <button type="button" id="btn-nueva-area" class="btn btn-dorado btn-sm btn-ancho-auto">
+            + Área
+          </button>
+        </div>
+        <div id="lista-areas" class="editor-lista"></div>
+      </section>
+
+      <!-- CRITERIOS -->
+      <section class="pestana" data-pestana="criterios">
+        <div class="flex-entre mb-2">
+          <p class="texto-suave texto-sm mb-0">Escala de calificación usada en cada aspecto.</p>
+          <button type="button" id="btn-nuevo-criterio" class="btn btn-dorado btn-sm btn-ancho-auto">
+            + Criterio
+          </button>
+        </div>
+        <div id="lista-criterios" class="editor-lista"></div>
+      </section>
+
+      <!-- USUARIOS -->
+      <section class="pestana" data-pestana="usuarios">
+        <div class="flex-entre mb-2">
+          <p class="texto-suave texto-sm mb-0">
+            Usuarios con acceso a la aplicación.
+          </p>
+          <button type="button" id="btn-invitar-usuario" class="btn btn-dorado btn-sm btn-ancho-auto">
+            + Invitar
+          </button>
+        </div>
+
+        <label class="check-linea" style="margin-bottom: var(--e4);">
+          <input type="checkbox" id="chk-mostrar-inactivos" />
+          Mostrar también usuarios inactivos
+        </label>
+
+        <div id="lista-usuarios" class="editor-lista"></div>
+      </section>
+
+      <!-- PUBLICAR -->
+      <section class="pestana" data-pestana="publicar">
+        <div class="tarjeta">
+          <h2 class="tarjeta__titulo">Versión del checklist</h2>
+          <p>
+            Versión vigente: <strong id="version-vigente">—</strong><br />
+            Estado del borrador: <span id="estado-borrador" class="badge badge-neutro">—</span>
+          </p>
+          <p class="texto-suave texto-sm">
+            Al publicar, se crea una nueva versión inmutable con la estructura actual.
+          </p>
+          <button type="button" id="btn-publicar" class="btn btn-dorado">
+            Publicar nueva versión
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="nav-inferior">
+      <a href="../index.html" class="nav-inferior__item">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Inicio
+      </a>
+      <a href="inspecciones.html" class="nav-inferior__item">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+        PPRs
+      </a>
+      <a href="../configuraciones.html" class="nav-inferior__item activo" id="link-admin">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.07 14H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.63c.6-.26 1.02-.85 1.04-1.51V3a2 2 0 0 1 4 0v.09c.02.66.44 1.25 1.04 1.51.66.28 1.42.14 1.93-.37l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.5.5-.65 1.27-.37 1.93.26.6.85 1.02 1.51 1.04H21a2 2 0 0 1 0 4h-.09c-.66.02-1.25.44-1.51 1.04Z"/></svg>
+        Config
+      </a>
+    </nav>
+  </div>
+
+  <div id="modal-fondo" class="modal-fondo oculto">
+    <div class="modal-caja">
+      <div class="modal-caja__cabecera">
+        <h3 id="modal-titulo" style="margin:0;">Editar</h3>
+        <button type="button" id="btn-cerrar-modal" class="btn btn-icono btn-secundario">✕</button>
+      </div>
+      <form id="form-modal"></form>
+    </div>
+  </div>
+
+  <script type="module" src="/hub/js/admin.js"></script>
+</body>
+</html>

@@ -35,7 +35,7 @@
  * renombrado), se agrega como opción adicional marcada "(histórico)" para no
  * perder el valor guardado en un reporte existente.
  */
-async function poblarSelectProcesos(selectEl, procesoActual) {
+async function poblarSelectProcesos(selectEl, procesoActual, etiquetaExtra = "(histórico)") {
   const snap = await colProcesos.get();
   const procesos = snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
@@ -51,13 +51,22 @@ async function poblarSelectProcesos(selectEl, procesoActual) {
     selectEl.appendChild(opt);
   });
 
-  if (procesoActual && !procesos.some((p) => p.nombre === procesoActual)) {
-    const opt = document.createElement("option");
-    opt.value = procesoActual;
-    opt.textContent = procesoActual + " (histórico)";
-    selectEl.appendChild(opt);
+  if (procesoActual) {
+    // Comparación insensible a mayúsculas/acentos: sistemas externos (ej.
+    // SIG-FO-115) pueden no coincidir exactamente en el formato del nombre
+    // (ej. "Corrugación" vs "CORRUGACIÓN" en este catálogo) — sin esto se
+    // crearía una opción duplicada en vez de enlazar al proceso real.
+    const coincidencia = procesos.find((p) => normalizarClave(p.nombre) === normalizarClave(procesoActual));
+    if (coincidencia) {
+      selectEl.value = coincidencia.nombre;
+    } else {
+      const opt = document.createElement("option");
+      opt.value = procesoActual;
+      opt.textContent = procesoActual + " " + etiquetaExtra;
+      selectEl.appendChild(opt);
+      selectEl.value = procesoActual;
+    }
   }
-  if (procesoActual) selectEl.value = procesoActual;
 }
 
 /**
@@ -65,7 +74,7 @@ async function poblarSelectProcesos(selectEl, procesoActual) {
  * al antiguo "punto de norma"; misma lógica de opción histórica que
  * poblarSelectProcesos para no perder el valor de reportes ya guardados.
  */
-async function poblarSelectCategorias(selectEl, categoriaActual) {
+async function poblarSelectCategorias(selectEl, categoriaActual, etiquetaExtra = "(histórico)") {
   const snap = await colCategorias.get();
   const categorias = snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
@@ -81,13 +90,24 @@ async function poblarSelectCategorias(selectEl, categoriaActual) {
     selectEl.appendChild(opt);
   });
 
-  if (categoriaActual && !categorias.some((c) => c.nombre === categoriaActual)) {
-    const opt = document.createElement("option");
-    opt.value = categoriaActual;
-    opt.textContent = categoriaActual + " (histórico)";
-    selectEl.appendChild(opt);
+  if (categoriaActual) {
+    // Igual que en poblarSelectProcesos: comparación insensible a
+    // mayúsculas/acentos, porque la "categoría" puede venir de un sistema
+    // externo (ej. el título de sección de SIG-FO-115) que no escribe el
+    // nombre exactamente como está en este catálogo. Si coincide se enlaza
+    // a la categoría real; si no, se agrega como opción suelta para no
+    // perder el dato (el inspector puede cambiarla).
+    const coincidencia = categorias.find((c) => normalizarClave(c.nombre) === normalizarClave(categoriaActual));
+    if (coincidencia) {
+      selectEl.value = coincidencia.nombre;
+    } else {
+      const opt = document.createElement("option");
+      opt.value = categoriaActual;
+      opt.textContent = categoriaActual + " " + etiquetaExtra;
+      selectEl.appendChild(opt);
+      selectEl.value = categoriaActual;
+    }
   }
-  if (categoriaActual) selectEl.value = categoriaActual;
 }
 
 // ---------------------------------------------------------------------------

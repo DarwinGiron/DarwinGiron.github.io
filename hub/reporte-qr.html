@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base href="/hub/" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reporte de Producción</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root {
+    --navy: #1a3b5d;
+    --navy-dark: #12293f;
+    --blue: #2563eb;
+    --blue-light: #eaf1fd;
+    --bg: #f4f6f9;
+    --card: #ffffff;
+    --border: #e1e6ec;
+    --text: #1f2a37;
+    --text-muted: #64748b;
+    --success: #15803d;
+    --success-bg: #e8f6ec;
+    --danger: #b91c1c;
+    --danger-bg: #fdecec;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: linear-gradient(135deg, var(--navy-dark), var(--navy));
+    color: #fff;
+    padding: 22px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  header p { margin: 2px 0 0; font-size: 13px; color: #c9d6e4; }
+  .badge {
+    font-size: 12px;
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.25);
+    padding: 5px 12px;
+    border-radius: 999px;
+  }
+  main {
+    max-width: 900px;
+    margin: 28px auto;
+    padding: 0 20px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    box-shadow: 0 1px 3px rgba(16,24,40,.05);
+  }
+  .card h2 {
+    margin: 0 0 16px;
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--navy);
+  }
+  .banner {
+    display: none;
+    background: #fff7e6;
+    border: 1px solid #f5c26b;
+    color: #8a5a00;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 18px;
+  }
+  .scan-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  button {
+    cursor: pointer;
+    font-family: inherit;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 18px;
+    transition: filter .15s;
+  }
+  button:hover { filter: brightness(1.06); }
+  button:active { filter: brightness(.95); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-secondary { background: var(--blue-light); color: var(--blue); }
+  .btn-danger { background: var(--danger-bg); color: var(--danger); }
+  #qr-reader-wrap { display: none; margin-bottom: 18px; }
+  #qr-reader { width: 100%; max-width: 420px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .qr-hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+  .field input, .field textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+    background: #fbfcfe;
+  }
+  .field input:focus, .field textarea:focus { outline: 2px solid var(--blue); outline-offset: 1px; background: #fff; }
+
+  .toast {
+    display: none;
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+  }
+  .toast.ok { display: block; background: var(--success-bg); color: var(--success); }
+  .toast.err { display: block; background: var(--danger-bg); color: var(--danger); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border);
+    padding: 8px 10px;
+  }
+  tbody td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody tr:hover { background: #fafbfd; }
+  .empty-row td { text-align: center; color: var(--text-muted); padding: 24px; }
+  .icon-btn {
+    background: transparent;
+    color: var(--danger);
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  .count-pill {
+    font-size: 12px;
+    background: var(--blue-light);
+    color: var(--blue);
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+  .card-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .card-header-row h2 { margin: 0; }
+
+  @media (max-width: 560px) {
+    .field-grid { grid-template-columns: 1fr; }
+    header { padding: 18px 20px; flex-direction: column; align-items: flex-start; gap: 6px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Reporte de Producción</h1>
+    <p>Registro de órdenes escaneadas por código QR</p>
+  </div>
+  <span class="badge" id="conn-badge">● Conectando…</span>
+</header>
+
+<main>
+
+  <div class="card">
+    <div id="config-banner" class="banner">
+      ⚠ Firestore no está configurado todavía. Edita el objeto <code>firebaseConfig</code> en el código de esta página
+      con los datos de tu proyecto Firebase (Consola de Firebase → Configuración del proyecto → Tus apps → SDK).
+      Mientras tanto puedes escanear y llenar el formulario, pero no se guardará nada.
+    </div>
+
+    <h2>Nuevo reporte</h2>
+
+    <div class="scan-row">
+      <button class="btn-primary" id="btn-scan">📷 Escanear código QR</button>
+      <button class="btn-secondary" id="btn-stop-scan" style="display:none;">Cancelar escaneo</button>
+    </div>
+
+    <div id="qr-reader-wrap">
+      <div id="qr-reader"></div>
+      <div class="qr-hint">Apunta la cámara al código QR de la orden. Se rellenarán los campos automáticamente.</div>
+    </div>
+
+    <div id="form-toast" class="toast"></div>
+
+    <div class="field-grid">
+      <div class="field">
+        <label for="in-orden">Orden de producción</label>
+        <input type="text" id="in-orden" placeholder="Ej. OP-00123">
+      </div>
+      <div class="field">
+        <label for="in-cliente">Nombre del cliente</label>
+        <input type="text" id="in-cliente" placeholder="Ej. Industrias Acme">
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btn-save">Guardar reporte</button>
+  </div>
+
+  <div class="card">
+    <div class="card-header-row">
+      <h2 style="margin:0;">Reportes registrados</h2>
+      <span class="count-pill" id="count-pill">0</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha / hora</th>
+          <th>Orden</th>
+          <th>Cliente</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="table-body">
+        <tr class="empty-row"><td colspan="4">Sin reportes todavía</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<script type="module">
+  import {
+    initializeApp
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, deleteDoc, doc,
+    onSnapshot, query, orderBy, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  // ---------------------------------------------------------------
+  // 1) Pega aquí la configuración de tu proyecto Firebase.
+  //    La encuentras en: Consola de Firebase > (ícono engranaje)
+  //    Configuración del proyecto > Tus apps > SDK setup and configuration.
+  //    También asegúrate de haber creado una base de datos Firestore
+  //    (Firestore Database > Crear base de datos) y de que las reglas
+  //    permitan lectura/escritura desde donde vas a usar esta página.
+  // ---------------------------------------------------------------
+  const firebaseConfig = {
+    apiKey: "TU_API_KEY",
+    authDomain: "TU_PROYECTO.firebaseapp.com",
+    projectId: "TU_PROYECTO",
+    storageBucket: "TU_PROYECTO.appspot.com",
+    messagingSenderId: "000000000000",
+    appId: "TU_APP_ID"
+  };
+
+  const COLLECTION_NAME = "reportes_produccion";
+  const isConfigured = firebaseConfig.apiKey !== "TU_API_KEY";
+
+  const connBadge = document.getElementById("conn-badge");
+  const configBanner = document.getElementById("config-banner");
+  const btnSave = document.getElementById("btn-save");
+
+  let db = null;
+
+  if (isConfigured) {
+    try {
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      connBadge.textContent = "● Conectado a Firestore";
+      listenToReports();
+    } catch (err) {
+      connBadge.textContent = "● Error de conexión";
+      configBanner.style.display = "block";
+      configBanner.textContent = "⚠ No se pudo conectar a Firebase: " + err.message;
+      btnSave.disabled = true;
+    }
+  } else {
+    connBadge.textContent = "● Sin configurar";
+    configBanner.style.display = "block";
+    btnSave.disabled = true;
+  }
+
+  function listenToReports() {
+    const q = query(collection(db, COLLECTION_NAME), orderBy("fecha", "desc"));
+    onSnapshot(q, (snapshot) => {
+      const tbody = document.getElementById("table-body");
+      const countPill = document.getElementById("count-pill");
+      countPill.textContent = snapshot.size;
+
+      if (snapshot.empty) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Sin reportes todavía</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = "";
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const fechaTexto = data.fecha && data.fecha.toDate
+          ? data.fecha.toDate().toLocaleString("es-GT")
+          : "—";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${fechaTexto}</td>
+          <td>${escapeHtml(data.orden || "")}</td>
+          <td>${escapeHtml(data.cliente || "")}</td>
+          <td><button class="icon-btn" data-id="${docSnap.id}">Eliminar</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      tbody.querySelectorAll(".icon-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("¿Eliminar este reporte?")) return;
+          await deleteDoc(doc(db, COLLECTION_NAME, btn.dataset.id));
+        });
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ---------------------------------------------------------------
+  // Escaneo de QR
+  // ---------------------------------------------------------------
+  const btnScan = document.getElementById("btn-scan");
+  const btnStopScan = document.getElementById("btn-stop-scan");
+  const readerWrap = document.getElementById("qr-reader-wrap");
+  const inOrden = document.getElementById("in-orden");
+  const inCliente = document.getElementById("in-cliente");
+  const formToast = document.getElementById("form-toast");
+
+  let html5QrCode = null;
+
+  btnScan.addEventListener("click", async () => {
+    readerWrap.style.display = "block";
+    btnScan.style.display = "none";
+    btnStopScan.style.display = "inline-block";
+    hideToast();
+
+    html5QrCode = new Html5Qrcode("qr-reader");
+    try {
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
+        onScanSuccess,
+        () => {} // ignorar errores de frames sin QR
+      );
+    } catch (err) {
+      showToast("No se pudo acceder a la cámara: " + err.message, "err");
+      stopScanning();
+    }
+  });
+
+  btnStopScan.addEventListener("click", stopScanning);
+
+  async function stopScanning() {
+    if (html5QrCode) {
+      try {
+        await html5QrCode.stop();
+        html5QrCode.clear();
+      } catch (e) { /* ya estaba detenido */ }
+      html5QrCode = null;
+    }
+    readerWrap.style.display = "none";
+    btnScan.style.display = "inline-block";
+    btnStopScan.style.display = "none";
+  }
+
+  async function onScanSuccess(decodedText) {
+    const { orden, cliente } = parseQRData(decodedText);
+    inOrden.value = orden || "";
+    inCliente.value = cliente || "";
+    showToast(
+      cliente ? "QR leído correctamente. Verifica los datos." : "QR leído. Completa el nombre del cliente manualmente.",
+      "ok"
+    );
+    await stopScanning();
+  }
+
+  // Ajusta esta función según el formato real que produce el lector de QR
+  // que usa la empresa (JSON, texto con etiquetas, o líneas separadas).
+  function parseQRData(text) {
+    text = (text || "").trim();
+
+    // Caso 1: el QR trae un JSON, ej. {"orden":"OP-123","cliente":"Acme"}
+    try {
+      const obj = JSON.parse(text);
+      const orden = obj.orden || obj.order || obj.numeroOrden || "";
+      const cliente = obj.cliente || obj.client || obj.nombreCliente || "";
+      if (orden || cliente) return { orden, cliente };
+    } catch (e) { /* no es JSON, seguimos */ }
+
+    // Caso 2: texto con etiquetas, ej. "Orden: OP-123 / Cliente: Acme"
+    const ordenMatch = text.match(/orden[:\-\s]+([^\n;|,/]+)/i);
+    const clienteMatch = text.match(/cliente[:\-\s]+([^\n;|,/]+)/i);
+    if (ordenMatch || clienteMatch) {
+      return {
+        orden: ordenMatch ? ordenMatch[1].trim() : "",
+        cliente: clienteMatch ? clienteMatch[1].trim() : ""
+      };
+    }
+
+    // Caso 3: dos líneas, la primera orden y la segunda cliente
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length >= 2) {
+      return { orden: lines[0], cliente: lines[1] };
+    }
+
+    // Fallback: todo el texto va al campo de orden
+    return { orden: text, cliente: "" };
+  }
+
+  // ---------------------------------------------------------------
+  // Guardar reporte
+  // ---------------------------------------------------------------
+  document.getElementById("btn-save").addEventListener("click", async () => {
+    const orden = inOrden.value.trim();
+    const cliente = inCliente.value.trim();
+
+    if (!orden || !cliente) {
+      showToast("Completa la orden y el nombre del cliente antes de guardar.", "err");
+      return;
+    }
+    if (!db) {
+      showToast("Firestore no está configurado todavía.", "err");
+      return;
+    }
+
+    btnSave.disabled = true;
+    try {
+      await addDoc(collection(db, COLLECTION_NAME), {
+        orden,
+        cliente,
+        fecha: serverTimestamp()
+      });
+      inOrden.value = "";
+      inCliente.value = "";
+      showToast("Reporte guardado correctamente.", "ok");
+    } catch (err) {
+      showToast("Error al guardar: " + err.message, "err");
+    } finally {
+      btnSave.disabled = false;
+    }
+  });
+
+  function showToast(msg, type) {
+    formToast.textContent = msg;
+    formToast.className = "toast " + type;
+  }
+  function hideToast() {
+    formToast.className = "toast";
+    formToast.textContent = "";
+  }
+</script>
+
+</body>
+</html>

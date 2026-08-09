@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Base fija (no calculada en tiempo de ejecución): el servidor local a
+       veces sirve esta carpeta sin barra final o recorta la extensión .html
+       de la URL, y eso rompe la resolución de enlaces/rutas relativas
+       (incluidos los que arma hub.js por JS, ej. tarjeta.dataset.formatNew).
+       Al fijar la base aquí, siempre se resuelve bien sin importar cómo la
+       URL haya quedado en la barra de direcciones. -->
+  <base href="/hub/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Inicio · COGUSA</title>
+  <!-- Ruta absoluta: el servidor local ("serve") redirige /hub/archivo.html a
+       /hub/archivo sin extensión, lo que rompe las rutas relativas de CSS/JS
+       según en qué URL haya quedado la página. Con ruta absoluta desde la
+       raíz del sitio esto no importa. -->
+  <link rel="stylesheet" href="/hub/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">PPR</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Inicio</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <div class="app-header__acciones">
+        <div class="perfil-menu" id="perfil-menu">
+          <button
+            type="button"
+            class="avatar avatar--claro avatar--sm perfil-menu__disparador"
+            id="avatar-usuario"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >—</button>
+          <div class="perfil-menu__panel oculto" id="perfil-menu-panel">
+            <div class="perfil-menu__nombre" id="perfil-menu-nombre">—</div>
+            <a href="configuraciones.html" class="btn btn-texto btn-sm" id="link-admin-superior">Configuraciones</a>
+            <hr class="perfil-menu__separador" />
+            <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <div class="mb-4">
+        <h1 style="font-size: var(--txt-2xl); font-weight: 800; color: var(--marino-900); margin-bottom: var(--e1);">
+          Formatos de Inspección y Registro
+        </h1>
+        <p class="texto-suave texto-sm mb-0">
+          Selecciona un formato para iniciar un nuevo registro o consultar sus datos e inspecciones previas.
+        </p>
+      </div>
+
+      <div class="editor-lista" style="gap: var(--e4);">
+
+        <!-- Tarjeta SIG-FO-115 -->
+        <article
+          class="tarjeta tarjeta-hover"
+          data-formato-tarjeta
+          data-format-id="sig-fo-115"
+          data-format-name="SIG-FO-115 · Cumplimiento de PPRs"
+          data-format-new="sig-fo-115/index.html"
+          data-format-history="sig-fo-115/inspecciones.html"
+          style="cursor: pointer; display: flex; align-items: center; gap: var(--e4);"
+        >
+          <span class="avatar" aria-hidden="true" style="background:var(--marino-700); color:#fff; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;">
+            <svg class="icono" style="width: 24px; height: 24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+          </span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 800; font-size: var(--txt-lg); color: var(--marino-900);">SIG-FO-115 · Lista de PPRs</div>
+            <div class="texto-suave texto-sm">Lista de verificación de cumplimiento de prerrequisitos por proceso y área.</div>
+          </div>
+          <span aria-hidden="true" style="font-size:20px; color: var(--tinta-3); flex:none;">→</span>
+        </article>
+
+        <!-- Tarjeta SIG-FO-101 -->
+        <article
+          class="tarjeta tarjeta-hover"
+          data-formato-tarjeta
+          data-format-id="sig-fo-101"
+          data-format-name="SIG-FO-101 · Liberación de Imprentas"
+          data-format-new="sig-fo-101/index.html"
+          data-format-history="sig-fo-101/historial.html"
+          style="cursor: pointer; display: flex; align-items: center; gap: var(--e4);"
+        >
+          <span class="avatar" aria-hidden="true" style="background:var(--dorado-600); color:#241a05; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;">
+            <svg class="icono" style="width: 24px; height: 24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          </span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 800; font-size: var(--txt-lg); color: var(--marino-900);">SIG-FO-101 · Liberación de Imprentas</div>
+            <div class="texto-suave texto-sm">Liberación de máquinas e inspección de inicio de trabajo de imprenta.</div>
+          </div>
+          <span aria-hidden="true" style="font-size:20px; color: var(--tinta-3); flex:none;">→</span>
+        </article>
+
+        <!-- Tarjeta Verificación de Transporte -->
+        <article
+          class="tarjeta tarjeta-hover"
+          data-formato-tarjeta
+          data-format-id="transporte"
+          data-format-name="Verificación de Transporte"
+          data-format-new="verificacion-transporte/index.html"
+          data-format-history="verificacion-transporte/historial.html"
+          style="cursor: pointer; display: flex; align-items: center; gap: var(--e4);"
+        >
+          <span class="avatar" aria-hidden="true" style="background:var(--estado-bien-ink); color:#fff; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;">
+            <svg class="icono" style="width: 24px; height: 24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          </span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 800; font-size: var(--txt-lg); color: var(--marino-900);">Verificación de Transporte</div>
+            <div class="texto-suave texto-sm">Control e inspección de unidades de transporte, piloto, TC, placa y estado.</div>
+          </div>
+          <span aria-hidden="true" style="font-size:20px; color: var(--tinta-3); flex:none;">→</span>
+        </article>
+
+      </div>
+
+      <!--
+        Gestión SGI: acceso al OTRO sistema del sitio (la app de Reportes, en
+        la raíz), donde se validan y siguen los hallazgos. Arranca oculto y
+        solo se muestra a los roles de gestión (ver hub.js) — el inspector
+        levanta reportes desde el botón dentro del checklist, no desde aquí.
+        Son enlaces normales (no las tarjetas con modal de arriba) porque
+        salen de esta app a otra, y con ruta absoluta para que no dependan de
+        cómo el servidor deje la URL.
+      -->
+      <section id="seccion-gestion-sgi" class="oculto" style="margin-top: var(--e6, 24px);">
+        <div class="mb-4">
+          <h2 style="font-size: var(--txt-lg); font-weight: 800; color: var(--marino-900); margin-bottom: var(--e1);">
+            Gestión SGI
+          </h2>
+          <p class="texto-suave texto-sm mb-0">
+            Seguimiento de los hallazgos reportados por los inspectores.
+          </p>
+        </div>
+
+        <div class="editor-lista" style="gap: var(--e4);">
+          <a
+            href="/admin/validacion.html"
+            class="tarjeta tarjeta-hover"
+            style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: var(--e4);"
+          >
+            <span class="avatar" aria-hidden="true" style="background:var(--estado-alerta-ink); color:#fff; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;">
+              <svg class="icono" style="width: 24px; height: 24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 4v5c0 4.4-3 8.4-7 9-4-.6-7-4.6-7-9V7l7-4Z"/></svg>
+            </span>
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-weight: 800; font-size: var(--txt-lg); color: var(--marino-900);">Validación de reportes</div>
+              <div class="texto-suave texto-sm">Revisar, corregir y clasificar los hallazgos pendientes de validar.</div>
+            </div>
+            <span aria-hidden="true" style="font-size:20px; color: var(--tinta-3); flex:none;">→</span>
+          </a>
+
+          <a
+            href="/admin/dashboard.html"
+            class="tarjeta tarjeta-hover"
+            style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: var(--e4);"
+          >
+            <span class="avatar" aria-hidden="true" style="background:var(--marino-900); color:#fff; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;">
+              <svg class="icono" style="width: 24px; height: 24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </span>
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-weight: 800; font-size: var(--txt-lg); color: var(--marino-900);">Indicadores y reportes</div>
+              <div class="texto-suave texto-sm">Tablero de indicadores, informes y catálogos del sistema de reportes.</div>
+            </div>
+            <span aria-hidden="true" style="font-size:20px; color: var(--tinta-3); flex:none;">→</span>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <nav class="nav-inferior">
+      <a href="index.html" class="nav-inferior__item activo">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Inicio
+      </a>
+      <a href="sig-fo-115/inspecciones.html" class="nav-inferior__item">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+        PPRs
+      </a>
+      <a href="sig-fo-101/historial.html" class="nav-inferior__item">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Liberaciones
+      </a>
+      <a href="verificacion-transporte/historial.html" class="nav-inferior__item">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        Transporte
+      </a>
+    </nav>
+  </div>
+
+  <!-- Modal Unificado de Acción por Formato -->
+  <div id="modal-accion-formato" class="modal-fondo oculto">
+    <div class="modal-caja" style="max-width: 500px;">
+      <div class="modal-caja__cabecera">
+        <h3 id="modal-formato-titulo" style="margin:0;">Opciones del Formato</h3>
+        <button type="button" id="btn-cerrar-modal-accion" class="btn btn-icono btn-secundario">✕</button>
+      </div>
+
+      <p class="texto-suave texto-sm mb-3">Elige la acción que deseas realizar:</p>
+
+      <div class="grupo-botones mb-4" style="flex-direction: column; gap: var(--e2);">
+        <a id="btn-modal-nuevo" href="#" class="btn btn-dorado" style="text-align: center; justify-content: center;">
+          + Nuevo Registro
+        </a>
+        <a id="btn-modal-historial-completo" href="#" class="btn btn-secundario" style="text-align: center; justify-content: center;">
+          Ver Inspecciones Previas (Historial Completo)
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/hub/js/hub.js"></script>
+</body>
+</html>
