@@ -8,6 +8,7 @@
 //   checklists/{checklistId}                 (borrador de trabajo del admin)
 //   checklists/{checklistId}/versiones/{n}    (snapshots publicados e inmutables)
 //   inspecciones/{fecha_turno_uid}             (un recorrido completo por turno)
+//   auditoriasBpm/{aaaa-mm}                    (auditoría de BPM, SIG-FO-116)
 // =========================================================
 
 import {
@@ -266,6 +267,50 @@ export async function listarRecorridos(filtros = {}) {
     limitarA(filtros.max || 200)
   );
 
+  const snap = await getDocs(consulta);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/* ---------------------------------------------------------
+   Auditoría de BPM (SIG-FO-116)
+   A diferencia de "inspecciones" (que cubre TODAS las áreas de un
+   turno), aquí un documento cubre TODA la auditoría de un mes — la
+   lista de preguntas es fija (no versionada como el checklist de
+   SIG-FO-115), así que no hace falta esa capa. El id del documento es
+   determinístico ("aaaa-mm"): igual que un recorrido, retomarlo es un
+   getDoc() directo por id, sin consultas.
+   --------------------------------------------------------- */
+
+/** Obtiene la auditoría de BPM de un mes ("aaaa-mm"), o null si no existe. */
+export async function obtenerAuditoriaBpm(claveMes) {
+  const snap = await getDoc(doc(db, "auditoriasBpm", claveMes));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * Guarda (crea o actualiza) la auditoría de BPM de un mes. Se llama en
+ * cada respuesta, igual que el borrador de un recorrido: no hay un botón
+ * de "enviar" separado, es autoguardado continuo.
+ */
+export async function guardarAuditoriaBpm(claveMes, datos, uid) {
+  await setDoc(
+    doc(db, "auditoriasBpm", claveMes),
+    { ...datos, actualizadaEn: serverTimestamp(), actualizadaPor: uid },
+    { merge: true }
+  );
+}
+
+/**
+ * Lista las auditorías de BPM guardadas, más recientes primero. Como el
+ * id del documento ES la clave "aaaa-mm", ordenar por nombre de
+ * documento basta — no hace falta mantener un índice aparte.
+ */
+export async function listarAuditoriasBpm(max = 24) {
+  const consulta = query(
+    collection(db, "auditoriasBpm"),
+    orderBy("__name__", "desc"),
+    limitarA(max)
+  );
   const snap = await getDocs(consulta);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }

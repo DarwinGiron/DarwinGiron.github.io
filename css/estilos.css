@@ -3268,6 +3268,185 @@ body.tema-hub .badge-neutro {
   border: 1px solid var(--borde);
 }
 
+/* ---------------------------------------------------------
+   Diagrama interactivo del furgón (Verificación de Transporte)
+   Cada <g class="furgon-zona"> es una región clickeable; su color
+   refleja el avance de esa zona en la vista activa (Exterior/Interior)
+   vía data-estado, puesto por JS (ver actualizarDiagrama en transporte.js).
+   --------------------------------------------------------- */
+body.tema-hub .furgon-diagrama {
+  display: block;
+  width: 100%;
+  max-width: 440px;
+  height: auto;
+  margin: 0 auto;
+}
+
+body.tema-hub .furgon-zona {
+  cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 150ms ease;
+}
+body.tema-hub .furgon-zona:hover,
+body.tema-hub .furgon-zona:focus-visible {
+  transform: scale(1.02);
+  outline: none;
+}
+
+/* Caras del prisma isométrico (techo, pared derecha, marco de puertas) */
+body.tema-hub .furgon-zona polygon:not(.furgon-puertas__hoja) {
+  fill: var(--superficie-hundida);
+  stroke: var(--borde-fuerte);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  transition: fill 200ms ease, stroke 200ms ease, stroke-width 200ms ease;
+}
+body.tema-hub .furgon-zona[data-estado="parcial"] polygon:not(.furgon-puertas__hoja) {
+  fill: var(--dorado-100);
+  stroke: var(--dorado-500);
+}
+body.tema-hub .furgon-zona[data-estado="completo"] polygon:not(.furgon-puertas__hoja) {
+  fill: var(--estado-bien-suave);
+  stroke: var(--estado-bien-mark);
+}
+body.tema-hub .furgon-zona--activa polygon:not(.furgon-puertas__hoja),
+body.tema-hub .furgon-zona--activa rect {
+  stroke-width: 4;
+  filter: drop-shadow(0 0 6px var(--dorado-500));
+}
+
+/* Techo y Pared Derecha se ven algo más claras/oscuras entre sí para leer
+   la profundidad del prisma, como en una ilustración isométrica real. */
+body.tema-hub .furgon-zona[data-zona="techo"] polygon { filter: brightness(1.06); }
+body.tema-hub .furgon-zona[data-zona="derecha"] polygon { filter: brightness(0.94); }
+
+/* Puertas: el marco cambia de "cerrado" a "abierto" según data-vista en el <svg>. */
+body.tema-hub .furgon-puertas__linea,
+body.tema-hub .furgon-puertas__manija {
+  stroke: var(--tinta-3);
+  fill: var(--tinta-3);
+  stroke-width: 2;
+}
+body.tema-hub .furgon-puertas__hoja {
+  fill: var(--marino-600);
+  stroke: var(--borde-fuerte);
+  stroke-width: 1.5;
+  opacity: 0.85;
+}
+body.tema-hub .furgon-puertas__cerradas,
+body.tema-hub .furgon-puertas__abiertas {
+  transition: opacity 220ms ease;
+}
+body.tema-hub .furgon-puertas__abiertas { opacity: 0; }
+body.tema-hub #diagrama-furgon[data-vista="interna"] .furgon-puertas__cerradas { opacity: 0; }
+body.tema-hub #diagrama-furgon[data-vista="interna"] .furgon-puertas__abiertas { opacity: 1; }
+body.tema-hub #diagrama-furgon[data-vista="interna"] .furgon-puertas__marco {
+  fill: var(--marino-900);
+  fill-opacity: 0.9;
+}
+
+/* Chips secundarios (Pared Izquierda / Generales-Piso / Cabina): no forman
+   parte del prisma, van debajo como accesos rápidos con el mismo código
+   de color de avance. */
+body.tema-hub .furgon-chip rect {
+  fill: var(--superficie);
+  stroke: var(--borde-fuerte);
+  stroke-width: 1.5;
+  transition: fill 200ms ease, stroke 200ms ease;
+}
+body.tema-hub .furgon-chip[data-estado="parcial"] rect {
+  fill: var(--dorado-100);
+  stroke: var(--dorado-500);
+}
+body.tema-hub .furgon-chip[data-estado="completo"] rect {
+  fill: var(--estado-bien-suave);
+  stroke: var(--estado-bien-mark);
+}
+body.tema-hub .furgon-chip text {
+  font-size: 12.5px;
+}
+
+body.tema-hub .furgon-zona text {
+  fill: var(--tinta);
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+body.tema-hub .furgon-zona__sub {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--tinta-3);
+}
+body.tema-hub .furgon-zona__sub-oscuro {
+  font-size: 13px;
+  font-weight: 800;
+  fill: var(--tinta);
+  text-anchor: middle;
+  /* Halo blanco detrás de la letra: sigue siendo legible tanto sobre el
+     panel claro de puertas cerradas como sobre el fondo oscuro del
+     interior cuando la vista cambia a "interna". */
+  paint-order: stroke fill;
+  stroke: var(--superficie);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+body.tema-hub #diagrama-furgon[data-vista="interna"] .furgon-zona__sub-oscuro {
+  fill: #fff;
+  stroke: rgba(0, 0, 0, 0.35);
+}
+
+body.tema-hub .furgon-nota-vista {
+  text-align: center;
+  font-size: var(--txt-xs);
+  color: var(--tinta-3);
+  margin: var(--e2) 0 0;
+}
+
+body.tema-hub .furgon-leyenda {
+  display: flex;
+  gap: var(--e4);
+  flex-wrap: wrap;
+  margin-top: var(--e3);
+  font-size: var(--txt-xs);
+  color: var(--tinta-3);
+}
+body.tema-hub .furgon-leyenda span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+body.tema-hub .furgon-leyenda i {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  display: inline-block;
+  border: 1.5px solid var(--borde-fuerte);
+  background: var(--superficie-hundida);
+}
+body.tema-hub .furgon-leyenda .parcial i {
+  background: var(--dorado-100);
+  border-color: var(--dorado-500);
+}
+body.tema-hub .furgon-leyenda .completo i {
+  background: var(--estado-bien-suave);
+  border-color: var(--estado-bien-mark);
+}
+
+/* Zona resaltada al llegar por clic desde el diagrama: mismo lenguaje que
+   el resalto de un aspecto en SIG-FO-115 al volver de un reporte. */
+body.tema-hub .zona-transporte--resaltada {
+  animation: resalto-zona-transporte 2.4s ease;
+}
+@keyframes resalto-zona-transporte {
+  0% { box-shadow: 0 0 0 3px var(--dorado-500); }
+  80% { box-shadow: 0 0 0 3px var(--dorado-500); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
 
 /* ============================================================================
    SISTEMA: SIG-FO-101 (antes hub/sig-fo-101/styles.css)

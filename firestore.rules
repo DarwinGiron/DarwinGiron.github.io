@@ -292,6 +292,17 @@ service cloud.firestore {
         );
     }
 
+    // ---- auditoriasBpm (SIG-FO-116) -----------------------------
+    // Un documento por mes (id "aaaa-mm"), no por usuario: a diferencia de
+    // "inspecciones", esta es una auditoría compartida que cualquier usuario
+    // activo puede seguir llenando (autoguardado continuo, sin dueño único).
+    // Solo un gestor la elimina, igual que las demás colecciones de registro.
+    match /auditoriasBpm/{claveMes} {
+      allow read: if esUsuarioActivo();
+      allow create, update: if esUsuarioActivo();
+      allow delete: if esGestor();
+    }
+
     // ---- liberaciones (SIG-FO-101) -----------------------------
     match /liberaciones/{liberacionId} {
       allow read: if esUsuarioActivo();
