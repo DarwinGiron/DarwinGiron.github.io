@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<script src="/js/tema-horario.js"></script>
+<base href="/hub/inspeccion-furgon-3d/" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Inspección 3D de Furgón · LOG-FO-101</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js",
+    "three/addons/loaders/GLTFLoader.js": "https://unpkg.com/three@0.184.0/examples/jsm/loaders/GLTFLoader.js",
+    "three/addons/loaders/DRACOLoader.js": "https://unpkg.com/three@0.184.0/examples/jsm/loaders/DRACOLoader.js"
+  }
+}
+</script>
+<script src="./three-d-stage.js"></script>
+
+<style>
+  :root{
+    --navy:#0F2A4A;
+    --navy-light:#1B3D63;
+    --navy-soft:#EAF0F6;
+    --gold:#C6A15B;
+    --gold-dark:#A9843F;
+    --bg:#F6F4EF;
+    --surface:#FFFFFF;
+    --line:#E3E0D7;
+    --text:#1A1F26;
+    --text-soft:#5B6270;
+    --ok:#2F8F5B;
+    --ok-bg:#E4F3EA;
+    --bad:#C24444;
+    --bad-bg:#FBEAEA;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;padding:0;overflow:hidden;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    display:flex;flex-direction:column;height:100vh;
+  }
+  three-d-stage:not(:defined){visibility:hidden}
+
+  .sesion-bar{
+    flex-shrink:0;
+    background:var(--navy-light);
+    color:#fff;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:8px 18px;font-size:12.5px;
+  }
+  .sesion-bar a.volver{color:var(--gold);text-decoration:none;font-weight:700;}
+  .sesion-bar a.volver:hover{text-decoration:underline;}
+  .sesion-usuario{display:flex;align-items:center;gap:8px;}
+  .sesion-avatar{
+    width:26px;height:26px;border-radius:50%;background:var(--gold);color:var(--navy);
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;
+  }
+  .sesion-usuario button{
+    border:none;background:rgba(255,255,255,.12);color:#fff;border-radius:999px;
+    padding:4px 12px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;
+  }
+  .sesion-usuario button:hover{background:rgba(255,255,255,.2);}
+
+  .nav{
+    flex-shrink:0;display:flex;align-items:center;gap:16px;
+    padding:10px 20px;border-bottom:1px solid var(--line);background:var(--surface);
+  }
+  .nav-brand{font-size:18px;font-weight:800;color:var(--navy);}
+  .doc-code{font-size:12px;color:var(--text-soft);}
+  .nav .spacer{flex:1;}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;}
+  .seg-opt{
+    border:none;background:var(--surface);color:var(--text-soft);
+    padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
+  }
+  .seg-opt + .seg-opt{border-left:1px solid var(--line);}
+  .seg-opt.active{background:var(--navy);color:#fff;}
+  .seg-opt:disabled{opacity:.5;cursor:not-allowed;}
+
+  .header-fields{
+    flex-shrink:0;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+    padding:8px 20px;border-bottom:1px solid var(--line);background:var(--surface);
+  }
+  .field{display:flex;flex-direction:column;gap:3px;min-width:130px;}
+  .field label{font-size:11px;color:var(--text-soft);}
+  .field input{
+    border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;
+    font-family:inherit;color:var(--text);
+  }
+  .field input:disabled{background:var(--bg);color:var(--text-soft);}
+  .spacer-grow{flex:1;}
+  #fechaHoy{font-size:12px;color:var(--text-soft);}
+
+  #savedBanner{
+    display:none;flex-shrink:0;background:var(--ok-bg);color:#245c37;
+    padding:8px 20px;font-size:13px;font-weight:600;
+  }
+
+  .main-area{flex:1;display:flex;overflow:hidden;min-height:0;}
+  .stage-wrap{flex:1;position:relative;min-width:0;}
+  three-d-stage{width:100%;height:100%;display:block;}
+  #hintOverlay{
+    position:absolute;top:16px;left:16px;background:rgba(255,255,255,0.92);
+    border-radius:12px;padding:10px 14px;font-size:12.5px;color:#2e2b25;
+    box-shadow:0 3px 10px rgba(46,43,37,.16);max-width:280px;
+  }
+
+  .side-panel{
+    width:400px;flex-shrink:0;border-left:1px solid var(--line);
+    display:flex;flex-direction:column;background:var(--bg);overflow:hidden;
+  }
+  .panel-top{flex-shrink:0;padding:16px;border-bottom:1px solid var(--line);}
+  .panel-top__row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+  .panel-top__row span:first-child{font-weight:700;font-size:14px;color:var(--navy);}
+  .panel-top__row span:last-child{font-size:13px;color:var(--text-soft);}
+  .progress-track{height:8px;border-radius:999px;background:var(--line);overflow:hidden;}
+  .progress-fill{height:100%;border-radius:999px;background:var(--ok);width:0;transition:width .2s ease;}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
+    border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:inherit;
+    padding:10px 16px;
+  }
+  .btn-primary{background:var(--navy);color:#fff;width:100%;margin-top:12px;}
+  .btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+  .btn-primary:not(:disabled):hover{background:var(--navy-light);}
+  .btn-ghost{background:transparent;color:var(--gold-dark);padding:4px 8px;font-size:12px;margin-bottom:8px;}
+  .btn-ghost:hover{background:var(--navy-soft);}
+
+  #panelBody{flex:1;overflow-y:auto;padding:12px 16px;}
+  .list-heading{font-size:12px;color:var(--text-soft);margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em;}
+  .part-row{padding:10px 8px;border-radius:10px;display:flex;align-items:center;gap:10px;}
+  .part-row--list{cursor:pointer;}
+  .part-row--list:hover{background:var(--navy-soft);}
+  .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+  .part-row__label{flex:1;font-size:13.5px;}
+  .tag{display:inline-flex;align-items:center;font-size:10.5px;letter-spacing:.02em;padding:3px 10px;border-radius:999px;font-weight:700;}
+
+  .detail-head{display:flex;align-items:center;gap:8px;margin-bottom:2px;}
+  .card-title{font-size:16px;font-weight:800;color:var(--navy);}
+
+  .item-row{padding:10px 0;border-bottom:1px solid var(--line);}
+  .item-row__label{font-size:13.5px;margin-bottom:6px;}
+  .item-toggle .seg-opt{flex:1;}
+
+  .photo-wrap{margin-top:16px;}
+  .photo-wrap label{font-size:12px;color:var(--text-soft);display:block;margin-bottom:6px;}
+  .photo-slot{
+    width:100%;height:160px;border-radius:12px;overflow:hidden;cursor:pointer;
+    border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;
+    font-size:12.5px;color:var(--text-soft);background:var(--surface);
+  }
+  .photo-slot img{width:100%;height:100%;object-fit:cover;}
+  .photo-slot--empty:hover{border-color:var(--gold);color:var(--gold-dark);}
+
+  .dialog-backdrop{
+    position:fixed;inset:0;background:rgba(15,20,26,.5);display:none;
+    align-items:center;justify-content:center;padding:16px;z-index:50;
+  }
+  .dialog{
+    width:min(440px,100%);background:var(--surface);border-radius:16px;
+    padding:20px;box-shadow:0 12px 32px rgba(15,20,26,.28);
+  }
+  .dialog-title{font-size:19px;font-weight:800;color:var(--navy);margin-bottom:8px;}
+  .dialog-body{font-size:14px;color:var(--text);opacity:.9;margin-bottom:14px;}
+  .dialog-actions{display:flex;justify-content:flex-end;gap:10px;}
+  .dialog-actions .btn-ghost{margin:0;padding:8px 14px;}
+
+  @media (max-width:900px){
+    .side-panel{width:340px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="sesion-bar">
+  <a href="/hub/index.html" class="volver">← Inicio</a>
+  <div class="sesion-usuario">
+    <div class="sesion-avatar" id="avatarUsuario">—</div>
+    <span id="nombreUsuario">—</span>
+    <button type="button" id="btnSalir">Salir</button>
+  </div>
+</div>
+
+<div class="nav">
+  <div class="nav-brand">Inspección de Camión y Furgón</div>
+  <div class="doc-code">LOG-FO-101 · Rev. 02</div>
+  <div class="spacer"></div>
+  <div class="seg">
+    <button class="seg-opt active" id="btnExterior" type="button">Vista Externa</button>
+    <button class="seg-opt" id="btnInterior" type="button">Vista Interna</button>
+  </div>
+</div>
+
+<div class="header-fields">
+  <div class="field"><label>Placa</label><input id="campoPlaca" type="text"></div>
+  <div class="field"><label>Transportista</label><input id="campoTransportista" type="text"></div>
+  <div class="field"><label>Piloto</label><input id="campoPiloto" type="text"></div>
+  <div class="field"><label>Cliente</label><input id="campoCliente" type="text"></div>
+  <div class="spacer-grow"></div>
+  <div id="fechaHoy"></div>
+</div>
+
+<div id="savedBanner"></div>
+
+<div class="main-area">
+  <div class="stage-wrap">
+    <three-d-stage name="furgon" background="#f0eee6"></three-d-stage>
+    <div id="hintOverlay">Toca una parte del furgón o de la lista para inspeccionarla. Arrastra para rotar.</div>
+  </div>
+
+  <div class="side-panel">
+    <div class="panel-top">
+      <div class="panel-top__row"><span>Progreso</span><span id="progressCount">0/0</span></div>
+      <div class="progress-track"><div class="progress-fill" id="progressBar"></div></div>
+      <button class="btn btn-primary" id="btnFinalizar" type="button" disabled>Finalizar e Guardar Inspección</button>
+    </div>
+    <div id="panelBody"></div>
+  </div>
+</div>
+
+<div class="dialog-backdrop" id="dialogBackdrop">
+  <div class="dialog" id="dialogBody"></div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
