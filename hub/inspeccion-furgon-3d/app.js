@@ -17,6 +17,11 @@ import { protegerPagina, cerrarSesion, etiquetaRol } from "../js/auth.js";
 import { iniciales } from "../js/utils.js";
 import { db } from "../js/firebase-config.js";
 import { collection, doc, getDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import {
+  configurarAutocompletadoProveedor,
+  registrarProveedorSiNoExiste,
+  normalizarNombreProveedor,
+} from "../js/proveedores-transporte.js";
 
 let currentUser = null;
 let currentPerfil = null;
@@ -471,6 +476,8 @@ const els = {
   extBtn: document.getElementById('btnExterior'),
   intBtn: document.getElementById('btnInterior'),
   transporte: document.getElementById('campoTransporte'),
+  listaSugerenciasTransporte: document.getElementById('listaSugerenciasTransporte'),
+  badgeProveedor: document.getElementById('badgeProveedor'),
   piloto: document.getElementById('campoPiloto'),
   placa: document.getElementById('campoPlaca'),
   tc: document.getElementById('campoTc'),
@@ -862,12 +869,19 @@ async function confirmSave() {
   const resultadoTexto = esAprobado ? 'aprobado' : 'rechazado';
   const estadoTexto = esAprobado ? 'Aprobado' : 'Rechazado';
 
+  // Normalizar y registrar automáticamente en proveedores_transporte para unificar mayúsculas/minúsculas
+  const transporteNormalizado = await registrarProveedorSiNoExiste(
+    state.headerFields.transporte,
+    currentUser?.uid || ''
+  );
+  state.headerFields.transporte = transporteNormalizado;
+
   const datos = {
     fecha: fechaISO,
     fechaCreacion: serverTimestamp(),
     inspectorUid: currentUser?.uid || '',
     inspectorNombre: currentPerfil?.nombre || currentUser?.email || 'Inspector',
-    transporte: (state.headerFields.transporte || '').trim(),
+    transporte: transporteNormalizado,
     nombrePiloto: (state.headerFields.piloto || '').trim(),
     placaCamion: (state.headerFields.placa || '').trim(),
     tc: (state.headerFields.tc || '').trim(),
@@ -925,7 +939,17 @@ function renderAll() {
 els.extBtn.onclick = () => setViewMode('exterior');
 els.intBtn.onclick = () => setViewMode('interior');
 
-['transporte', 'piloto', 'placa', 'tc'].forEach((key) => {
+// Configurar buscador con autocompletado y normalización en tiempo real
+configurarAutocompletadoProveedor({
+  inputEl: els.transporte,
+  dropdownEl: els.listaSugerenciasTransporte,
+  badgeEl: els.badgeProveedor,
+  onSeleccion: (val) => {
+    state.headerFields.transporte = val;
+  },
+});
+
+['piloto', 'placa', 'tc'].forEach((key) => {
   if (els[key]) {
     els[key].oninput = (e) => {
       state.headerFields[key] = e.target.value;
@@ -942,7 +966,7 @@ async function cargarInspeccionExistente(docId) {
     const snap = await getDoc(doc(db, 'verificaciones_transporte', docId));
     if (snap.exists()) {
       const d = snap.data();
-      state.headerFields.transporte = d.transporte || '';
+      state.headerFields.transporte = normalizarNombreProveedor(d.transporte || '');
       state.headerFields.piloto = d.nombrePiloto || '';
       state.headerFields.placa = d.placaCamion || '';
       state.headerFields.tc = d.tc || '';

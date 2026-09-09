@@ -35,6 +35,7 @@ import {
 } from "./utils.js";
 import { ZONAS, ZONA_CABINA, idItem } from "./transporte-datos.js";
 import { montarVisor3DDetalle, limpiarVisor3DDetalle } from "./furgon-visor-detalle.js?v=20260909_02";
+import { normalizarNombreProveedor, obtenerCatalogoProveedores } from "./proveedores-transporte.js";
 
 const COLEC_REGISTROS = "verificaciones_transporte";
 const ETIQUETA_VISTA = { externa: "Exterior", interna: "Interior" };
@@ -741,7 +742,7 @@ function renderListaTransporte() {
             <span style="font-size: var(--txt-lg); font-weight: 800; color: var(--tinta);">
               Placa: ${escaparHtml(data.placaCamion || "—")}
             </span>
-            <span class="texto-suave texto-sm">· ${escaparHtml(data.transporte || "Transporte")}</span>
+            <span class="texto-suave texto-sm">· ${escaparHtml(normalizarNombreProveedor(data.transporte) || "Transporte")}</span>
           </div>
           <div class="texto-suave texto-xs mt-1">
             Piloto: <strong>${escaparHtml(data.nombrePiloto || "—")}</strong> · TC: ${escaparHtml(data.tc || "—")} · Fecha: <strong>${formatearFechaISOCorta(data.fecha)}</strong>
@@ -848,7 +849,7 @@ async function verDetalle(docId) {
         </div>
 
         <div class="fichas mb-3" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
-          ${ficha("Empresa / Transporte", data.transporte)}
+          ${ficha("Empresa / Transporte", normalizarNombreProveedor(data.transporte))}
           ${ficha("Nombre de Piloto", data.nombrePiloto)}
           ${ficha("Placa", data.placaCamion)}
           ${ficha("Tarjeta Circulación (TC)", data.tc)}
@@ -924,7 +925,9 @@ async function eliminarVerificacion(docId, data) {
 }
 
 /**
- * Descarga los registros filtrados en formato Excel nativo (.xlsx) usando SheetJS
+ * Descarga los registros en formato Excel nativo (.xlsx) con 2 páginas:
+ * Hoja 1: "Detalle Liberaciones" (todos los datos de las liberaciones del período)
+ * Hoja 2: "Indicadores y Métricas" (% cumplimiento del mes, % acumulado hasta el mes en curso, y métricas por proveedor unificado)
  */
 async function descargarRegistrosExcel() {
   const registros = registrosFiltradosTransporte();
@@ -932,6 +935,9 @@ async function descargarRegistrosExcel() {
     mostrarToast("No hay registros en el rango de fechas seleccionado para descargar.", "error");
     return;
   }
+
+  // Asegurar catálogo de proveedores cargado para unificación de mayúsculas/minúsculas
+  const catalogo = await obtenerCatalogoProveedores();
 
   // Asegurar que XLSX esté disponible (si no, cargar dinámicamente)
   if (typeof window.XLSX === "undefined") {
@@ -953,29 +959,37 @@ async function descargarRegistrosExcel() {
   const desde = filtroFechaDesde?.value || primerDiaMesISOTransporte();
   const hasta = filtroFechaHasta?.value || fechaHoyISOTransporte();
 
-  const filas = registros.map((r) => {
+  // -------------------------------------------------------------
+  // HOJA 1: Detalle de Liberaciones
+  // -------------------------------------------------------------
+  const filasDetalle = registros.map((r) => {
     const aprobado = esContenedorAprobado(r);
     const pct = r.calificacion ?? r.cumplimientoPorcentaje ?? (aprobado ? 100 : 0);
+    const transporteNormalizado = normalizarNombreProveedor(r.transporte || "", catalogo);
+    const mes = r.fecha ? r.fecha.slice(0, 7) : "";
+
     return {
       "Fecha": r.fecha || "",
+      "Mes (Año-Mes)": mes,
+      "Empresa / Transporte": transporteNormalizado,
       "Placa": r.placaCamion || "",
-      "Empresa / Transporte": r.transporte || "",
       "Piloto": r.nombrePiloto || "",
       "Tarjeta Circulación (TC)": r.tc || "",
       "Estado de Liberación": aprobado ? "APROBADO" : "RECHAZADO",
       "Calificación (%)": pct,
       "Puntos Cumplidos": r.cumplidos ?? (aprobado ? (r.total || 34) : "-"),
-      "Total Puntos": r.total ?? "-",
+      "Total Puntos": r.total ?? 34,
       "Inspector Responsable": r.inspectorNombre || "",
       "ID Registro": r.id || "",
     };
   });
 
-  const hoja = window.XLSX.utils.json_to_sheet(filas);
-  hoja["!cols"] = [
+  const hoja1 = window.XLSX.utils.json_to_sheet(filasDetalle);
+  hoja1["!cols"] = [
     { wch: 14 }, // Fecha
-    { wch: 14 }, // Placa
+    { wch: 16 }, // Mes
     { wch: 28 }, // Empresa / Transporte
+    { wch: 14 }, // Placa
     { wch: 28 }, // Piloto
     { wch: 24 }, // Tarjeta Circulación (TC)
     { wch: 22 }, // Estado de Liberación
@@ -986,10 +1000,201 @@ async function descargarRegistrosExcel() {
     { wch: 28 }, // ID Registro
   ];
 
+  // -------------------------------------------------------------
+  // HOJA 2: Indicadores y Métricas
+  // - % de cumplimiento del mes
+  // - Porcentaje acumulado hasta el mes en curso
+  // - Desglose por empresa/proveedor unificado
+  // -------------------------------------------------------------
+
+  // Consultar datos anuales para cálculo de % acumulado exacto del año en curso
+  let registrosAnuales = registros;
+  try {
+    const anioHasta = hasta ? hasta.slice(0, 4) : new Date().getFullYear().toString();
+    const primerDiaAnio = `${anioHasta}-01-01`;
+    if (desde > primerDiaAnio) {
+      const qAnio = query(
+        collection(db, COLEC_REGISTROS),
+        where("fecha", ">=", primerDiaAnio),
+        where("fecha", "<=", hasta),
+        orderBy("fecha", "asc")
+      );
+      const snapAnio = await getDocs(qAnio);
+      if (!snapAnio.empty) {
+        registrosAnuales = snapAnio.docs.map((d) => ({ id: d.id, ...d.data() }));
+      }
+    }
+  } catch (err) {
+    console.warn("Aviso al consultar histórico anual (usando registros del período):", err);
+    registrosAnuales = registros;
+  }
+
+  // Agrupación mensual
+  const nombresMeses = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+
+  const mesesMap = new Map(); // "YYYY-MM" -> { total, aprobados, rechazados, califSuma }
+
+  registrosAnuales.forEach((r) => {
+    const fecha = r.fecha || "";
+    const mesClave = fecha.length >= 7 ? fecha.slice(0, 7) : "Sin fecha";
+    if (!mesesMap.has(mesClave)) {
+      mesesMap.set(mesClave, { total: 0, aprobados: 0, rechazados: 0, califSuma: 0 });
+    }
+    const m = mesesMap.get(mesClave);
+    m.total++;
+    const aprobado = esContenedorAprobado(r);
+    if (aprobado) m.aprobados++;
+    else m.rechazados++;
+    m.califSuma += Number(r.calificacion ?? r.cumplimientoPorcentaje ?? (aprobado ? 100 : 0));
+  });
+
+  // Ordenar meses cronológicamente
+  const mesesOrdenados = Array.from(mesesMap.keys()).sort();
+
+  // Calcular acumulados año
+  let acumInspecciones = 0;
+  let acumAprobadas = 0;
+  let acumRechazadas = 0;
+
+  const filasMesesAOA = [];
+  mesesOrdenados.forEach((mClave) => {
+    const data = mesesMap.get(mClave);
+    acumInspecciones += data.total;
+    acumAprobadas += data.aprobados;
+    acumRechazadas += data.rechazados;
+
+    const pctMes = data.total > 0 ? (data.aprobados / data.total) * 100 : 0;
+    const pctAcum = acumInspecciones > 0 ? (acumAprobadas / acumInspecciones) * 100 : 0;
+
+    let etiquetaMes = mClave;
+    if (mClave.includes("-")) {
+      const [yy, mm] = mClave.split("-");
+      const numMes = parseInt(mm, 10);
+      if (!isNaN(numMes) && numMes >= 1 && numMes <= 12) {
+        etiquetaMes = `${nombresMeses[numMes - 1]} ${yy}`;
+      }
+    }
+
+    filasMesesAOA.push([
+      etiquetaMes,
+      data.total,
+      data.aprobados,
+      data.rechazados,
+      `${pctMes.toFixed(1)}%`,
+      acumInspecciones,
+      acumAprobadas,
+      `${pctAcum.toFixed(1)}%`,
+    ]);
+  });
+
+  // Agrupación por Empresa / Transporte unificado (evitando duplicados de mayúsculas/minúsculas)
+  const proveedoresMap = new Map(); // canonicalName -> { total, aprobados, rechazados, califSuma }
+  registros.forEach((r) => {
+    const canonical = normalizarNombreProveedor(r.transporte || "SIN ASIGNAR", catalogo);
+    if (!proveedoresMap.has(canonical)) {
+      proveedoresMap.set(canonical, { total: 0, aprobados: 0, rechazados: 0, califSuma: 0 });
+    }
+    const p = proveedoresMap.get(canonical);
+    p.total++;
+    const aprobado = esContenedorAprobado(r);
+    if (aprobado) p.aprobados++;
+    else p.rechazados++;
+    p.califSuma += Number(r.calificacion ?? r.cumplimientoPorcentaje ?? (aprobado ? 100 : 0));
+  });
+
+  const proveedoresOrdenados = Array.from(proveedoresMap.entries())
+    .sort((a, b) => b[1].total - a[1].total);
+
+  const filasProveedoresAOA = proveedoresOrdenados.map(([empresa, stats]) => {
+    const pctCumplimiento = stats.total > 0 ? (stats.aprobados / stats.total) * 100 : 0;
+    const promCalif = stats.total > 0 ? (stats.califSuma / stats.total) : 0;
+    let estado = "Crítico (<80%)";
+    if (pctCumplimiento >= 95) estado = "Excelente (≥95%)";
+    else if (pctCumplimiento >= 85) estado = "Aceptable (≥85%)";
+    else if (pctCumplimiento >= 80) estado = "Regular (80-84%)";
+
+    return [
+      empresa,
+      stats.total,
+      stats.aprobados,
+      stats.rechazados,
+      `${pctCumplimiento.toFixed(1)}%`,
+      `${promCalif.toFixed(1)}%`,
+      estado,
+    ];
+  });
+
+  // Totales globales del período filtrado
+  let totalPeriodo = 0;
+  let aprobadosPeriodo = 0;
+  let rechazadosPeriodo = 0;
+  registros.forEach((r) => {
+    totalPeriodo++;
+    if (esContenedorAprobado(r)) aprobadosPeriodo++;
+    else rechazadosPeriodo++;
+  });
+  const pctGlobalPeriodo = totalPeriodo > 0 ? (aprobadosPeriodo / totalPeriodo) * 100 : 0;
+
+  // Armar matriz AOA para la Hoja de Indicadores
+  const aoaIndicadores = [
+    ["INDICADORES DE LIBERACIÓN DE TRANSPORTE (LOG-FO-101)"],
+    ["Período evaluado:", `${desde} al ${hasta}`, "Fecha de reporte:", new Date().toLocaleDateString("es-GT")],
+    [],
+    ["1. RESUMEN EJECUTIVO GLOBAL"],
+    ["Métrica", "Valor"],
+    ["Total de Unidades / Contenedores Inspeccionados", totalPeriodo],
+    ["Contenedores Aprobados (Verde)", aprobadosPeriodo],
+    ["Contenedores Rechazados (Rojo)", rechazadosPeriodo],
+    ["% de Cumplimiento Global del Período", `${pctGlobalPeriodo.toFixed(1)}%`],
+    [],
+    ["2. INDICADORES MENSUALES Y % ACUMULADO HASTA EL MES EN CURSO"],
+    [
+      "Mes / Año",
+      "Total Inspecciones (Mes)",
+      "Aprobadas (Mes)",
+      "Rechazadas (Mes)",
+      "% Cumplimiento Mes",
+      "Acumulado Inspecciones (Año)",
+      "Acumulado Aprobadas (Año)",
+      "% Cumplimiento Acumulado Año"
+    ],
+    ...filasMesesAOA,
+    [],
+    ["3. DESEMPEÑO POR EMPRESA / TRANSPORTE (PROVEEDORES UNIFICADOS)"],
+    [
+      "Empresa / Transporte",
+      "Total Inspecciones",
+      "Aprobadas",
+      "Rechazadas",
+      "% Cumplimiento",
+      "Calificación Promedio",
+      "Desempeño Operativo"
+    ],
+    ...filasProveedoresAOA,
+  ];
+
+  const hoja2 = window.XLSX.utils.aoa_to_sheet(aoaIndicadores);
+  hoja2["!cols"] = [
+    { wch: 36 }, // Columna 1 (Títulos / Empresas / Meses)
+    { wch: 25 }, // Columna 2
+    { wch: 18 }, // Columna 3
+    { wch: 18 }, // Columna 4
+    { wch: 22 }, // Columna 5
+    { wch: 28 }, // Columna 6
+    { wch: 26 }, // Columna 7
+    { wch: 30 }, // Columna 8
+  ];
+
+  // Crear libro con las 2 hojas
   const libro = window.XLSX.utils.book_new();
-  window.XLSX.utils.book_append_sheet(libro, hoja, "Liberación de Contenedores");
+  window.XLSX.utils.book_append_sheet(libro, hoja1, "Detalle Liberaciones");
+  window.XLSX.utils.book_append_sheet(libro, hoja2, "Indicadores y Métricas");
+
   window.XLSX.writeFile(libro, `Liberacion_Contenedores_${desde}_al_${hasta}.xlsx`);
 
-  mostrarToast(`Se descargó el archivo Excel (.xlsx) con ${registros.length} registros exitosamente.`, "exito");
+  mostrarToast(`Se descargó el libro Excel con Detalle e Indicadores exitosamente (${registros.length} registros).`, "exito");
 }
 
