@@ -98,7 +98,20 @@ const state = {
   selectedPart: null,
   answers: {},
   photos: {},
-  headerFields: { placa: '', transportista: '', piloto: '', cliente: '' },
+  headerFields: {
+    transporte: '',
+    piloto: '',
+    placa: '',
+    tc: '',
+    numeroEquipo: '',
+    numeroMarchamo: '',
+    ordenProduccion: '',
+    cliente: '',
+    numeroPicking: '',
+    inspectorInocuidad: '',
+    fecha: new Date().toISOString().slice(0, 10),
+    observacionesGenerales: '',
+  },
   showDialog: false,
   dialogSaved: false,
   saved: false,
@@ -463,11 +476,20 @@ async function initStage(stage) {
 const els = {
   extBtn: document.getElementById('btnExterior'),
   intBtn: document.getElementById('btnInterior'),
-  placa: document.getElementById('campoPlaca'),
-  transportista: document.getElementById('campoTransportista'),
+  transporte: document.getElementById('campoTransporte'),
   piloto: document.getElementById('campoPiloto'),
+  placa: document.getElementById('campoPlaca'),
+  tc: document.getElementById('campoTc'),
+  numeroEquipo: document.getElementById('campoEquipo'),
+  numeroMarchamo: document.getElementById('campoMarchamo'),
+  ordenProduccion: document.getElementById('campoOrden'),
   cliente: document.getElementById('campoCliente'),
-  fecha: document.getElementById('fechaHoy'),
+  numeroPicking: document.getElementById('campoPicking'),
+  inspectorInocuidad: document.getElementById('campoInspectorInocuidad'),
+  fecha: document.getElementById('campoFecha'),
+  btnToggleCamposExtra: document.getElementById('btnToggleCamposExtra'),
+  panelCamposSecundarios: document.getElementById('panelCamposSecundarios'),
+  labelToggleCamposExtra: document.getElementById('labelToggleCamposExtra'),
   savedBanner: document.getElementById('savedBanner'),
   progressCount: document.getElementById('progressCount'),
   progressBar: document.getElementById('progressBar'),
@@ -485,12 +507,17 @@ function escapeHtml(s) {
 }
 
 function renderHeaderFields() {
-  els.placa.value = state.headerFields.placa;
-  els.transportista.value = state.headerFields.transportista;
-  els.piloto.value = state.headerFields.piloto;
-  els.cliente.value = state.headerFields.cliente;
-  [els.placa, els.transportista, els.piloto, els.cliente].forEach((el) => { el.disabled = state.saved; });
-  els.fecha.textContent = 'Fecha: ' + new Date().toLocaleDateString('es-GT');
+  const fields = [
+    'transporte', 'piloto', 'placa', 'tc',
+    'numeroEquipo', 'numeroMarchamo', 'ordenProduccion',
+    'cliente', 'numeroPicking', 'inspectorInocuidad', 'fecha'
+  ];
+  fields.forEach((key) => {
+    if (els[key]) {
+      els[key].value = state.headerFields[key] || '';
+      els[key].disabled = state.saved;
+    }
+  });
 }
 
 function renderTabs() {
@@ -679,7 +706,11 @@ function renderDialog() {
     <div class="dialog-title">Confirmar inspección</div>
     <div class="dialog-body">
       <div style="margin-bottom:8px;">Se evaluaron ${allIds.length} secciones: <b>${passCount}</b> aprobadas, <b>${failCount}</b> rechazadas.</div>
-      ${failCount ? '<div style="font-size:13px;color:#8c491a;">Se guardarán las secciones rechazadas para seguimiento.</div>' : ''}
+      ${failCount ? '<div style="font-size:13px;color:#8c491a;margin-bottom:8px;">Se registrarán las secciones rechazadas para seguimiento.</div>' : ''}
+      <div style="margin-top:10px;">
+        <label style="font-size:12px; font-weight:700; color:var(--text-soft); display:block; margin-bottom:4px;">Comentarios u observaciones adicionales (opcional):</label>
+        <textarea id="dialogObservaciones" rows="3" style="width:100%; border:1px solid var(--line); border-radius:8px; padding:8px; font-family:inherit; font-size:13px; resize:vertical; box-sizing:border-box;" placeholder="Notas adicionales del furgón o transporte...">${escapeHtml(state.headerFields.observacionesGenerales || '')}</textarea>
+      </div>
     </div>
     <div class="dialog-actions">
       <button class="btn btn-ghost" id="btnCancelarDialogo">Cancelar</button>
@@ -690,7 +721,22 @@ function renderDialog() {
   document.getElementById('btnGuardarDialogo').onclick = confirmSave;
 }
 
-function openFinalize() { state.showDialog = true; state.dialogSaved = false; renderAll(); }
+function openFinalize() {
+  const transporte = (state.headerFields.transporte || '').trim();
+  const piloto = (state.headerFields.piloto || '').trim();
+  const placa = (state.headerFields.placa || '').trim();
+  const tc = (state.headerFields.tc || '').trim();
+
+  if (!transporte || !piloto || !placa || !tc) {
+    alert('Por favor completa los datos obligatorios de la unidad:\n• Empresa / Transporte\n• Nombre de Piloto\n• Placa\n• Tarjeta de Circulación (TC)');
+    return;
+  }
+
+  state.showDialog = true;
+  state.dialogSaved = false;
+  renderAll();
+}
+
 function closeDialog() { state.showDialog = false; renderAll(); }
 
 async function confirmSave() {
@@ -701,6 +747,11 @@ async function confirmSave() {
     if (st === 'pass') passCount += 1;
     if (st === 'fail') failCount += 1;
   });
+
+  const obsEl = document.getElementById('dialogObservaciones');
+  if (obsEl) {
+    state.headerFields.observacionesGenerales = obsEl.value.trim();
+  }
 
   const btnGuardar = document.getElementById('btnGuardarDialogo');
   if (btnGuardar) {
@@ -800,7 +851,7 @@ async function confirmSave() {
   });
 
   const pct = totalPuntos > 0 ? Math.round((puntosCumplidos / totalPuntos) * 100) : 100;
-  const fechaISO = new Date().toISOString().slice(0, 10);
+  const fechaISO = state.headerFields.fecha || new Date().toISOString().slice(0, 10);
   const resultado = failCount > 0 ? 'rechazado' : 'aprobado';
 
   const datos = {
@@ -808,10 +859,17 @@ async function confirmSave() {
     fechaCreacion: serverTimestamp(),
     inspectorUid: currentUser?.uid || '',
     inspectorNombre: currentPerfil?.nombre || currentUser?.email || 'Inspector',
-    placaCamion: (state.headerFields.placa || '').trim(),
-    transporte: (state.headerFields.transportista || '').trim(),
+    transporte: (state.headerFields.transporte || '').trim(),
     nombrePiloto: (state.headerFields.piloto || '').trim(),
+    placaCamion: (state.headerFields.placa || '').trim(),
+    tc: (state.headerFields.tc || '').trim(),
+    numeroEquipo: (state.headerFields.numeroEquipo || '').trim(),
+    numeroMarchamo: (state.headerFields.numeroMarchamo || '').trim(),
+    ordenProduccion: (state.headerFields.ordenProduccion || '').trim(),
     cliente: (state.headerFields.cliente || '').trim(),
+    numeroPicking: (state.headerFields.numeroPicking || '').trim(),
+    inspectorInocuidad: (state.headerFields.inspectorInocuidad || '').trim(),
+    observacionesGenerales: (state.headerFields.observacionesGenerales || '').trim(),
     resultado,
     cumplidos: puntosCumplidos,
     total: totalPuntos,
@@ -859,9 +917,31 @@ function renderAll() {
 /* ============ Eventos de encabezado ============ */
 els.extBtn.onclick = () => setViewMode('exterior');
 els.intBtn.onclick = () => setViewMode('interior');
-['placa', 'transportista', 'piloto', 'cliente'].forEach((field) => {
-  els[field].oninput = (e) => { state.headerFields[field] = e.target.value; };
+
+const campoKeys = [
+  'transporte', 'piloto', 'placa', 'tc',
+  'numeroEquipo', 'numeroMarchamo', 'ordenProduccion',
+  'cliente', 'numeroPicking', 'inspectorInocuidad', 'fecha'
+];
+campoKeys.forEach((key) => {
+  if (els[key]) {
+    els[key].oninput = (e) => {
+      state.headerFields[key] = e.target.value;
+    };
+  }
 });
+
+if (els.btnToggleCamposExtra && els.panelCamposSecundarios) {
+  els.btnToggleCamposExtra.onclick = () => {
+    const isHidden = els.panelCamposSecundarios.classList.toggle('oculto');
+    if (els.labelToggleCamposExtra) {
+      els.labelToggleCamposExtra.textContent = isHidden
+        ? '+ Más datos (Equipo, Marchamo, OP, Picking) ▾'
+        : '− Menos datos ▴';
+    }
+  };
+}
+
 els.btnFinalizar.onclick = openFinalize;
 els.dialogBackdrop.onclick = (e) => { if (e.target === els.dialogBackdrop) closeDialog(); };
 
@@ -871,10 +951,23 @@ async function cargarInspeccionExistente(docId) {
     const snap = await getDoc(doc(db, 'verificaciones_transporte', docId));
     if (snap.exists()) {
       const d = snap.data();
-      state.headerFields.placa = d.placaCamion || '';
-      state.headerFields.transportista = d.transporte || '';
+      state.headerFields.transporte = d.transporte || '';
       state.headerFields.piloto = d.nombrePiloto || '';
+      state.headerFields.placa = d.placaCamion || '';
+      state.headerFields.tc = d.tc || '';
+      state.headerFields.numeroEquipo = d.numeroEquipo || '';
+      state.headerFields.numeroMarchamo = d.numeroMarchamo || '';
+      state.headerFields.ordenProduccion = d.ordenProduccion || '';
       state.headerFields.cliente = d.cliente || '';
+      state.headerFields.numeroPicking = d.numeroPicking || '';
+      state.headerFields.inspectorInocuidad = d.inspectorInocuidad || '';
+      state.headerFields.fecha = d.fecha || '';
+      state.headerFields.observacionesGenerales = d.observacionesGenerales || '';
+
+      if (d.numeroEquipo || d.numeroMarchamo || d.ordenProduccion || d.cliente || d.numeroPicking || d.inspectorInocuidad) {
+        if (els.panelCamposSecundarios) els.panelCamposSecundarios.classList.remove('oculto');
+        if (els.labelToggleCamposExtra) els.labelToggleCamposExtra.textContent = '− Menos datos ▴';
+      }
 
       if (d.answers && typeof d.answers === 'object') {
         state.answers = d.answers;
@@ -895,7 +988,7 @@ async function cargarInspeccionExistente(docId) {
         els.savedBanner.style.padding = '10px 16px';
         els.savedBanner.style.fontWeight = '700';
         els.savedBanner.innerHTML = `
-          Modo solo lectura (${aprobado ? '✓ CONTENEDOR APROBADO' : '✕ CONTENEDOR RECHAZADO'}) · Placa: <u>${escapeHtml(d.placaCamion || '—')}</u> · Fecha: ${d.fecha || ''}
+          Modo solo lectura (${aprobado ? '✓ CONTENEDOR APROBADO' : '✕ CONTENEDOR RECHAZADO'}) · Placa: <u>${escapeHtml(d.placaCamion || '—')}</u> · TC: <u>${escapeHtml(d.tc || '—')}</u> · Piloto: ${escapeHtml(d.nombrePiloto || '—')}
         `;
       }
 

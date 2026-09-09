@@ -84,19 +84,103 @@
   .seg-opt.active{background:var(--navy);color:#fff;}
   .seg-opt:disabled{opacity:.5;cursor:not-allowed;}
 
-  .header-fields{
-    flex-shrink:0;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
-    padding:8px 20px;border-bottom:1px solid var(--line);background:var(--surface);
+  .unidad-container{
+    flex-shrink:0;
+    background:var(--surface);
+    border-bottom:1px solid var(--line);
+    padding:8px 18px 10px;
   }
-  .field{display:flex;flex-direction:column;gap:3px;min-width:130px;}
-  .field label{font-size:11px;color:var(--text-soft);}
-  .field input{
-    border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;
-    font-family:inherit;color:var(--text);
+  .unidad-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:6px;
+    gap:10px;
   }
-  .field input:disabled{background:var(--bg);color:var(--text-soft);}
-  .spacer-grow{flex:1;}
-  #fechaHoy{font-size:12px;color:var(--text-soft);}
+  .unidad-title{
+    font-size:13px;
+    font-weight:800;
+    color:var(--navy);
+    display:flex;
+    align-items:center;
+    gap:6px;
+    letter-spacing:-0.01em;
+  }
+  .unidad-title svg{width:16px;height:16px;color:var(--gold-dark);flex-shrink:0;}
+  .btn-toggle-extra{
+    background:var(--navy-soft);
+    border:1px solid var(--line);
+    color:var(--navy);
+    font-size:11px;
+    font-weight:700;
+    cursor:pointer;
+    padding:3px 10px;
+    border-radius:999px;
+    display:flex;
+    align-items:center;
+    gap:4px;
+    font-family:inherit;
+    transition:background 0.15s ease;
+  }
+  .btn-toggle-extra:hover{background:#dbe6f0;}
+
+  .unidad-grid-primario{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+    gap:8px;
+  }
+  .unidad-grid-secundario{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+    gap:8px;
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px dashed var(--line);
+    transition:all 0.2s ease;
+  }
+  .unidad-grid-secundario.oculto{
+    display:none;
+  }
+
+  .ficha-campo{
+    background:#ffffff;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:5px 10px;
+    display:flex;
+    flex-direction:column;
+    box-shadow:0 1px 2px rgba(0,0,0,0.03);
+    transition:border-color 0.15s, box-shadow 0.15s;
+  }
+  .ficha-campo:focus-within{
+    border-color:var(--navy);
+    box-shadow:0 0 0 2px rgba(15,42,74,0.12);
+  }
+  .ficha-campo label{
+    font-size:10.5px;
+    font-weight:600;
+    color:var(--text-soft);
+    margin-bottom:2px;
+  }
+  .ficha-campo input{
+    border:none;
+    outline:none;
+    padding:0;
+    font-size:13px;
+    font-weight:700;
+    color:var(--text);
+    background:transparent;
+    font-family:inherit;
+    width:100%;
+  }
+  .ficha-campo input::placeholder{
+    font-weight:400;
+    color:#a0a6b2;
+  }
+  .ficha-campo input:disabled{
+    color:var(--text);
+    cursor:default;
+  }
 
   #savedBanner{
     display:none;flex-shrink:0;background:var(--ok-bg);color:#245c37;
@@ -203,13 +287,68 @@
   </div>
 </div>
 
-<div class="header-fields">
-  <div class="field"><label>Placa</label><input id="campoPlaca" type="text"></div>
-  <div class="field"><label>Transportista</label><input id="campoTransportista" type="text"></div>
-  <div class="field"><label>Piloto</label><input id="campoPiloto" type="text"></div>
-  <div class="field"><label>Cliente</label><input id="campoCliente" type="text"></div>
-  <div class="spacer-grow"></div>
-  <div id="fechaHoy"></div>
+<div class="unidad-container">
+  <div class="unidad-header">
+    <div class="unidad-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      Verificación de Unidad de Transporte
+    </div>
+    <button type="button" id="btnToggleCamposExtra" class="btn-toggle-extra">
+      <span id="labelToggleCamposExtra">+ Más datos (Equipo, Marchamo, OP, Picking) ▾</span>
+    </button>
+  </div>
+
+  <!-- Fila 1: Campos Primarios y Obligatorios (como solicitó el usuario) -->
+  <div class="unidad-grid-primario">
+    <div class="ficha-campo">
+      <label for="campoTransporte">Empresa / Transporte *</label>
+      <input type="text" id="campoTransporte" placeholder="Ej. LOCATERSA" required />
+    </div>
+    <div class="ficha-campo">
+      <label for="campoPiloto">Nombre de Piloto *</label>
+      <input type="text" id="campoPiloto" placeholder="Ej. Herber Hurtado" required />
+    </div>
+    <div class="ficha-campo">
+      <label for="campoPlaca">Placa *</label>
+      <input type="text" id="campoPlaca" placeholder="Ej. C-570BXS" required />
+    </div>
+    <div class="ficha-campo">
+      <label for="campoTc">Tarjeta Circulación (TC) *</label>
+      <input type="text" id="campoTc" placeholder="Ej. TC-24CSM" required />
+    </div>
+  </div>
+
+  <!-- Fila 2: Campos Operativos (desplegables) -->
+  <div class="unidad-grid-secundario oculto" id="panelCamposSecundarios">
+    <div class="ficha-campo">
+      <label for="campoEquipo"># Equipo</label>
+      <input type="text" id="campoEquipo" placeholder="Ej. EQ-045" />
+    </div>
+    <div class="ficha-campo">
+      <label for="campoMarchamo"># Marchamo</label>
+      <input type="text" id="campoMarchamo" placeholder="Ej. 123456" />
+    </div>
+    <div class="ficha-campo">
+      <label for="campoOrden">Orden de Producción</label>
+      <input type="text" id="campoOrden" placeholder="Ej. OP-9821" />
+    </div>
+    <div class="ficha-campo">
+      <label for="campoCliente">Cliente</label>
+      <input type="text" id="campoCliente" placeholder="Ej. Corrugados S.A." />
+    </div>
+    <div class="ficha-campo">
+      <label for="campoPicking">No. de Picking</label>
+      <input type="text" id="campoPicking" placeholder="Ej. PK-102" />
+    </div>
+    <div class="ficha-campo">
+      <label for="campoInspectorInocuidad">Inspector Inocuidad</label>
+      <input type="text" id="campoInspectorInocuidad" placeholder="Nombre inspector" />
+    </div>
+    <div class="ficha-campo">
+      <label for="campoFecha">Fecha Inspección *</label>
+      <input type="date" id="campoFecha" required />
+    </div>
+  </div>
 </div>
 
 <div id="savedBanner"></div>
