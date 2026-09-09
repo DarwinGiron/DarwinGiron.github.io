@@ -47,13 +47,14 @@ const detalleContenido = document.getElementById("detalle-contenido");
 const btnVolver = document.getElementById("btn-volver");
 const btnEliminarDetalle = document.getElementById("btn-eliminar-detalle");
 
-const filtroDesde = document.getElementById("filtro-desde");
-const filtroHasta = document.getElementById("filtro-hasta");
+const filtroMes = document.getElementById("filtro-mes");
 const filtroArea = document.getElementById("filtro-area");
 const campoFiltroInspector = document.getElementById("campo-filtro-inspector");
 const filtroInspector = document.getElementById("filtro-inspector");
+const filtroBusqueda = document.getElementById("filtro-busqueda");
 const btnFiltrar = document.getElementById("btn-filtrar");
 const btnLimpiarFiltros = document.getElementById("btn-limpiar-filtros");
+const btnCargarMas = document.getElementById("btn-cargar-mas");
 const tituloHistorial = document.getElementById("titulo-historial");
 
 const zonaResumen = document.getElementById("zona-resumen");
@@ -71,16 +72,22 @@ const PRESENTACION_RESPUESTA = {
   na: { clase: "badge-neutro", icono: ICONOS.menos, etiqueta: "No aplica" },
 };
 
-/** Cuántos registros se muestran al entrar, sin filtros aplicados. */
-const RECIENTES_POR_DEFECTO = 20;
-/** Tope al aplicar filtros explícitamente. */
-const MAXIMO_FILTRADO = 300;
+/** Cuántos registros se muestran por página (paginación en cliente). */
+const POR_PAGINA = 20;
+/** Tope de documentos a traer de Firestore para el mes seleccionado. */
+const MAXIMO_MES = 500;
+
+function mesActualISO() {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+}
 
 const estado = {
   usuario: null,
   perfil: null,
   esGestor: false, // admin o coordinador: ve todos los recorridos
-  filtrado: false, // ¿el usuario ya aplicó filtros?
+  recorridosMes: [], // todos los recorridos del mes seleccionado (ya filtrados por área/inspector)
+  visibles: POR_PAGINA, // cuántos de recorridosMes se están mostrando
 };
 
 /* ---------------------------------------------------------
@@ -111,6 +118,8 @@ protegerPagina({}, async ({ user, perfil }) => {
     estado.esGestor ? poblarInspectores() : Promise.resolve(),
   ]);
 
+  filtroMes.value = mesActualISO();
+
   const idVerPorUrl = new URLSearchParams(window.location.search).get("ver");
   if (idVerPorUrl) {
     await mostrarDetalle(idVerPorUrl);
@@ -121,19 +130,26 @@ protegerPagina({}, async ({ user, perfil }) => {
 
 btnSalir.addEventListener("click", () => cerrarSesion());
 
-btnFiltrar.addEventListener("click", () => {
-  estado.filtrado = true;
+btnFiltrar.addEventListener("click", () => cargarLista());
+
+btnLimpiarFiltros.addEventListener("click", () => {
+  filtroMes.value = mesActualISO();
+  filtroArea.value = "";
+  filtroInspector.value = "";
+  filtroBusqueda.value = "";
   cargarLista();
 });
 
-btnLimpiarFiltros.addEventListener("click", () => {
-  filtroDesde.value = "";
-  filtroHasta.value = "";
-  filtroArea.value = "";
-  filtroInspector.value = "";
-  estado.filtrado = false;
-  cargarLista();
+filtroBusqueda.addEventListener("input", () => {
+  estado.visibles = POR_PAGINA;
+  renderLista(recorridosFiltradosPorBusqueda());
 });
+
+btnCargarMas.addEventListener("click", () => {
+  estado.visibles += POR_PAGINA;
+  renderLista(recorridosFiltradosPorBusqueda());
+});
+
 btnVolver.addEventListener("click", () => {
   history.replaceState(null, "", "inspecciones.html");
   vistaDetalle.classList.add("oculto");
@@ -195,14 +211,28 @@ function leerFiltros() {
     filtros.inspectorUid = filtroInspector.value;
   }
 
-  if (filtroDesde.value) filtros.desde = new Date(`${filtroDesde.value}T00:00:00`);
-  if (filtroHasta.value) filtros.hasta = new Date(`${filtroHasta.value}T23:59:59`);
-
-  // Al entrar solo se traen los más recientes; el conjunto completo se
-  // consulta únicamente cuando el usuario aplica filtros a propósito.
-  filtros.max = estado.filtrado ? MAXIMO_FILTRADO : RECIENTES_POR_DEFECTO;
+  const mesISO = filtroMes.value || mesActualISO();
+  const [anio, mes] = mesISO.split("-").map(Number);
+  const ultimoDia = new Date(anio, mes, 0).getDate();
+  filtros.desde = new Date(`${mesISO}-01T00:00:00`);
+  filtros.hasta = new Date(`${mesISO}-${String(ultimoDia).padStart(2, "0")}T23:59:59`);
+  filtros.max = MAXIMO_MES;
 
   return filtros;
+}
+
+/** Filtra en memoria por el término de búsqueda (inspector, turno o área). */
+function recorridosFiltradosPorBusqueda() {
+  const termino = filtroBusqueda.value.trim().toLowerCase();
+  if (!termino) return estado.recorridosMes;
+  return estado.recorridosMes.filter((insp) => {
+    const areas = Object.keys(insp.areas || {}).join(" ").toLowerCase();
+    return (
+      String(insp.inspectorNombre || "").toLowerCase().includes(termino) ||
+      String(insp.turno ?? "").toLowerCase().includes(termino) ||
+      areas.includes(termino)
+    );
+  });
 }
 
 /* ---------------------------------------------------------
@@ -214,24 +244,23 @@ function leerFiltros() {
    --------------------------------------------------------- */
 
 async function cargarLista() {
-  mostrarEsqueleto(listaInspecciones, estado.filtrado ? 4 : 3);
+  mostrarEsqueleto(listaInspecciones, 3);
   zonaResumen.classList.add("oculto");
-  btnLimpiarFiltros.classList.toggle("oculto", !estado.filtrado);
+  estado.visibles = POR_PAGINA;
+
+  const huboFiltroExtra = Boolean(filtroArea.value || filtroInspector.value || filtroBusqueda.value.trim());
+  btnLimpiarFiltros.classList.toggle("oculto", !huboFiltroExtra && filtroMes.value === mesActualISO());
 
   const filtros = leerFiltros();
 
   try {
     const recorridos = await listarRecorridos(filtros);
-    const filtrados = filtroArea.value
+    estado.recorridosMes = filtroArea.value
       ? recorridos.filter((insp) => insp.areas && filtroArea.value in insp.areas)
       : recorridos;
 
-    tituloHistorial.textContent = estado.filtrado
-      ? `Resultados (${filtrados.length})`
-      : `Últimas ${RECIENTES_POR_DEFECTO} inspecciones`;
-
-    renderResumen(filtrados.filter((i) => i.estado === "enviada"));
-    renderLista(filtrados);
+    renderResumen(estado.recorridosMes.filter((i) => i.estado === "enviada"));
+    renderLista(recorridosFiltradosPorBusqueda());
   } catch (error) {
     console.error("Error al listar recorridos:", error);
     mostrarErrorEn(
@@ -266,11 +295,17 @@ function renderResumen(enviadas) {
   zonaResumen.classList.remove("oculto");
 }
 
-function renderLista(recorridos) {
-  if (recorridos.length === 0) {
+function renderLista(recorridosFiltrados) {
+  tituloHistorial.textContent = `${recorridosFiltrados.length} inspección${recorridosFiltrados.length === 1 ? "" : "es"} este mes`;
+
+  if (recorridosFiltrados.length === 0) {
     mostrarVacio(listaInspecciones, "No hay inspecciones que coincidan con los filtros.");
+    btnCargarMas.classList.add("oculto");
     return;
   }
+
+  const recorridos = recorridosFiltrados.slice(0, estado.visibles);
+  btnCargarMas.classList.toggle("oculto", recorridos.length >= recorridosFiltrados.length);
 
   listaInspecciones.innerHTML = "";
   for (const insp of recorridos) {

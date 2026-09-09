@@ -1,13 +1,16 @@
 // =========================================================
-// app.js — Inspector 3D del furgón desmontable (LOG-FO-101)
+// app.js — Inspector 3D del Contenedor Marítimo (LOG-FO-101)
 //
-// Reimplementación en JS plano (sin el runtime "dc-runtime" del prototipo
-// original) para que viva como el resto de módulos del hub: mismo patrón
-// de auth.js / utils.js, sin dependencias externas de build. La lógica de
-// cámara/inspección 3D (selección de parte, encuadre, apertura de puertas)
-// se portó tal cual desde el prototipo; solo cambió la capa de render de
-// la lista/checklist, que aquí es DOM directo en vez de un motor de
-// plantillas.
+// Módulo de inspección 3D con maqueta técnica seccionada del contenedor
+// marítimo (chapa corrugada azul, marco estructural perimetral, piso de
+// madera con rejilla, puertas dobles con barras de cierre).
+//
+// Vistas dinámicas (cutaway):
+// - Vista Externa: contenedor cerrado para inspección de exteriores.
+// - Vista Interna: corte seccionado automático (pared frontal abierta
+//   manteniendo rieles y postes) exactamente como en la maqueta de referencia.
+// - Al orbitar o seleccionar cada sección del checklist, la pared que
+//   obstruye la visión se oculta automáticamente y la cámara encuadra la zona.
 // =========================================================
 
 import { protegerPagina, cerrarSesion, etiquetaRol } from "../js/auth.js";
@@ -77,11 +80,6 @@ const PART_DEFS = {
   ]},
 };
 
-const STATUS_HEX = { pending: 0xB8B2A6, pass: 0x5f7a45, fail: 0xa8402b };
-// Los paneles de calificación son casi invisibles sobre el camión real
-// (ver extMat en FurgonModel.js) para no taparlo; al calificar una parte
-// se vuelven bien opacos para que el color de estado se note con claridad.
-const STATUS_OPACITY = { pending: 0.06, pass: 0.55, fail: 0.55 };
 const STATUS_CSS = {
   pending: { color: '#8f887c', bg: '#e4ded2', label: 'Sin evaluar' },
   pass: { color: '#3f5a2c', bg: '#dbe6cf', label: 'Aprobado' },
@@ -103,12 +101,13 @@ const state = {
 };
 
 let THREE, model, camera, controls, stageEl;
-let interiorConfigs = {}, interiorDefault = null, camExterior = null;
+let interiorConfigs = {}, exteriorConfigs = {}, interiorDefault = null, camExterior = null;
 
 function partItemsAnswered(partId) { return state.answers[partId] || {}; }
 
 function partStatus(partId) {
   const def = PART_DEFS[partId];
+  if (!def) return 'pending';
   const ans = partItemsAnswered(partId);
   let anyNo = false, allYes = true;
   def.items.forEach((it) => {
@@ -126,86 +125,80 @@ function partComplete(partId) {
   return PART_DEFS[partId].items.every((it) => ans[it.id]);
 }
 
+/**
+ * Aplica los colores de estado y resaltado a los componentes 3D.
+ */
 function updateMeshColors() {
   if (!model) return;
+
   Object.keys(PART_DEFS).forEach((partId) => {
     const status = partStatus(partId);
-    const hex = STATUS_HEX[status];
-    // El forro interior (int_*) no usa la opacidad para mostrar el estado
-    // de la calificación — su opacidad la controla applyInteriorTranslucency()
-    // según qué parte se esté enfocando, no si ya se calificó o no.
-    const isInterior = partId.startsWith('int_');
+    const isSelected = (partId === state.selectedPart);
+
     (model.meshesByPart[partId] || []).forEach((m) => {
-      m.material.color.setHex(hex);
-      if (m.material.transparent && !isInterior) m.material.opacity = STATUS_OPACITY[status];
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      mats.forEach((mat) => {
+        if (!mat || !mat.emissive) return;
+
+        if (isSelected) {
+          // Resaltado naranja cálido al seleccionar una parte
+          mat.emissive.setHex(0xE5A512);
+          mat.emissiveIntensity = 0.5;
+        } else if (status === 'pass') {
+          // Tinte verde suave si está aprobada
+          mat.emissive.setHex(0x2E7D32);
+          mat.emissiveIntensity = 0.28;
+        } else if (status === 'fail') {
+          // Tinte rojo si está rechazada
+          mat.emissive.setHex(0xC62828);
+          mat.emissiveIntensity = 0.38;
+        } else {
+          // Estado pendiente: sin emisión
+          mat.emissive.setHex(0x000000);
+          mat.emissiveIntensity = 0.0;
+        }
+      });
     });
   });
 }
 
-// Al enfocar una parte del interior (una pared, por ejemplo), esa parte se
-// deja sólida junto con el piso y la pared frontal (referencias fijas) y el
-// resto (techo, pared opuesta, puerta) se vuelve translúcido para poder ver
-// a través — solo aplica en Vista Interna.
-const INT_WALL_GROUPS = ['int_pared_izquierda', 'int_pared_derecha', 'int_techo', 'int_piso', 'int_frente'];
-const INT_ANCHOR_GROUPS = ['int_piso', 'int_frente'];
-const INT_DOOR_IDS = ['ext_puertas', 'int_puertas'];
-const INT_TRANSLUCENT_OPACITY = 0.14;
-
-function applyInteriorTranslucency(focusPartId) {
-  if (!model || state.viewMode !== 'interior') return;
-  const m = model.meshesByPart;
-  const focusing = !!focusPartId && (INT_WALL_GROUPS.includes(focusPartId) || INT_DOOR_IDS.includes(focusPartId));
-  INT_WALL_GROUPS.forEach((g) => {
-    const solid = !focusing || g === focusPartId || INT_ANCHOR_GROUPS.includes(g);
-    (m[g] || []).forEach((x) => { x.material.opacity = solid ? 1 : INT_TRANSLUCENT_OPACITY; });
-  });
-  if (focusing) {
-    const doorSolid = INT_DOOR_IDS.includes(focusPartId);
-    (m['ext_puertas'] || []).forEach((x) => { x.material.opacity = doorSolid ? 0.9 : INT_TRANSLUCENT_OPACITY; });
-  }
-}
-
-function applyExteriorVisibility() {
-  const m = model.meshesByPart;
-  // El forro interior propio (int_*) solo tiene sentido con el camión real
-  // oculto (Vista Interna) — mostrarlo en Vista Externa lo hace ver como
-  // una caja sólida encima del camión.
-  const showInterior = state.viewMode === 'interior';
-  ['ext_pared_izquierda', 'ext_pared_derecha', 'ext_techo', 'ext_puertas', 'ext_frente'].forEach((g) => {
-    (m[g] || []).forEach((x) => (x.visible = true));
-  });
-  ['int_pared_izquierda', 'int_pared_derecha', 'int_techo', 'int_piso', 'int_puertas', 'int_frente'].forEach((g) => {
-    (m[g] || []).forEach((x) => (x.visible = showInterior));
-  });
-}
-
-function applyInteriorFocus(focusPartId) {
-  applyExteriorVisibility();
-  applyInteriorTranslucency(focusPartId);
-}
-
-function animateCamera(toPos, toTarget, duration, onDone) {
+/**
+ * Animación fluida de la cámara (posición y objetivo orbital).
+ */
+function animateCamera(toPos, toTarget, duration = 800, onDone) {
+  if (!camera || !controls) return;
   const fromPos = camera.position.clone();
   const fromTarget = controls.target.clone();
   const start = performance.now();
   controls.enabled = false;
+
   const step = (now) => {
     const t = Math.min((now - start) / duration, 1);
     const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     camera.position.lerpVectors(fromPos, toPos, e);
     controls.target.lerpVectors(fromTarget, toTarget, e);
     controls.update();
-    if (t < 1) requestAnimationFrame(step);
-    else { controls.enabled = true; if (onDone) onDone(); }
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      controls.enabled = true;
+      if (onDone) onDone();
+    }
   };
   requestAnimationFrame(step);
 }
 
-function animateDoors(open, duration) {
+/**
+ * Animación de apertura y cierre de las puertas traseras de doble hoja.
+ */
+function animateDoors(open, duration = 800) {
+  if (!model || !model.doorPivotL || !model.doorPivotR) return;
   const { doorPivotL, doorPivotR } = model;
   const fromL = doorPivotL.rotation.y, fromR = doorPivotR.rotation.y;
-  const toL = open ? -Math.PI / 2 : 0, toR = open ? Math.PI / 2 : 0;
+  const toL = open ? -Math.PI / 2 : 0;
+  const toR = open ? Math.PI / 2 : 0;
   const start = performance.now();
+
   const step = (now) => {
     const t = Math.min((now - start) / duration, 1);
     const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -216,53 +209,80 @@ function animateDoors(open, duration) {
   requestAnimationFrame(step);
 }
 
+/**
+ * Cambia el modo principal entre Vista Externa y Vista Interna.
+ */
 function setViewMode(mode) {
   if (mode === state.viewMode || !model) return;
-  if (mode === 'interior') {
-    animateCamera(interiorDefault.cam.pos, interiorDefault.cam.target, 900);
-    animateDoors(true, 900);
-  } else {
-    animateCamera(camExterior.pos, camExterior.target, 900);
-    animateDoors(false, 900);
-  }
-  // el camión real (DAF) no tiene interior modelado: se oculta por completo
-  // en Vista Interna y se muestra el forro propio en su lugar.
-  if (model.daf) model.daf.visible = mode === 'exterior';
   state.viewMode = mode;
   state.selectedPart = null;
-  applyExteriorVisibility();
-  applyInteriorTranslucency(null);
+
+  if (mode === 'interior') {
+    // Abrir puertas y activar corte seccionado idéntico a la imagen
+    animateDoors(true, 850);
+    model.applyCutaway('interior', null, camera.position.z >= 0 ? 1 : -1);
+    animateCamera(interiorDefault.cam.pos, interiorDefault.cam.target, 850);
+  } else {
+    // Cerrar puertas y contenedor sólido
+    animateDoors(false, 850);
+    model.applyCutaway('exterior');
+    animateCamera(camExterior.pos, camExterior.target, 850);
+  }
+
+  updateMeshColors();
   renderAll();
 }
 
+/**
+ * Selecciona una sección para inspección detallada.
+ */
 function selectPart(partId) {
-  if (state.saved) return;
-  if (model) {
-    Object.values(model.meshesByPart).flat().forEach((m) => m.material.emissive && m.material.emissive.setHex(0x000000));
-    (model.meshesByPart[partId] || []).forEach((m) => {
-      m.material.emissive.setHex(0xC67139);
-      m.material.emissiveIntensity = 0.3;
-    });
-    const config = interiorConfigs[partId];
-    if (config) {
-      applyInteriorFocus(partId);
-      animateCamera(config.cam.pos, config.cam.target, 800);
-    }
-  }
+  if (state.saved || !PART_DEFS[partId]) return;
   state.selectedPart = partId;
+
+  const isInterior = partId.startsWith('int_');
+
+  // Si la parte seleccionada es de otro modo de vista (por ejemplo desde la lista lateral), sincronizar
+  if (isInterior && state.viewMode !== 'interior') {
+    state.viewMode = 'interior';
+    animateDoors(true, 800);
+  } else if (!isInterior && state.viewMode !== 'exterior') {
+    state.viewMode = 'exterior';
+    animateDoors(false, 800);
+  }
+
+  // Aplicar el corte seccionado correspondiente sin ocultar la pared seleccionada
+  if (state.viewMode === 'interior') {
+    const zSign = camera ? (camera.position.z >= 0 ? 1 : -1) : 1;
+    model.applyCutaway('interior', partId, zSign);
+    const config = interiorConfigs[partId];
+    if (config) animateCamera(config.cam.pos, config.cam.target, 800);
+  } else {
+    model.applyCutaway('exterior');
+    const config = exteriorConfigs[partId];
+    if (config) animateCamera(config.cam.pos, config.cam.target, 800);
+  }
+
+  updateMeshColors();
   renderAll();
 }
 
+/**
+ * Deselecciona la parte activa y regresa a la vista general.
+ */
 function deselectPart() {
-  if (model) {
-    Object.values(model.meshesByPart).flat().forEach((m) => m.material.emissive && m.material.emissive.setHex(0x000000));
-    if (state.viewMode === 'interior') {
-      applyExteriorVisibility();
-      applyInteriorTranslucency(null);
-      animateCamera(interiorDefault.cam.pos, interiorDefault.cam.target, 800);
-    }
-  }
   state.selectedPart = null;
+
+  if (state.viewMode === 'interior') {
+    const zSign = camera ? (camera.position.z >= 0 ? 1 : -1) : 1;
+    model.applyCutaway('interior', null, zSign);
+    animateCamera(interiorDefault.cam.pos, interiorDefault.cam.target, 700);
+  } else {
+    model.applyCutaway('exterior');
+    animateCamera(camExterior.pos, camExterior.target, 700);
+  }
+
+  updateMeshColors();
   renderAll();
 }
 
@@ -273,7 +293,30 @@ function setAnswer(partId, itemId, value) {
   renderAll();
 }
 
+// Mapeo entre piezas externas e internas para permitir seleccionar la parte correspondiente
+// sin importar si el usuario hace clic en la cara exterior o interior del contenedor
+const EXT_TO_INT_MAP = {
+  ext_pared_izquierda: 'int_pared_izquierda',
+  ext_pared_derecha:   'int_pared_derecha',
+  ext_techo:           'int_techo',
+  ext_puertas:         'int_puertas',
+  cabina:              'int_frente',
+};
+
+const INT_TO_EXT_MAP = {
+  int_pared_izquierda: 'ext_pared_izquierda',
+  int_pared_derecha:   'ext_pared_derecha',
+  int_techo:           'ext_techo',
+  int_puertas:         'ext_puertas',
+  int_frente:          'cabina',
+};
+
+/**
+ * Raycasting para hacer clic directamente en las piezas 3D.
+ * Selecciona la pieza adecuada manteniéndose en el modo actual (exterior o interior).
+ */
 function handlePick(e) {
+  if (!model || !stageEl || !camera) return;
   const rect = stageEl.getBoundingClientRect();
   const ndc = new THREE.Vector2(
     ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -281,16 +324,56 @@ function handlePick(e) {
   );
   const ray = new THREE.Raycaster();
   ray.setFromCamera(ndc, camera);
-  const targets = [];
-  Object.entries(model.meshesByPart).forEach(([part, meshes]) => {
-    if (PART_DEFS[part] && PART_DEFS[part].mode === state.viewMode) {
-      meshes.forEach((m) => { if (m.visible) targets.push(m); });
+
+  const hits = ray.intersectObjects(model.group.children, true);
+  for (let i = 0; i < hits.length; i++) {
+    const hitObj = hits[i].object;
+
+    // 1. Descartar mallas que estén ocultas o dentro de un grupo oculto
+    let isVisible = true;
+    let curr = hitObj;
+    while (curr && curr !== model.group) {
+      if (curr.visible === false) { isVisible = false; break; }
+      curr = curr.parent;
     }
-  });
-  const hits = ray.intersectObjects(targets, false);
-  if (hits.length) selectPart(hits[0].object.userData.part);
+    if (!isVisible) continue;
+
+    // 2. Buscar si la pieza o su contenedor tiene un identificador de inspección
+    let target = hitObj;
+    let matchedPart = null;
+    while (target && target !== model.group) {
+      const part = target.userData && target.userData.part;
+      if (part && PART_DEFS[part]) {
+        matchedPart = part;
+        break;
+      }
+      target = target.parent;
+    }
+    if (!matchedPart) continue;
+
+    // 3. Coincidencia directa con el modo actual (interior o exterior)
+    if (PART_DEFS[matchedPart].mode === state.viewMode) {
+      selectPart(matchedPart);
+      return;
+    }
+
+    // 4. Si estamos en modo interior y se hizo clic sobre una superficie exterior visible
+    if (state.viewMode === 'interior' && EXT_TO_INT_MAP[matchedPart]) {
+      selectPart(EXT_TO_INT_MAP[matchedPart]);
+      return;
+    }
+
+    // 5. Si estamos en modo exterior y se hizo clic sobre una superficie interior visible
+    if (state.viewMode === 'exterior' && INT_TO_EXT_MAP[matchedPart]) {
+      selectPart(INT_TO_EXT_MAP[matchedPart]);
+      return;
+    }
+  }
 }
 
+/**
+ * Inicialización del Stage 3D y configuración de posiciones de cámara.
+ */
 async function initStage(stage) {
   stageEl = stage;
   const ready = await stage.ready;
@@ -301,33 +384,73 @@ async function initStage(stage) {
   camera = stage._camera;
   controls = stage._controls;
 
-  camExterior = { pos: camera.position.clone(), target: controls.target.clone() };
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
-  const extTarget = controls.target.clone();
-  const extDist = camera.position.distanceTo(extTarget);
-  const overviewTarget = V(model.boxCX * 0.4, model.floorY + model.boxH * 0.3, 0);
-  const dir = new THREE.Vector3(1.1, 0.65, 1.2).normalize();
-  const overviewCam = { pos: overviewTarget.clone().add(dir.multiplyScalar(extDist)), target: overviewTarget };
+  const { L, W, H } = mod.DIMS;
+  const halfL = L / 2;
+  const halfW = W / 2;
 
-  interiorConfigs = {
-    int_pared_izquierda: { cam: { pos: V(model.boxCX, model.floorY + model.boxH * 0.55, model.boxW * 2.7), target: V(model.boxCX, model.floorY + model.boxH * 0.4, 0) }, hide: ['ext_pared_derecha', 'int_pared_derecha', 'ext_techo', 'int_techo'] },
-    int_pared_derecha: { cam: { pos: V(model.boxCX, model.floorY + model.boxH * 0.55, -model.boxW * 2.7), target: V(model.boxCX, model.floorY + model.boxH * 0.4, 0) }, hide: ['ext_pared_izquierda', 'int_pared_izquierda', 'ext_techo', 'int_techo'] },
-    int_techo: { cam: { pos: V(model.boxCX - model.boxL * 0.15, model.boxTopY + model.boxH * 1.1, model.boxW * 1.8), target: V(model.boxCX, model.boxTopY - 0.05, 0) } },
-    int_piso: { cam: { pos: V(model.boxCX, model.boxTopY + model.boxL * 0.75, 0.001), target: V(model.boxCX, model.floorY, 0) } },
-    int_puertas: { cam: { pos: V(model.boxX1 + 2.4, model.floorY + model.boxH * 0.85, model.boxW * 1.9), target: V(model.boxX1 - 0.6, model.floorY + model.boxH * 0.35, -model.boxW * 0.15) } },
-    int_frente: { cam: { pos: V(model.boxX1 + model.boxL * 0.55, model.floorY + model.boxH * 0.5, 0.01), target: V(model.boxX0, model.floorY + model.boxH * 0.4, 0) } },
+  // Cámara general exterior
+  camExterior = {
+    pos: V(halfL * 1.3, H * 1.6, W * 2.8),
+    target: V(0, H * 0.45, 0),
   };
-  interiorDefault = { cam: overviewCam };
-  applyExteriorVisibility();
+
+  // Cámara general interior: vista de túnel desde la entrada con puertas abiertas y todas las paredes visibles
+  interiorDefault = {
+    pos: V(halfL + 2.6, H * 0.58, 0.001),
+    target: V(-halfL * 0.2, H * 0.45, 0),
+  };
+
+  // Vistas enfocadas para partes exteriores (Piloto = +Z, Copiloto = -Z)
+  exteriorConfigs = {
+    ext_pared_izquierda: { cam: { pos: V(0, H * 0.5, W * 2.8), target: V(0, H * 0.5, 0) } },
+    ext_pared_derecha:   { cam: { pos: V(0, H * 0.5, -W * 2.8), target: V(0, H * 0.5, 0) } },
+    ext_techo:           { cam: { pos: V(0, H * 2.6, W * 1.4), target: V(0, H, 0) } },
+    ext_puertas:         { cam: { pos: V(halfL + 3.2, H * 0.55, 0.001), target: V(halfL, H * 0.5, 0) } },
+    cabina:              { cam: { pos: V(-halfL - 3.2, H * 0.55, 0.001), target: V(-halfL, H * 0.45, 0) } },
+    generales:           { cam: { pos: V(halfL * 0.5, 0.35, -W * 2.4), target: V(halfL * 0.3, 0.1, 0) } },
+  };
+
+  // Vistas enfocadas para partes interiores
+  interiorConfigs = {
+    // Pared Izquierda (+Z): se abre pared derecha (-Z) y la cámara mira desde afuera hacia +Z
+    int_pared_izquierda: { cam: { pos: V(0, H * 0.5, -W * 2.4), target: V(0, H * 0.5, halfW - 0.1) } },
+    // Pared Derecha (-Z): se abre pared izquierda (+Z) y la cámara mira desde afuera hacia -Z
+    int_pared_derecha:   { cam: { pos: V(0, H * 0.5, W * 2.4), target: V(0, H * 0.5, -halfW + 0.1) } },
+    // Piso: techo retirado, cámara cenital enfocando piso de madera y rejilla
+    int_piso:            { cam: { pos: V(0.5, H * 2.4, W * 1.5), target: V(0.5, 0.1, 0) } },
+    // Techo: pared abierta para encuadrar las vigas y chapa superior
+    int_techo:           { cam: { pos: V(0, 0.45, W * 1.6), target: V(0, H - 0.05, 0) } },
+    // Puertas interiores
+    int_puertas:         { cam: { pos: V(halfL + 2.5, H * 0.6, W * 1.2), target: V(halfL - 0.2, H * 0.5, 0) } },
+    // Pared frontal (fondo): todas las paredes presentes, vista frontal directa hacia el fondo
+    int_frente:          { cam: { pos: V(halfL * 0.6, H * 0.55, 0.001), target: V(-halfL + 0.1, H * 0.5, 0) } },
+  };
+
+  // En vista general reposan todas las paredes visibles
+  model.applyCutaway('exterior');
   updateMeshColors();
 
+  // Detección de clics rápidos para no interferir con el arrastre orbital
   let down = null;
-  stage.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
-  stage.addEventListener('pointerup', (e) => {
+  const canvasTarget = (stage._renderer && stage._renderer.domElement) || stage;
+
+  const onPointerDown = (e) => {
+    down = { x: e.clientX, y: e.clientY };
+  };
+  const onPointerUp = (e) => {
     if (!down) return;
     const d = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+    down = null;
     if (d < 6) handlePick(e);
-  });
+  };
+
+  canvasTarget.addEventListener('pointerdown', onPointerDown);
+  canvasTarget.addEventListener('pointerup', onPointerUp);
+  if (canvasTarget !== stage) {
+    stage.addEventListener('pointerdown', onPointerDown);
+    stage.addEventListener('pointerup', onPointerUp);
+  }
 }
 
 /* ============ UI ============ */
@@ -589,7 +712,7 @@ function renderAll() {
   renderDialog();
 }
 
-/* ============ eventos de encabezado ============ */
+/* ============ Eventos de encabezado ============ */
 els.extBtn.onclick = () => setViewMode('exterior');
 els.intBtn.onclick = () => setViewMode('interior');
 ['placa', 'transportista', 'piloto', 'cliente'].forEach((field) => {
@@ -598,11 +721,13 @@ els.intBtn.onclick = () => setViewMode('interior');
 els.btnFinalizar.onclick = openFinalize;
 els.dialogBackdrop.onclick = (e) => { if (e.target === els.dialogBackdrop) closeDialog(); };
 
-/* ============ arranque del stage 3D ============ */
+/* ============ Arranque del stage 3D ============ */
 const stage = document.querySelector('three-d-stage');
-customElements.whenDefined('three-d-stage').then(() => initStage(stage).then(renderAll));
+customElements.whenDefined('three-d-stage')
+  .then(() => initStage(stage).then(renderAll))
+  .catch((err) => console.error('Error inicializando visor 3D:', err));
 
-/* ============ sesión ============ */
+/* ============ Sesión ============ */
 document.getElementById('btnSalir').addEventListener('click', () => cerrarSesion());
 
 protegerPagina({}, ({ user, perfil }) => {

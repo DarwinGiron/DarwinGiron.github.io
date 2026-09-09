@@ -53,14 +53,14 @@
 
         <section class="tarjeta">
           <h2 class="tarjeta__titulo">Filtros</h2>
+          <div class="campo" style="margin-bottom: 14px;">
+            <label for="filtro-busqueda">Buscar por inspector, turno o área</label>
+            <input type="search" id="filtro-busqueda" placeholder="Ej. Juan Pérez, Turno 2, Corrugado…" />
+          </div>
           <div class="filtros">
             <div class="campo">
-              <label for="filtro-desde">Desde</label>
-              <input type="date" id="filtro-desde" />
-            </div>
-            <div class="campo">
-              <label for="filtro-hasta">Hasta</label>
-              <input type="date" id="filtro-hasta" />
+              <label for="filtro-mes">Mes</label>
+              <input type="month" id="filtro-mes" />
             </div>
             <div class="campo">
               <label for="filtro-area">Área</label>
@@ -107,13 +107,16 @@
         </section>
 
         <section class="tarjeta">
-          <h2 class="tarjeta__titulo" id="titulo-historial">Últimas 20 inspecciones</h2>
+          <h2 class="tarjeta__titulo" id="titulo-historial">Inspecciones del mes</h2>
           <div id="lista-inspecciones" class="lista-inspecciones">
             <span class="solo-lectores" role="status">Cargando inspecciones…</span>
             <div class="esqueleto esqueleto-fila"></div>
             <div class="esqueleto esqueleto-fila"></div>
             <div class="esqueleto esqueleto-fila"></div>
           </div>
+          <button type="button" id="btn-cargar-mas" class="btn btn-secundario btn-sm oculto" style="margin-top: 14px;">
+            Cargar más
+          </button>
         </section>
       </div>
 

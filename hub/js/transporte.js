@@ -18,7 +18,10 @@ import {
   getDoc,
   getDocs,
   addDoc,
+  updateDoc,
+  deleteDoc,
   query,
+  where,
   orderBy,
   limit,
   serverTimestamp,
@@ -38,6 +41,7 @@ const ETIQUETA_VISTA = { externa: "Exterior", interna: "Interior" };
 let usuarioActual = null;
 let perfilActual = null;
 let vistaActual = "externa";
+let editandoId = null;
 const respuestas = {}; // idItem(zonaId,modo,indice) -> { valor:'si'|'no'|null, observacion:'' }
 const otros = {}; // `${zonaId}.${modo}` -> texto libre ("Otros: Describir")
 const respuestasCabina = {}; // indice -> { valor, observacion }
@@ -85,6 +89,9 @@ protegerPagina({}, async ({ user, perfil }) => {
     inicializarDiagrama();
     inicializarToggleVista();
     inicializarFormulario();
+
+    const idEditar = new URLSearchParams(window.location.search).get("editar");
+    if (idEditar) await cargarParaEditar(idEditar);
   }
 
   if (listaVerificaciones) {
@@ -357,6 +364,60 @@ function pintarZonaDiagrama(mapaId, respondidos, total) {
 }
 
 /* ---------------------------------------------------------
+   Cargar un registro existente para edición (?editar=<id>)
+   --------------------------------------------------------- */
+async function cargarParaEditar(id) {
+  try {
+    const snap = await getDoc(doc(db, COLEC_REGISTROS, id));
+    if (!snap.exists()) {
+      mostrarToast("El registro que intentas editar no existe.", "error");
+      return;
+    }
+    const data = snap.data();
+    editandoId = id;
+
+    document.getElementById("campo-transporte").value = data.transporte || "";
+    document.getElementById("campo-equipo").value = data.numeroEquipo || "";
+    document.getElementById("campo-marchamo").value = data.numeroMarchamo || "";
+    document.getElementById("campo-piloto").value = data.nombrePiloto || "";
+    document.getElementById("campo-placa").value = data.placaCamion || "";
+    document.getElementById("campo-tc").value = data.tc || "";
+    document.getElementById("campo-orden").value = data.ordenProduccion || "";
+    document.getElementById("campo-cliente").value = data.cliente || "";
+    document.getElementById("campo-picking").value = data.numeroPicking || "";
+    campoFecha.value = data.fecha || fechaHoyISO();
+    document.getElementById("campo-resultado").value = data.resultado || "";
+    document.getElementById("campo-inspector-inocuidad").value = data.inspectorInocuidad || "";
+    document.getElementById("campo-observaciones-generales").value = data.observacionesGenerales || "";
+
+    Object.entries(data.respuestasPorZona || {}).forEach(([zonaId, z]) => {
+      ["externa", "interna"].forEach((modo) => {
+        (z[modo] || []).forEach((r, indice) => {
+          respuestas[idItem(zonaId, modo, indice)] = { valor: r.valor, observacion: r.observacion || "" };
+        });
+        if (z[modo + "Otros"]) otros[`${zonaId}.${modo}`] = z[modo + "Otros"];
+      });
+    });
+    (data.respuestasCabina || []).forEach((r, indice) => {
+      respuestasCabina[indice] = { valor: r.valor, observacion: r.observacion || "" };
+    });
+
+    renderZonas();
+    renderCabina();
+    actualizarDiagrama();
+
+    const titulo = document.querySelector(".app-header__titulos .titulo");
+    if (titulo) titulo.textContent = "Editar Verificación de Transporte";
+    btnGuardar.textContent = "Guardar cambios";
+
+    mostrarToast("Editando verificación existente.", "info");
+  } catch (err) {
+    console.error("Error al cargar verificación para editar:", err);
+    mostrarToast("No se pudo cargar el registro para editar.", "error");
+  }
+}
+
+/* ---------------------------------------------------------
    Envío del formulario
    --------------------------------------------------------- */
 function inicializarFormulario() {
@@ -423,38 +484,51 @@ function inicializarFormulario() {
     btnGuardar.disabled = true;
     btnGuardar.textContent = "Guardando...";
 
-    try {
-      await addDoc(collection(db, COLEC_REGISTROS), {
-        transporte,
-        nombrePiloto,
-        tc,
-        placaCamion,
-        fecha,
-        numeroEquipo: document.getElementById("campo-equipo").value.trim(),
-        numeroMarchamo: document.getElementById("campo-marchamo").value.trim(),
-        ordenProduccion: document.getElementById("campo-orden").value.trim(),
-        cliente: document.getElementById("campo-cliente").value.trim(),
-        numeroPicking: document.getElementById("campo-picking").value.trim(),
-        respuestasPorZona,
-        respuestasCabina: respuestasCabinaFinal,
-        resultado,
-        inspectorInocuidad: document.getElementById("campo-inspector-inocuidad").value.trim(),
-        observacionesGenerales,
-        cumplimientoPorcentaje: porcentajeCumplimiento,
-        cumplidos: si,
-        total,
-        inspectorUid: usuarioActual.uid,
-        inspectorNombre: perfilActual.nombre || usuarioActual.email,
-        fechaCreacion: serverTimestamp(),
-      });
+    const datos = {
+      transporte,
+      nombrePiloto,
+      tc,
+      placaCamion,
+      fecha,
+      numeroEquipo: document.getElementById("campo-equipo").value.trim(),
+      numeroMarchamo: document.getElementById("campo-marchamo").value.trim(),
+      ordenProduccion: document.getElementById("campo-orden").value.trim(),
+      cliente: document.getElementById("campo-cliente").value.trim(),
+      numeroPicking: document.getElementById("campo-picking").value.trim(),
+      respuestasPorZona,
+      respuestasCabina: respuestasCabinaFinal,
+      resultado,
+      inspectorInocuidad: document.getElementById("campo-inspector-inocuidad").value.trim(),
+      observacionesGenerales,
+      cumplimientoPorcentaje: porcentajeCumplimiento,
+      cumplidos: si,
+      total,
+    };
 
-      mostrarToast("Verificación de transporte guardada exitosamente.", "exito");
-      setTimeout(() => { window.location.href = "/hub/verificacion-transporte/historial.html"; }, 1000);
+    try {
+      if (editandoId) {
+        await updateDoc(doc(db, COLEC_REGISTROS, editandoId), {
+          ...datos,
+          editadoPor: usuarioActual.uid,
+          editadoEn: serverTimestamp(),
+        });
+        mostrarToast("Verificación de transporte actualizada.", "exito");
+        setTimeout(() => { window.location.href = `/hub/verificacion-transporte/historial.html?ver=${editandoId}`; }, 1000);
+      } else {
+        await addDoc(collection(db, COLEC_REGISTROS), {
+          ...datos,
+          inspectorUid: usuarioActual.uid,
+          inspectorNombre: perfilActual.nombre || usuarioActual.email,
+          fechaCreacion: serverTimestamp(),
+        });
+        mostrarToast("Verificación de transporte guardada exitosamente.", "exito");
+        setTimeout(() => { window.location.href = "/hub/verificacion-transporte/historial.html"; }, 1000);
+      }
     } catch (err) {
       console.error("Error al guardar verificación de transporte:", err);
       mostrarToast("No se pudo guardar la verificación. Intenta de nuevo.", "error");
       btnGuardar.disabled = false;
-      btnGuardar.textContent = "Guardar Verificación";
+      btnGuardar.textContent = editandoId ? "Guardar cambios" : "Guardar Verificación";
     }
   });
 }
@@ -462,14 +536,31 @@ function inicializarFormulario() {
 /* ---------------------------------------------------------
    Historial y detalle
    --------------------------------------------------------- */
+const POR_PAGINA_TRANSPORTE = 20;
+const filtroMesTransporte = document.getElementById("filtro-mes-transporte");
+const filtroBusquedaTransporte = document.getElementById("filtro-busqueda-transporte");
+const btnCargarMasTransporte = document.getElementById("btn-cargar-mas-transporte");
+const tituloListaTransporte = document.getElementById("titulo-historial-transporte");
+
+const estadoLista = {
+  registrosMes: [],
+  visibles: POR_PAGINA_TRANSPORTE,
+};
+
+function mesActualISOTransporte() {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function rangoDelMesTransporte(mesISO) {
+  const [anio, mes] = mesISO.split("-").map(Number);
+  const ultimoDia = new Date(anio, mes, 0).getDate();
+  return { inicio: `${mesISO}-01`, fin: `${mesISO}-${String(ultimoDia).padStart(2, "0")}` };
+}
+
 async function inicializarHistorial() {
   const parametrosUrl = new URLSearchParams(window.location.search);
   const idVer = parametrosUrl.get("ver");
-
-  if (idVer) {
-    await verDetalle(idVer);
-    return;
-  }
 
   if (btnVolver) {
     btnVolver.addEventListener("click", () => {
@@ -479,56 +570,119 @@ async function inicializarHistorial() {
     });
   }
 
-  try {
-    const q = query(collection(db, COLEC_REGISTROS), orderBy("fechaCreacion", "desc"), limit(20));
-    const snap = await getDocs(q);
-
-    if (snap.empty) {
-      listaVerificaciones.innerHTML = '<p class="texto-suave texto-sm text-center">No hay inspecciones de transporte registradas aún.</p>';
-      return;
-    }
-
-    listaVerificaciones.innerHTML = "";
-    snap.docs.forEach((docSnap) => {
-      const data = docSnap.data();
-      const item = document.createElement("div");
-      item.className = "editor-item";
-
-      const aprobado = data.resultado === "aprobado";
-
-      item.innerHTML = `
-        <div class="editor-item__cabecera">
-          <div>
-            <div class="editor-item__titulo">
-              Placa: ${escaparHtml(data.placaCamion || "—")} — ${escaparHtml(data.transporte || "Transporte")}
-            </div>
-            <div class="texto-suave texto-xs mt-1">
-              Piloto: <strong>${escaparHtml(data.nombrePiloto || "—")}</strong> · TC: ${escaparHtml(data.tc || "—")} · Fecha: ${formatearFechaISOCorta(data.fecha)}
-            </div>
-            <div class="texto-suave texto-xs">
-              Inspector: ${escaparHtml(data.inspectorNombre || "—")}
-            </div>
-          </div>
-          <div style="text-align: right;">
-            <span class="badge ${aprobado ? "badge-exito" : "badge-error"}">
-              ${aprobado ? "Aprobado" : "Rechazado"} · ${data.cumplimientoPorcentaje ?? 0}%
-            </span>
-            <div class="mt-2">
-              <button type="button" class="btn btn-secundario btn-sm btn-ver-detalle" data-id="${docSnap.id}">
-                Ver Detalle →
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-
-      item.querySelector(".btn-ver-detalle").addEventListener("click", () => verDetalle(docSnap.id));
-      listaVerificaciones.appendChild(item);
+  if (filtroMesTransporte) {
+    filtroMesTransporte.value = mesActualISOTransporte();
+    filtroMesTransporte.addEventListener("change", () => cargarListaTransporte());
+  }
+  if (filtroBusquedaTransporte) {
+    filtroBusquedaTransporte.addEventListener("input", () => {
+      estadoLista.visibles = POR_PAGINA_TRANSPORTE;
+      renderListaTransporte();
     });
+  }
+  if (btnCargarMasTransporte) {
+    btnCargarMasTransporte.addEventListener("click", () => {
+      estadoLista.visibles += POR_PAGINA_TRANSPORTE;
+      renderListaTransporte();
+    });
+  }
+
+  await cargarListaTransporte();
+
+  if (idVer) await verDetalle(idVer);
+}
+
+async function cargarListaTransporte() {
+  estadoLista.visibles = POR_PAGINA_TRANSPORTE;
+  listaVerificaciones.innerHTML = '<div class="esqueleto esqueleto-fila"></div><div class="esqueleto esqueleto-fila"></div>';
+
+  try {
+    const mesISO = filtroMesTransporte?.value || mesActualISOTransporte();
+    const { inicio, fin } = rangoDelMesTransporte(mesISO);
+    const q = query(
+      collection(db, COLEC_REGISTROS),
+      where("fecha", ">=", inicio),
+      where("fecha", "<=", fin),
+      orderBy("fecha", "desc")
+    );
+    const snap = await getDocs(q);
+    estadoLista.registrosMes = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.fechaCreacion?.toMillis?.() || 0) - (a.fechaCreacion?.toMillis?.() || 0));
+
+    renderListaTransporte();
   } catch (err) {
     console.error("Error al cargar historial de transporte:", err);
     listaVerificaciones.innerHTML = '<p class="texto-suave texto-sm text-center">Error al cargar registros.</p>';
   }
+}
+
+function registrosFiltradosTransporte() {
+  const termino = (filtroBusquedaTransporte?.value || "").trim().toLowerCase();
+  if (!termino) return estadoLista.registrosMes;
+  return estadoLista.registrosMes.filter((r) =>
+    String(r.ordenProduccion || "").toLowerCase().includes(termino) ||
+    String(r.cliente || "").toLowerCase().includes(termino) ||
+    String(r.inspectorNombre || "").toLowerCase().includes(termino) ||
+    String(r.placaCamion || "").toLowerCase().includes(termino) ||
+    String(r.nombrePiloto || "").toLowerCase().includes(termino)
+  );
+}
+
+function renderListaTransporte() {
+  const filtrados = registrosFiltradosTransporte();
+  if (tituloListaTransporte) {
+    tituloListaTransporte.textContent = `${filtrados.length} verificación${filtrados.length === 1 ? "" : "es"} este mes`;
+  }
+
+  if (filtrados.length === 0) {
+    listaVerificaciones.innerHTML = '<p class="texto-suave texto-sm text-center">No hay inspecciones de transporte que coincidan.</p>';
+    if (btnCargarMasTransporte) btnCargarMasTransporte.classList.add("oculto");
+    return;
+  }
+
+  const visibles = filtrados.slice(0, estadoLista.visibles);
+  listaVerificaciones.innerHTML = "";
+  visibles.forEach((data) => {
+    const item = document.createElement("div");
+    item.className = "editor-item";
+
+    const aprobado = data.resultado === "aprobado";
+
+    item.innerHTML = `
+      <div class="editor-item__cabecera">
+        <div>
+          <div class="editor-item__titulo">
+            Placa: ${escaparHtml(data.placaCamion || "—")} — ${escaparHtml(data.transporte || "Transporte")}
+          </div>
+          <div class="texto-suave texto-xs mt-1">
+            Piloto: <strong>${escaparHtml(data.nombrePiloto || "—")}</strong> · TC: ${escaparHtml(data.tc || "—")} · Fecha: ${formatearFechaISOCorta(data.fecha)}
+          </div>
+          <div class="texto-suave texto-xs">
+            Orden: ${escaparHtml(data.ordenProduccion || "—")} · Cliente: ${escaparHtml(data.cliente || "—")}
+          </div>
+          <div class="texto-suave texto-xs">
+            Inspector: ${escaparHtml(data.inspectorNombre || "—")}
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <span class="badge ${aprobado ? "badge-exito" : "badge-error"}">
+            ${aprobado ? "Aprobado" : "Rechazado"} · ${data.cumplimientoPorcentaje ?? 0}%
+          </span>
+          <div class="mt-2">
+            <button type="button" class="btn btn-secundario btn-sm btn-ver-detalle" data-id="${data.id}">
+              Ver Detalle →
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    item.querySelector(".btn-ver-detalle").addEventListener("click", () => verDetalle(data.id));
+    listaVerificaciones.appendChild(item);
+  });
+
+  if (btnCargarMasTransporte) btnCargarMasTransporte.classList.toggle("oculto", visibles.length >= filtrados.length);
 }
 
 async function verDetalle(docId) {
@@ -616,9 +770,47 @@ async function verDetalle(docId) {
           <p class="mb-0">${escaparHtml(data.observacionesGenerales)}</p>
         </section>
       ` : ""}
+
+      <div class="grupo-botones" id="detalle-acciones-transporte"></div>
     `;
+
+    const puedeGestionar = esRolDeGestion(perfilActual.rol) || data.inspectorUid === usuarioActual.uid;
+    const accionesEl = document.getElementById("detalle-acciones-transporte");
+    accionesEl.innerHTML = `
+      ${puedeGestionar ? `<button type="button" class="btn btn-secundario btn-ancho-auto" id="btn-editar-transporte">Editar registro</button>` : ""}
+      ${esRolDeGestion(perfilActual.rol) ? `<button type="button" class="btn btn-peligro btn-ancho-auto" id="btn-eliminar-transporte">Eliminar registro</button>` : ""}
+    `;
+    const btnEditar = document.getElementById("btn-editar-transporte");
+    if (btnEditar) {
+      btnEditar.addEventListener("click", () => {
+        window.location.href = `/hub/verificacion-transporte/index.html?editar=${docId}`;
+      });
+    }
+    const btnEliminar = document.getElementById("btn-eliminar-transporte");
+    if (btnEliminar) {
+      btnEliminar.addEventListener("click", () => eliminarVerificacion(docId, data));
+    }
   } catch (err) {
     console.error("Error al obtener detalle de verificación:", err);
     mostrarToast("No se pudo cargar el detalle.", "error");
+  }
+}
+
+async function eliminarVerificacion(docId, data) {
+  const confirmado = confirm(
+    `¿Eliminar la verificación de la placa "${data.placaCamion || "—"}"? Esta acción no se puede deshacer.`
+  );
+  if (!confirmado) return;
+
+  try {
+    await deleteDoc(doc(db, COLEC_REGISTROS, docId));
+    mostrarToast("Registro eliminado.", "exito");
+    vistaDetalle.classList.add("oculto");
+    vistaLista.classList.remove("oculto");
+    history.pushState(null, "", "/hub/verificacion-transporte/historial.html");
+    cargarListaTransporte();
+  } catch (err) {
+    console.error("Error al eliminar verificación:", err);
+    mostrarToast("No se pudo eliminar el registro.", "error");
   }
 }

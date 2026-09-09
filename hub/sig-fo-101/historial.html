@@ -23,66 +23,84 @@
     </header>
 
     <main class="app-main">
-      <section class="tarjeta">
-        <h2 class="tarjeta__titulo">Filtros</h2>
-        <div class="filtros">
-          <div class="campo mb-0">
-            <label for="filtro-fecha">Fecha</label>
-            <input type="date" id="filtro-fecha" />
+      <div id="vista-lista">
+        <section class="tarjeta">
+          <h2 class="tarjeta__titulo">Filtros</h2>
+          <div class="campo campo-busqueda mb-0" style="margin-bottom: 14px;">
+            <label for="filtro-busqueda">Buscar por orden, cliente o inspector</label>
+            <input type="search" id="filtro-busqueda" placeholder="Ej. 4821, Corrugados S.A., Juan Pérez…" />
           </div>
-          <div class="campo mb-0">
-            <label for="filtro-maquina">Máquina</label>
-            <select id="filtro-maquina">
-              <option value="">Todas</option>
-            </select>
+          <div class="filtros">
+            <div class="campo mb-0">
+              <label for="filtro-mes">Mes</label>
+              <input type="month" id="filtro-mes" />
+            </div>
+            <div class="campo mb-0">
+              <label for="filtro-maquina">Máquina</label>
+              <select id="filtro-maquina">
+                <option value="">Todas</option>
+              </select>
+            </div>
+            <div class="campo mb-0">
+              <label for="filtro-turno">Turno</label>
+              <select id="filtro-turno">
+                <option value="">Todos</option>
+                <option value="1">Turno 1</option>
+                <option value="2">Turno 2</option>
+                <option value="3">Turno 3</option>
+              </select>
+            </div>
+            <div class="campo mb-0" style="align-self: end;">
+              <button type="button" id="btn-filtrar" class="btn btn-primario btn-sm">Aplicar filtros</button>
+            </div>
           </div>
-          <div class="campo mb-0">
-            <label for="filtro-turno">Turno</label>
-            <select id="filtro-turno">
-              <option value="">Todos</option>
-              <option value="1">Turno 1</option>
-              <option value="2">Turno 2</option>
-              <option value="3">Turno 3</option>
-            </select>
+          <div class="grupo-botones" style="margin-top: 14px;">
+            <button type="button" id="btn-limpiar-filtros" class="btn btn-secundario btn-sm btn-ancho-auto oculto">
+              Limpiar filtros
+            </button>
           </div>
-          <div class="campo mb-0" style="align-self: end;">
-            <button type="button" id="btn-filtrar" class="btn btn-primario btn-sm">Aplicar filtros</button>
+        </section>
+
+        <section class="tarjeta">
+          <h2 class="tarjeta__titulo" id="titulo-lista">Liberaciones del mes</h2>
+
+          <div id="lista-tarjetas" class="solo-movil"></div>
+
+          <div class="solo-escritorio" style="overflow-x: auto;">
+            <table class="tabla-historial">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Turno</th>
+                  <th>Máquina</th>
+                  <th>Orden</th>
+                  <th>Cliente</th>
+                  <th>L/S</th>
+                  <th>Inspector</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="cuerpo-tabla"></tbody>
+            </table>
           </div>
-        </div>
-        <div class="grupo-botones" style="margin-top: 14px;">
-          <button type="button" id="btn-limpiar-filtros" class="btn btn-secundario btn-sm btn-ancho-auto oculto">
-            Limpiar filtros
+
+          <button type="button" id="btn-cargar-mas" class="btn btn-secundario btn-sm" style="margin-top: 14px;">
+            Cargar más
+          </button>
+        </section>
+      </div>
+
+      <div id="vista-detalle" class="oculto">
+        <div class="grupo-botones" style="margin-bottom: 14px;">
+          <button type="button" id="btn-volver-detalle" class="btn btn-secundario btn-sm btn-ancho-auto">
+            ← Volver al historial
           </button>
         </div>
-      </section>
-
-      <section class="tarjeta">
-        <h2 class="tarjeta__titulo" id="titulo-lista">Últimas 20 liberaciones</h2>
-
-        <div id="lista-tarjetas" class="solo-movil"></div>
-
-        <div class="solo-escritorio" style="overflow-x: auto;">
-          <table class="tabla-historial">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Turno</th>
-                <th>Máquina</th>
-                <th>Orden</th>
-                <th>Cliente</th>
-                <th>L/S</th>
-                <th>Inspector</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody id="cuerpo-tabla"></tbody>
-          </table>
-        </div>
-
-        <button type="button" id="btn-cargar-mas" class="btn btn-secundario btn-sm" style="margin-top: 14px;">
-          Cargar más
-        </button>
-      </section>
+        <section class="tarjeta">
+          <div id="detalle-contenido"></div>
+          <div class="grupo-botones" id="detalle-acciones" style="margin-top: 18px;"></div>
+        </section>
+      </div>
     </main>
 
     <nav class="nav-inferior" aria-label="Navegación principal">

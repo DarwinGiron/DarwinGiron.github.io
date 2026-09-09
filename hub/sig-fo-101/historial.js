@@ -15,9 +15,10 @@ const textoUsuario = document.getElementById("texto-usuario");
 const btnSalir = document.getElementById("btn-salir");
 const linkAdmin = document.getElementById("link-admin");
 
-const filtroFecha = document.getElementById("filtro-fecha");
+const filtroMes = document.getElementById("filtro-mes");
 const filtroMaquina = document.getElementById("filtro-maquina");
 const filtroTurno = document.getElementById("filtro-turno");
+const filtroBusqueda = document.getElementById("filtro-busqueda");
 const btnFiltrar = document.getElementById("btn-filtrar");
 const btnLimpiarFiltros = document.getElementById("btn-limpiar-filtros");
 
@@ -25,6 +26,12 @@ const tituloLista = document.getElementById("titulo-lista");
 const listaTarjetas = document.getElementById("lista-tarjetas");
 const cuerpoTabla = document.getElementById("cuerpo-tabla");
 const btnCargarMas = document.getElementById("btn-cargar-mas");
+
+const vistaLista = document.getElementById("vista-lista");
+const vistaDetalle = document.getElementById("vista-detalle");
+const btnVolverDetalle = document.getElementById("btn-volver-detalle");
+const detalleContenido = document.getElementById("detalle-contenido");
+const detalleAcciones = document.getElementById("detalle-acciones");
 
 const modalEditar = document.getElementById("modal-editar");
 const btnCerrarModal = document.getElementById("btn-cerrar-modal");
@@ -35,18 +42,22 @@ const editPreguntasContenedor = document.getElementById("edit-preguntas-contened
 const editObservaciones = document.getElementById("edit-observaciones");
 const btnGuardarEdicion = document.getElementById("btn-guardar-edicion");
 
+function mesActualISO() {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+}
+
 const estado = {
   usuario: null,
   perfil: null,
   esAdmin: false,
   maquinas: [],
-  registros: [], // registros ya cargados en pantalla, en orden
-  cursor: null, // último doc snapshot, para "Cargar más"
-  hayMas: false,
+  registrosMes: [], // todos los registros del mes seleccionado (ya filtrados por máquina/turno)
+  visibles: POR_PAGINA, // cuántos de registrosMes se están mostrando (paginación en cliente)
   cargando: false,
-  filtrado: false,
   editandoId: null,
   editandoRespuestas: [], // [{ preguntaId, texto, valor }] del registro que se está editando
+  detalleId: null,
 };
 
 /* ---------------------------------------------------------
@@ -69,7 +80,11 @@ protegerPagina(async ({ user, perfil }) => {
     console.error("No se pudo cargar la configuración de SIG-FO-101:", error);
   }
 
-  cargarPrimeraPagina();
+  filtroMes.value = mesActualISO();
+  await cargarMes();
+
+  const idVer = new URLSearchParams(window.location.search).get("ver");
+  if (idVer && estado.registrosMes.some((r) => r.id === idVer)) abrirDetalle(idVer);
 });
 
 btnSalir.addEventListener("click", () => cerrarSesion());
@@ -84,120 +99,105 @@ function poblarFiltroMaquina() {
 }
 
 /* ---------------------------------------------------------
-   Consulta y paginación
+   Consulta por mes + filtro/búsqueda y paginación en cliente
    --------------------------------------------------------- */
 
-function leerFiltros() {
-  return {
-    fecha: filtroFecha.value || null,
-    maquina: filtroMaquina.value || null,
-    turno: filtroTurno.value || null,
-  };
+function rangoDelMes(mesISO) {
+  const [anio, mes] = mesISO.split("-").map(Number);
+  const inicio = `${mesISO}-01`;
+  const ultimoDia = new Date(anio, mes, 0).getDate();
+  const fin = `${mesISO}-${String(ultimoDia).padStart(2, "0")}`;
+  return { inicio, fin };
 }
 
-function construirConsultaBase(filtros) {
-  let consulta = db.collection("liberaciones");
-  if (filtros.fecha) consulta = consulta.where("fecha", "==", filtros.fecha);
-  if (filtros.maquina) consulta = consulta.where("maquina", "==", filtros.maquina);
-  if (filtros.turno) consulta = consulta.where("turno", "==", Number(filtros.turno));
-  return consulta.orderBy("timestamp", "desc");
-}
-
-btnFiltrar.addEventListener("click", () => {
-  estado.filtrado = Boolean(filtroFecha.value || filtroMaquina.value || filtroTurno.value);
-  btnLimpiarFiltros.classList.toggle("oculto", !estado.filtrado);
-  cargarPrimeraPagina();
-});
+btnFiltrar.addEventListener("click", () => cargarMes());
 
 btnLimpiarFiltros.addEventListener("click", () => {
-  filtroFecha.value = "";
+  filtroMes.value = mesActualISO();
   filtroMaquina.value = "";
   filtroTurno.value = "";
-  estado.filtrado = false;
+  filtroBusqueda.value = "";
   btnLimpiarFiltros.classList.add("oculto");
-  cargarPrimeraPagina();
+  cargarMes();
 });
 
-async function cargarPrimeraPagina() {
-  estado.registros = [];
-  estado.cursor = null;
-  estado.hayMas = false;
-  tituloLista.textContent = estado.filtrado ? "Resultados filtrados" : `Últimas ${POR_PAGINA} liberaciones`;
-  const cargando = '<p class="estado-vacio">Cargando liberaciones…</p>';
-  listaTarjetas.innerHTML = cargando;
-  cuerpoTabla.innerHTML = `<tr><td colspan="8" class="texto-suave texto-centro">Cargando liberaciones…</td></tr>`;
-  await cargarPagina();
-}
+filtroBusqueda.addEventListener("input", () => {
+  estado.visibles = POR_PAGINA;
+  render();
+});
 
-async function cargarPagina() {
-  if (estado.cargando) return;
+async function cargarMes() {
+  const huboFiltroExtra = Boolean(filtroMaquina.value || filtroTurno.value || filtroBusqueda.value.trim());
+  btnLimpiarFiltros.classList.toggle("oculto", !huboFiltroExtra && filtroMes.value === mesActualISO());
+
+  estado.visibles = POR_PAGINA;
   estado.cargando = true;
-  btnCargarMas.disabled = true;
-  btnCargarMas.textContent = "Cargando…";
+  tituloLista.textContent = "Cargando…";
+  listaTarjetas.innerHTML = '<p class="estado-vacio">Cargando liberaciones…</p>';
+  cuerpoTabla.innerHTML = `<tr><td colspan="8" class="texto-suave texto-centro">Cargando liberaciones…</td></tr>`;
 
   try {
-    let consulta = construirConsultaBase(leerFiltros()).limit(POR_PAGINA);
-    const esPrimeraPagina = !estado.cursor;
-    if (estado.cursor) consulta = consulta.startAfter(estado.cursor);
+    const mesISO = filtroMes.value || mesActualISO();
+    const { inicio, fin } = rangoDelMes(mesISO);
 
-    // Pintado instantáneo: la primera página se muestra de inmediato desde
-    // la caché offline de Firestore (visitas repetidas), y abajo se
-    // reemplaza con la respuesta fresca del servidor en cuanto llega. Si la
-    // caché está vacía (primera visita), este paso simplemente no pinta nada.
-    if (esPrimeraPagina) {
-      try {
-        const snapCache = await consulta.get({ source: "cache" });
-        if (!snapCache.empty) {
-          estado.registros = snapCache.docs.map((d) => ({ id: d.id, ...d.data() }));
-          render();
-        }
-      } catch {
-        /* sin datos en caché: se espera al servidor como siempre */
-      }
-    }
+    let consulta = db.collection("liberaciones")
+      .where("fecha", ">=", inicio)
+      .where("fecha", "<=", fin);
+    if (filtroMaquina.value) consulta = consulta.where("maquina", "==", filtroMaquina.value);
+    if (filtroTurno.value) consulta = consulta.where("turno", "==", Number(filtroTurno.value));
+    consulta = consulta.orderBy("fecha", "desc");
 
     const snap = await consulta.get();
-    const nuevos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-    if (esPrimeraPagina) {
-      estado.registros = nuevos; // reemplaza lo pintado desde caché
-    } else {
-      estado.registros.push(...nuevos);
-    }
-    estado.cursor = snap.docs[snap.docs.length - 1] || estado.cursor;
-    estado.hayMas = nuevos.length === POR_PAGINA;
+    estado.registrosMes = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
 
     render();
   } catch (error) {
     console.error("Error al cargar el historial:", error);
     mostrarToast(`No se pudieron cargar las liberaciones. ${error.message || ""}`, "error");
+    estado.registrosMes = [];
+    render();
   } finally {
     estado.cargando = false;
-    btnCargarMas.disabled = false;
-    btnCargarMas.textContent = "Cargar más";
-    btnCargarMas.classList.toggle("oculto", !estado.hayMas);
   }
 }
 
-btnCargarMas.addEventListener("click", () => cargarPagina());
-
-/* ---------------------------------------------------------
-   Render: tarjetas (móvil) + tabla (escritorio)
-   --------------------------------------------------------- */
-
-function puedeEditar(registro) {
-  return estado.esAdmin || registro.inspectorUid === estado.usuario.uid;
+function registrosFiltrados() {
+  const termino = filtroBusqueda.value.trim().toLowerCase();
+  if (!termino) return estado.registrosMes;
+  return estado.registrosMes.filter((r) =>
+    String(r.ordenNo || "").toLowerCase().includes(termino) ||
+    String(r.cliente || "").toLowerCase().includes(termino) ||
+    String(r.inspectorNombre || "").toLowerCase().includes(termino)
+  );
 }
 
+btnCargarMas.addEventListener("click", () => {
+  estado.visibles += POR_PAGINA;
+  render();
+});
+
+/* ---------------------------------------------------------
+   Render: tarjetas (móvil) + tabla (escritorio) — solo lectura,
+   sin editar/eliminar. Esas acciones viven en la vista de detalle.
+   --------------------------------------------------------- */
+
 function render() {
-  if (estado.registros.length === 0) {
+  const filtrados = registrosFiltrados();
+  tituloLista.textContent = `${filtrados.length} liberación${filtrados.length === 1 ? "" : "es"} este mes`;
+
+  if (filtrados.length === 0) {
     listaTarjetas.innerHTML = `<p class="estado-vacio">No hay liberaciones que coincidan con los filtros.</p>`;
     cuerpoTabla.innerHTML = "";
+    btnCargarMas.classList.add("oculto");
     return;
   }
 
-  listaTarjetas.innerHTML = estado.registros.map((r) => tarjetaHtml(r)).join("");
-  cuerpoTabla.innerHTML = estado.registros.map((r) => filaTablaHtml(r)).join("");
+  const visibles = filtrados.slice(0, estado.visibles);
+  listaTarjetas.innerHTML = visibles.map((r) => tarjetaHtml(r)).join("");
+  cuerpoTabla.innerHTML = visibles.map((r) => filaTablaHtml(r)).join("");
+  btnCargarMas.classList.toggle("oculto", visibles.length >= filtrados.length);
 
   vincularAcciones();
 }
@@ -213,9 +213,8 @@ function badgeCorregido(registro) {
 }
 
 function tarjetaHtml(r) {
-  const permitido = puedeEditar(r);
   return `
-    <div class="registro-tarjeta" data-id="${r.id}">
+    <div class="registro-tarjeta" data-id="${r.id}" data-accion="ver" role="button" tabindex="0">
       <div class="registro-tarjeta__cabecera">
         <div>
           <div class="registro-tarjeta__maquina">${escaparHtml(r.maquina)} ${badgeCorregido(r)}</div>
@@ -229,14 +228,12 @@ function tarjetaHtml(r) {
       </div>
       ${r.observaciones ? `<p class="texto-sm mb-0">${escaparHtml(r.observaciones)}</p>` : ""}
       <div class="registro-tarjeta__acciones">
-        ${permitido ? `<button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-accion="editar" data-id="${r.id}">Editar</button>` : ""}
-        ${estado.esAdmin ? `<button type="button" class="btn btn-peligro btn-sm btn-ancho-auto" data-accion="eliminar" data-id="${r.id}">Eliminar</button>` : ""}
+        <button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-accion="ver" data-id="${r.id}">Ver detalle →</button>
       </div>
     </div>`;
 }
 
 function filaTablaHtml(r) {
-  const permitido = puedeEditar(r);
   return `
     <tr data-id="${r.id}">
       <td>${escaparHtml(formatearFechaCorta(r.fecha))}</td>
@@ -247,22 +244,100 @@ function filaTablaHtml(r) {
       <td>${badgeLimpieza(r)}</td>
       <td>${escaparHtml(r.inspectorNombre || "—")}</td>
       <td>
-        <div class="grupo-botones" style="flex-wrap: nowrap;">
-          ${permitido ? `<button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-accion="editar" data-id="${r.id}">Editar</button>` : ""}
-          ${estado.esAdmin ? `<button type="button" class="btn btn-peligro btn-sm btn-ancho-auto" data-accion="eliminar" data-id="${r.id}">Eliminar</button>` : ""}
-        </div>
+        <button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-accion="ver" data-id="${r.id}">Ver →</button>
       </td>
     </tr>`;
 }
 
 function vincularAcciones() {
-  document.querySelectorAll('[data-accion="editar"]').forEach((boton) => {
-    boton.addEventListener("click", () => abrirModalEditar(boton.dataset.id));
-  });
-  document.querySelectorAll('[data-accion="eliminar"]').forEach((boton) => {
-    boton.addEventListener("click", () => eliminarRegistro(boton.dataset.id));
+  document.querySelectorAll('[data-accion="ver"]').forEach((el) => {
+    el.addEventListener("click", (evento) => {
+      // Evita doble navegación cuando el botón interior también dispara el click de la tarjeta.
+      evento.stopPropagation();
+      abrirDetalle(el.dataset.id);
+    });
+    el.addEventListener("keydown", (evento) => {
+      if (evento.key === "Enter" || evento.key === " ") {
+        evento.preventDefault();
+        abrirDetalle(el.dataset.id);
+      }
+    });
   });
 }
+
+/* ---------------------------------------------------------
+   Vista de detalle: aquí viven Editar y Eliminar
+   --------------------------------------------------------- */
+
+function puedeEditar(registro) {
+  return estado.esAdmin || registro.inspectorUid === estado.usuario.uid;
+}
+
+function fichaHtml(etiqueta, valor) {
+  return `
+    <div class="ficha">
+      <div class="ficha__etiqueta">${escaparHtml(etiqueta)}</div>
+      <div class="ficha__valor">${escaparHtml(valor || "—")}</div>
+    </div>`;
+}
+
+function abrirDetalle(id) {
+  const registro = estado.registrosMes.find((r) => r.id === id);
+  if (!registro) return;
+  estado.detalleId = id;
+
+  vistaLista.classList.add("oculto");
+  vistaDetalle.classList.remove("oculto");
+
+  detalleContenido.innerHTML = `
+    <div class="flex-entre mb-2">
+      <h2 class="tarjeta__titulo mb-0">${escaparHtml(registro.maquina)} ${badgeCorregido(registro)}</h2>
+      ${badgeLimpieza(registro)}
+    </div>
+    <div class="fichas mb-3">
+      ${fichaHtml("Fecha", formatearFechaCorta(registro.fecha))}
+      ${fichaHtml("Turno", String(registro.turno))}
+      ${fichaHtml("Orden", registro.ordenNo)}
+      ${fichaHtml("Cliente", registro.cliente)}
+      ${fichaHtml("Inspector", registro.inspectorNombre)}
+    </div>
+    ${(registro.respuestas || []).length ? `
+      <h3 class="tarjeta__titulo" style="font-size: var(--txt-md);">Limpieza y Sanitización</h3>
+      <div class="editor-lista mb-3">
+        ${registro.respuestas.map((r) => `
+          <div class="editor-item">
+            <div class="flex-entre">
+              <div>${escaparHtml(r.texto)}</div>
+              <span class="badge ${r.valor ? "badge-si" : "badge-no"}">${r.valor ? "SÍ" : "NO"}</span>
+            </div>
+          </div>`).join("")}
+      </div>` : ""}
+    ${registro.observaciones ? `
+      <h3 class="tarjeta__titulo" style="font-size: var(--txt-md);">Observaciones</h3>
+      <p class="mb-0">${escaparHtml(registro.observaciones)}</p>` : ""}
+  `;
+
+  const permitido = puedeEditar(registro);
+  detalleAcciones.innerHTML = `
+    ${permitido ? `<button type="button" class="btn btn-secundario btn-ancho-auto" id="btn-editar-detalle">Editar registro</button>` : ""}
+    ${estado.esAdmin ? `<button type="button" class="btn btn-peligro btn-ancho-auto" id="btn-eliminar-detalle">Eliminar registro</button>` : ""}
+  `;
+  const btnEditarDetalle = document.getElementById("btn-editar-detalle");
+  if (btnEditarDetalle) btnEditarDetalle.addEventListener("click", () => abrirModalEditar(id));
+  const btnEliminarDetalle = document.getElementById("btn-eliminar-detalle");
+  if (btnEliminarDetalle) btnEliminarDetalle.addEventListener("click", () => eliminarRegistro(id));
+
+  history.pushState(null, "", `?ver=${id}`);
+}
+
+function cerrarDetalle() {
+  estado.detalleId = null;
+  vistaDetalle.classList.add("oculto");
+  vistaLista.classList.remove("oculto");
+  history.pushState(null, "", "historial.html");
+}
+
+btnVolverDetalle.addEventListener("click", cerrarDetalle);
 
 /* ---------------------------------------------------------
    Editar (autor propio, o cualquiera si es administrador)
@@ -314,7 +389,7 @@ function editandoTodoEnSi() {
 }
 
 function abrirModalEditar(id) {
-  const registro = estado.registros.find((r) => r.id === id);
+  const registro = estado.registrosMes.find((r) => r.id === id);
   if (!registro) return;
   if (!puedeEditar(registro)) {
     mostrarToast("Solo puedes corregir tus propios registros.", "error");
@@ -373,11 +448,12 @@ btnGuardarEdicion.addEventListener("click", async () => {
 
     // Refleja el cambio en memoria sin recargar toda la lista, para no
     // perder la posición de paginación en la que estaba el inspector.
-    const registro = estado.registros.find((r) => r.id === estado.editandoId);
+    const registro = estado.registrosMes.find((r) => r.id === estado.editandoId);
     if (registro) {
       Object.assign(registro, cambios, { editadoEn: { toDate: () => new Date() } });
     }
     render();
+    if (estado.detalleId === estado.editandoId) abrirDetalle(estado.editandoId);
 
     mostrarToast("Liberación corregida.", "exito");
     cerrarModalEditar();
@@ -396,7 +472,7 @@ btnGuardarEdicion.addEventListener("click", async () => {
 
 async function eliminarRegistro(id) {
   if (!estado.esAdmin) return;
-  const registro = estado.registros.find((r) => r.id === id);
+  const registro = estado.registrosMes.find((r) => r.id === id);
   if (!registro) return;
 
   const confirmado = confirm(
@@ -406,7 +482,8 @@ async function eliminarRegistro(id) {
 
   try {
     await db.collection("liberaciones").doc(id).delete();
-    estado.registros = estado.registros.filter((r) => r.id !== id);
+    estado.registrosMes = estado.registrosMes.filter((r) => r.id !== id);
+    if (estado.detalleId === id) cerrarDetalle();
     render();
     mostrarToast("Registro eliminado.", "exito");
   } catch (error) {

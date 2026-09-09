@@ -85,9 +85,10 @@
       ]);
       this._THREE = THREE;
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      renderer.localClippingEnabled = true;
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.type = THREE.VSMShadowMap;
       this._renderer = renderer;
       this.shadowRoot.insertBefore(renderer.domElement, this._err);
 
@@ -103,17 +104,21 @@
       controls.dampingFactor = 0.08;
       this._controls = controls;
 
-      scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 1.0));
-      const key = new THREE.DirectionalLight(0xffffff, 2.2);
-      key.position.set(4, 7, 5);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0xd0d8e2, 1.0));
+      scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+      const key = new THREE.DirectionalLight(0xffffff, 1.8);
+      key.position.set(5, 8, 6);
       key.castShadow = true;
       key.shadow.mapSize.set(2048, 2048);
       key.shadow.bias = -0.0002;
       this._key = key;
       scene.add(key);
-      const fill = new THREE.DirectionalLight(0xfff4e6, 0.5);
-      fill.position.set(-5, 3, -4);
+      const fill = new THREE.DirectionalLight(0xfff6ea, 0.9);
+      fill.position.set(-6, 4, -5);
       scene.add(fill);
+      const backLight = new THREE.DirectionalLight(0xe8f0ff, 0.5);
+      backLight.position.set(6, 2, -6);
+      scene.add(backLight);
 
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
@@ -164,15 +169,44 @@
       const box = new THREE.Box3().setFromObject(object);
       if (!box.isEmpty()) {
         this._ground.position.y = box.min.y;
-        const sphere = box.getBoundingSphere(new THREE.Sphere());
-        const dist = (sphere.radius / Math.tan((this._camera.fov * Math.PI) / 360)) * 1.35;
+        const center = box.getCenter(new THREE.Vector3());
         const dir = new THREE.Vector3(1, 0.55, 1.25).normalize();
-        this._camera.position.copy(sphere.center).add(dir.multiplyScalar(dist));
+        // Encuadre ajustado al rectángulo real del contenedor (no una esfera
+        // envolvente): para objetos muy alargados (p. ej. un camión con
+        // remolque) una esfera deja mucho espacio vacío arriba/abajo porque
+        // reserva sitio para cualquier ángulo de rotación. Aquí se proyectan
+        // las 8 esquinas de la caja sobre los ejes derecha/arriba de ESTA
+        // cámara y se calcula la distancia mínima que evita recortes en
+        // ambos ejes, respetando el aspect ratio real del <three-d-stage>.
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        const camForward = dir.clone().negate();
+        const camRight = new THREE.Vector3().crossVectors(camForward, worldUp).normalize();
+        const camUp = new THREE.Vector3().crossVectors(camRight, camForward).normalize();
+        let halfW = 0, halfH = 0;
+        const corner = new THREE.Vector3();
+        for (let i = 0; i < 8; i++) {
+          corner
+            .set(
+              i & 1 ? box.max.x : box.min.x,
+              i & 2 ? box.max.y : box.min.y,
+              i & 4 ? box.max.z : box.min.z
+            )
+            .sub(center);
+          halfW = Math.max(halfW, Math.abs(corner.dot(camRight)));
+          halfH = Math.max(halfH, Math.abs(corner.dot(camUp)));
+        }
+        const aspect = (this.clientWidth || 1) / (this.clientHeight || 1);
+        const vFov = (this._camera.fov * Math.PI) / 180;
+        const distV = halfH / Math.tan(vFov / 2);
+        const distH = halfW / (Math.tan(vFov / 2) * aspect);
+        const dist = Math.max(distV, distH) * 1.15;
+        this._camera.position.copy(center).add(dir.clone().multiplyScalar(dist));
         this._camera.near = Math.max(dist / 100, 0.01);
         this._camera.far = dist * 100;
         this._camera.updateProjectionMatrix();
-        this._controls.target.copy(sphere.center);
+        this._controls.target.copy(center);
         this._controls.update();
+        const sphere = box.getBoundingSphere(new THREE.Sphere());
         const span = sphere.radius * 3;
         this._key.shadow.camera.left = -span;
         this._key.shadow.camera.right = span;

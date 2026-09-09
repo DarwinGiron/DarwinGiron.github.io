@@ -45,19 +45,33 @@
     <main class="app-main app-main--ancho">
       <div id="vista-lista">
         <div class="flex-entre mb-2">
-          <p class="texto-suave texto-sm mb-0">Listado de inspecciones de transporte realizadas (Máximo 20 recientes).</p>
+          <p class="texto-suave texto-sm mb-0">Listado de inspecciones de transporte del mes.</p>
           <a href="index.html" class="btn btn-dorado btn-sm btn-ancho-auto">
             + Nueva Verificación
           </a>
         </div>
 
         <section class="tarjeta mb-4">
-          <h2 class="tarjeta__titulo" id="titulo-historial-transporte">Últimos 20 registros de Transporte</h2>
+          <div class="campo mb-0" style="margin-bottom: 14px;">
+            <label for="filtro-busqueda-transporte">Buscar por orden, cliente, placa, piloto o inspector</label>
+            <input type="search" id="filtro-busqueda-transporte" placeholder="Ej. C-123XYZ, Corrugados S.A., Juan Pérez…" />
+          </div>
+          <div class="campo mb-0">
+            <label for="filtro-mes-transporte">Mes</label>
+            <input type="month" id="filtro-mes-transporte" />
+          </div>
+        </section>
+
+        <section class="tarjeta mb-4">
+          <h2 class="tarjeta__titulo" id="titulo-historial-transporte">Verificaciones del mes</h2>
           <div id="lista-verificaciones-transporte" class="editor-lista">
             <div class="esqueleto esqueleto-fila"></div>
             <div class="esqueleto esqueleto-fila"></div>
             <div class="esqueleto esqueleto-fila"></div>
           </div>
+          <button type="button" id="btn-cargar-mas-transporte" class="btn btn-secundario btn-sm oculto" style="margin-top: 14px;">
+            Cargar más
+          </button>
         </section>
       </div>
 
