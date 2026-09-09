@@ -234,33 +234,35 @@ let listFilterMode = 'active'; // 'active', 'exterior', 'interior', 'all'
 function setViewMode(mode) {
   state.viewMode = mode;
   state.selectedPart = null;
-  listFilterMode = 'active';
+  listFilterMode = mode;
 
+  // 1. INMEDIATO: Actualizar la interfaz (pestañas superiores y listado lateral)
+  renderAll();
+
+  // 2. Transición 3D protegida
   if (model) {
     try {
       if (mode === 'interior') {
         // Abrir puertas y activar corte seccionado
-        animateDoors(true, 850);
+        animateDoors(true, 800);
         const zSign = camera ? (camera.position.z >= 0 ? 1 : -1) : 1;
         model.applyCutaway('interior', null, zSign);
         const pos = interiorDefault?.cam?.pos || interiorDefault?.pos;
         const target = interiorDefault?.cam?.target || interiorDefault?.target;
-        if (pos && target) animateCamera(pos, target, 850);
+        if (pos && target) animateCamera(pos, target, 800);
       } else {
         // Cerrar puertas y contenedor sólido
-        animateDoors(false, 850);
+        animateDoors(false, 800);
         model.applyCutaway('exterior');
         const pos = camExterior?.cam?.pos || camExterior?.pos;
         const target = camExterior?.cam?.target || camExterior?.target;
-        if (pos && target) animateCamera(pos, target, 850);
+        if (pos && target) animateCamera(pos, target, 800);
       }
       updateMeshColors();
     } catch (err) {
       console.warn('Aviso al animar vista 3D:', err);
     }
   }
-
-  renderAll();
 }
 
 /**
@@ -272,24 +274,27 @@ function selectPart(partId) {
 
   const isInterior = partId.startsWith('int_');
 
-  // Si la parte seleccionada es de otro modo de vista (por ejemplo desde la lista lateral), sincronizar
+  // Si la parte seleccionada es de otro modo de vista (por ejemplo desde clic 3D), sincronizar
   if (isInterior && state.viewMode !== 'interior') {
     state.viewMode = 'interior';
-    if (model) animateDoors(true, 800);
   } else if (!isInterior && state.viewMode !== 'exterior') {
     state.viewMode = 'exterior';
-    if (model) animateDoors(false, 800);
   }
 
-  // Aplicar el corte seccionado correspondiente sin ocultar la pared seleccionada
+  // 1. Actualizar interfaz de inmediato
+  renderAll();
+
+  // 2. Transición de cámara y corte seccionado 3D
   if (model) {
     try {
       if (state.viewMode === 'interior') {
+        animateDoors(true, 800);
         const zSign = camera ? (camera.position.z >= 0 ? 1 : -1) : 1;
         model.applyCutaway('interior', partId, zSign);
         const config = interiorConfigs[partId];
         if (config) animateCamera(config.cam.pos, config.cam.target, 800);
       } else {
+        animateDoors(false, 800);
         model.applyCutaway('exterior');
         const config = exteriorConfigs[partId];
         if (config) animateCamera(config.cam.pos, config.cam.target, 800);
@@ -299,8 +304,6 @@ function selectPart(partId) {
       console.warn('Aviso al enfocar pieza 3D:', err);
     }
   }
-
-  renderAll();
 }
 
 /**
@@ -309,6 +312,10 @@ function selectPart(partId) {
 function deselectPart() {
   state.selectedPart = null;
 
+  // 1. Actualizar interfaz de inmediato
+  renderAll();
+
+  // 2. Transición de cámara y reseteo 3D
   if (model) {
     try {
       if (state.viewMode === 'interior') {
@@ -328,8 +335,6 @@ function deselectPart() {
       console.warn('Aviso al resetear vista 3D:', err);
     }
   }
-
-  renderAll();
 }
 
 function setAnswer(partId, itemId, value) {
@@ -439,6 +444,10 @@ async function initStage(stage) {
   camExterior = {
     pos: V(halfL * 1.3, H * 1.6, W * 2.8),
     target: V(0, H * 0.45, 0),
+    cam: {
+      pos: V(halfL * 1.3, H * 1.6, W * 2.8),
+      target: V(0, H * 0.45, 0),
+    },
   };
 
   // Cámara general interior: vista de túnel desde la entrada con puertas abiertas y todas las paredes visibles
@@ -544,8 +553,20 @@ function renderHeaderFields() {
 }
 
 function renderTabs() {
-  els.extBtn.classList.toggle('active', state.viewMode === 'exterior');
-  els.intBtn.classList.toggle('active', state.viewMode === 'interior');
+  const isExt = state.viewMode === 'exterior';
+  const isInt = state.viewMode === 'interior';
+
+  const ext = els.extBtn || document.getElementById('btnExterior');
+  const int = els.intBtn || document.getElementById('btnInterior');
+
+  if (ext) {
+    ext.classList.toggle('active', isExt);
+    ext.setAttribute('aria-selected', isExt ? 'true' : 'false');
+  }
+  if (int) {
+    int.classList.toggle('active', isInt);
+    int.setAttribute('aria-selected', isInt ? 'true' : 'false');
+  }
 }
 
 function renderProgress() {
@@ -587,74 +608,30 @@ function renderPanel() {
 function renderPartList() {
   const wrap = document.createElement('div');
 
-  const extKeys = Object.keys(PART_DEFS).filter((id) => PART_DEFS[id].mode === 'exterior');
-  const intKeys = Object.keys(PART_DEFS).filter((id) => PART_DEFS[id].mode === 'interior');
+  const isInterior = state.viewMode === 'interior';
+  const heading = document.createElement('div');
+  heading.className = 'list-heading';
+  heading.textContent = isInterior ? 'CONDICIÓN INTERNA' : 'CONDICIÓN EXTERNA';
+  wrap.appendChild(heading);
 
-  // Selector integrado de Vista Externa / Vista Interna / Todas
-  const switcher = document.createElement('div');
-  switcher.className = 'seg panel-mode-switcher';
-  switcher.innerHTML = `
-    <button type="button" class="seg-opt ${state.viewMode === 'exterior' && listFilterMode !== 'all' ? 'active' : ''}" id="panelTabExt">
-      🚚 Externa (${extKeys.length})
-    </button>
-    <button type="button" class="seg-opt ${state.viewMode === 'interior' && listFilterMode !== 'all' ? 'active' : ''}" id="panelTabInt">
-      🚪 Interna (${intKeys.length})
-    </button>
-    <button type="button" class="seg-opt ${listFilterMode === 'all' ? 'active' : ''}" id="panelTabAll">
-      📋 Todas (${extKeys.length + intKeys.length})
-    </button>
-  `;
+  const keys = Object.keys(PART_DEFS).filter((id) => PART_DEFS[id].mode === state.viewMode);
 
-  switcher.querySelector('#panelTabExt').onclick = () => {
-    listFilterMode = 'exterior';
-    setViewMode('exterior');
-  };
-  switcher.querySelector('#panelTabInt').onclick = () => {
-    listFilterMode = 'interior';
-    setViewMode('interior');
-  };
-  switcher.querySelector('#panelTabAll').onclick = () => {
-    listFilterMode = 'all';
-    renderAll();
-  };
-  wrap.appendChild(switcher);
+  keys.forEach((id) => {
+    const def = PART_DEFS[id];
+    const status = model ? partStatus(id) : 'pending';
+    const css = STATUS_CSS[status];
+    const row = document.createElement('div');
+    row.className = 'part-row part-row--list';
+    row.setAttribute('data-part', id);
 
-  function renderGroup(title, keys) {
-    const groupWrap = document.createElement('div');
-    groupWrap.style.marginBottom = '16px';
-
-    const heading = document.createElement('div');
-    heading.className = 'list-heading';
-    heading.textContent = title;
-    groupWrap.appendChild(heading);
-
-    keys.forEach((id) => {
-      const def = PART_DEFS[id];
-      const status = model ? partStatus(id) : 'pending';
-      const css = STATUS_CSS[status];
-      const row = document.createElement('div');
-      row.className = 'part-row part-row--list';
-
-      row.innerHTML = `
-        <span class="dot" style="background:${css.color}"></span>
-        <span class="part-row__label">${escapeHtml(def.label)}</span>
-        <span class="tag" style="background:${css.bg};color:${css.color}">${css.label}</span>
-      `;
-      row.onclick = () => selectPart(id);
-      groupWrap.appendChild(row);
-    });
-
-    return groupWrap;
-  }
-
-  if (listFilterMode === 'all') {
-    wrap.appendChild(renderGroup('CONDICIÓN EXTERNA', extKeys));
-    wrap.appendChild(renderGroup('CONDICIÓN INTERNA', intKeys));
-  } else if (state.viewMode === 'interior') {
-    wrap.appendChild(renderGroup('CONDICIÓN INTERNA', intKeys));
-  } else {
-    wrap.appendChild(renderGroup('CONDICIÓN EXTERNA', extKeys));
-  }
+    row.innerHTML = `
+      <span class="dot" style="background:${css.color}"></span>
+      <span class="part-row__label">${escapeHtml(def.label)}</span>
+      <span class="tag" style="background:${css.bg};color:${css.color}">${css.label}</span>
+    `;
+    row.onclick = () => selectPart(id);
+    wrap.appendChild(row);
+  });
 
   return wrap;
 }
@@ -1025,8 +1002,32 @@ function renderAll() {
 }
 
 /* ============ Eventos de encabezado ============ */
-els.extBtn.onclick = () => setViewMode('exterior');
-els.intBtn.onclick = () => setViewMode('interior');
+function enlazarBotonesModo() {
+  const ext = els.extBtn || document.getElementById('btnExterior');
+  const int = els.intBtn || document.getElementById('btnInterior');
+
+  if (ext) {
+    ext.onclick = (e) => {
+      e.preventDefault();
+      setViewMode('exterior');
+    };
+    ext.addEventListener('click', (e) => {
+      e.preventDefault();
+      setViewMode('exterior');
+    });
+  }
+  if (int) {
+    int.onclick = (e) => {
+      e.preventDefault();
+      setViewMode('interior');
+    };
+    int.addEventListener('click', (e) => {
+      e.preventDefault();
+      setViewMode('interior');
+    });
+  }
+}
+enlazarBotonesModo();
 
 // Configurar buscador con autocompletado y normalización en tiempo real
 configurarAutocompletadoProveedor({
