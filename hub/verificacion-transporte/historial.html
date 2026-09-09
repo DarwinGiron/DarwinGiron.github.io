@@ -6,16 +6,105 @@
   <base href="/hub/verificacion-transporte/" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0a1f38" />
-  <title>Historial de Transporte · COGUSA</title>
+  <title>Liberación de Contenedores · Historial · COGUSA</title>
   <link rel="stylesheet" href="/css/estilos.css" />
+  <style>
+    /* Estilos de alto contraste para estados Aprobado (Verde) y Rechazado (Rojo) */
+    .item-contenedor {
+      transition: all 0.15s ease-in-out;
+      border: 1px solid var(--borde);
+      border-radius: var(--r-md);
+      padding: var(--e3);
+      margin-bottom: var(--e3);
+      background: var(--superficie);
+    }
+    .item-contenedor.item-aprobado {
+      border-left: 6px solid #16a34a !important;
+      background: #fbfdfb;
+    }
+    .item-contenedor.item-aprobado:hover {
+      background: #f0fdf4;
+      border-color: #86efac;
+    }
+    .item-contenedor.item-rechazado {
+      border-left: 6px solid #dc2626 !important;
+      background: #fdfbfb;
+    }
+    .item-contenedor.item-rechazado:hover {
+      background: #fef2f2;
+      border-color: #fca5a5;
+    }
+
+    .badge-aprobado {
+      background: #dcfce7 !important;
+      color: #15803d !important;
+      border: 1.5px solid #86efac !important;
+      font-weight: 800 !important;
+      font-size: 12.5px !important;
+      padding: 4px 10px !important;
+      border-radius: 999px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 5px !important;
+      letter-spacing: 0.02em;
+    }
+    .badge-rechazado {
+      background: #fee2e2 !important;
+      color: #b91c1c !important;
+      border: 1.5px solid #fca5a5 !important;
+      font-weight: 800 !important;
+      font-size: 12.5px !important;
+      padding: 4px 10px !important;
+      border-radius: 999px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 5px !important;
+      letter-spacing: 0.02em;
+    }
+
+    .banner-aprobado {
+      background: #ecfdf5;
+      border: 2px solid #10b981;
+      color: #065f46;
+      padding: 14px 18px;
+      border-radius: var(--r-md);
+      margin-bottom: var(--e4);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: var(--txt-md);
+    }
+    .banner-rechazado {
+      background: #fef2f2;
+      border: 2px solid #ef4444;
+      color: #991b1b;
+      padding: 14px 18px;
+      border-radius: var(--r-md);
+      margin-bottom: var(--e4);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: var(--txt-md);
+    }
+
+    .grid-filtros-fechas {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: var(--e3);
+      align-items: end;
+      margin-top: var(--e3);
+    }
+  </style>
 </head>
 <body class="tema-hub">
   <div class="app-shell">
     <header class="app-header">
       <div class="app-header__marca">
-        <a href="../index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">TRP</a>
+        <a href="../index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">LIB</a>
         <div class="app-header__titulos">
-          <div class="titulo">Historial de Transporte</div>
+          <div class="titulo">Liberación de Contenedores</div>
           <div class="subtitulo" id="texto-usuario">—</div>
         </div>
       </div>
@@ -30,7 +119,7 @@
           <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Liberación
         </a>
         <a href="historial.html" class="nav-superior__item activo" aria-current="page">
-          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Transporte
+          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Contenedores
         </a>
         <a href="../configuraciones.html" class="nav-superior__item" id="link-admin-superior">
           <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.07 14H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.63c.6-.26 1.02-.85 1.04-1.51V3a2 2 0 0 1 4 0v.09c.02.66.44 1.25 1.04 1.51.66.28 1.42.14 1.93-.37l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.5.5-.65 1.27-.37 1.93.26.6.85 1.02 1.51 1.04H21a2 2 0 0 1 0 4h-.09c-.66.02-1.25.44-1.51 1.04Z"/></svg>Configuraciones
@@ -45,25 +134,51 @@
     <main class="app-main app-main--ancho">
       <div id="vista-lista">
         <div class="flex-entre mb-2">
-          <p class="texto-suave texto-sm mb-0">Listado de inspecciones de transporte del mes.</p>
-          <a href="index.html" class="btn btn-dorado btn-sm btn-ancho-auto">
-            + Nueva Verificación
+          <p class="texto-suave texto-sm mb-0">Historial y auditoría de liberación de contenedores (LOG-FO-101).</p>
+          <a href="../inspeccion-furgon-3d/index.html" class="btn btn-dorado btn-sm btn-ancho-auto" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+            <svg class="icono" style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            + Nueva Liberación (3D)
           </a>
         </div>
 
         <section class="tarjeta mb-4">
-          <div class="campo mb-0" style="margin-bottom: 14px;">
+          <div class="campo mb-0" style="margin-bottom: 12px;">
             <label for="filtro-busqueda-transporte">Buscar por orden, cliente, placa, piloto o inspector</label>
             <input type="search" id="filtro-busqueda-transporte" placeholder="Ej. C-123XYZ, Corrugados S.A., Juan Pérez…" />
           </div>
-          <div class="campo mb-0">
-            <label for="filtro-mes-transporte">Mes</label>
-            <input type="month" id="filtro-mes-transporte" />
+
+          <div class="grid-filtros-fechas">
+            <div class="campo mb-0">
+              <label for="filtro-fecha-desde">Fecha Desde</label>
+              <input type="date" id="filtro-fecha-desde" />
+            </div>
+            <div class="campo mb-0">
+              <label for="filtro-fecha-hasta">Fecha Hasta</label>
+              <input type="date" id="filtro-fecha-hasta" />
+            </div>
+            <div class="campo mb-0">
+              <label for="filtro-estado-transporte">Estado de Liberación</label>
+              <select id="filtro-estado-transporte">
+                <option value="todos">Todos los resultados</option>
+                <option value="aprobados">Solo Aprobados (Verde)</option>
+                <option value="rechazados">Solo Rechazados (Rojo)</option>
+              </select>
+            </div>
+            <div class="campo mb-0">
+              <label>&nbsp;</label>
+              <button type="button" id="btn-descargar-transporte" class="btn btn-secundario btn-sm" style="width:100%; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Descargar Registros (CSV)
+              </button>
+            </div>
           </div>
         </section>
 
         <section class="tarjeta mb-4">
-          <h2 class="tarjeta__titulo" id="titulo-historial-transporte">Verificaciones del mes</h2>
+          <div class="flex-entre mb-3">
+            <h2 class="tarjeta__titulo mb-0" id="titulo-historial-transporte">Liberaciones registradas</h2>
+            <div class="texto-suave texto-xs" id="resumen-conteo-estados"></div>
+          </div>
           <div id="lista-verificaciones-transporte" class="editor-lista">
             <div class="esqueleto esqueleto-fila"></div>
             <div class="esqueleto esqueleto-fila"></div>
@@ -100,7 +215,7 @@
       </a>
       <a href="historial.html" class="nav-inferior__item activo">
         <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-        Transporte
+        Contenedores
       </a>
     </nav>
   </div>

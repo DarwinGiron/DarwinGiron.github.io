@@ -16,7 +16,7 @@
 import { protegerPagina, cerrarSesion, etiquetaRol } from "../js/auth.js";
 import { iniciales } from "../js/utils.js";
 import { db } from "../js/firebase-config.js";
-import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, doc, getDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 let currentUser = null;
 let currentPerfil = null;
@@ -865,20 +865,73 @@ els.intBtn.onclick = () => setViewMode('interior');
 els.btnFinalizar.onclick = openFinalize;
 els.dialogBackdrop.onclick = (e) => { if (e.target === els.dialogBackdrop) closeDialog(); };
 
+/* ============ Carga de inspección existente desde historial ============ */
+async function cargarInspeccionExistente(docId) {
+  try {
+    const snap = await getDoc(doc(db, 'verificaciones_transporte', docId));
+    if (snap.exists()) {
+      const d = snap.data();
+      state.headerFields.placa = d.placaCamion || '';
+      state.headerFields.transportista = d.transporte || '';
+      state.headerFields.piloto = d.nombrePiloto || '';
+      state.headerFields.cliente = d.cliente || '';
+
+      if (d.answers && typeof d.answers === 'object') {
+        state.answers = d.answers;
+      }
+      if (d.photos && typeof d.photos === 'object') {
+        state.photos = d.photos;
+      }
+
+      state.saved = true;
+      state.savedAt = d.fechaCreacion?.toDate?.() || (d.fecha ? new Date(d.fecha + 'T12:00:00') : new Date());
+
+      const aprobado = d.resultado === 'aprobado' || d.cumplimientoPorcentaje === 100;
+      if (els.savedBanner) {
+        els.savedBanner.style.display = 'block';
+        els.savedBanner.style.background = aprobado ? '#e6f6e6' : '#fceaea';
+        els.savedBanner.style.color = aprobado ? '#006300' : '#b32626';
+        els.savedBanner.style.border = aprobado ? '1.5px solid #86efac' : '1.5px solid #fca5a5';
+        els.savedBanner.style.padding = '10px 16px';
+        els.savedBanner.style.fontWeight = '700';
+        els.savedBanner.innerHTML = `
+          Modo solo lectura (${aprobado ? '✓ CONTENEDOR APROBADO' : '✕ CONTENEDOR RECHAZADO'}) · Placa: <u>${escapeHtml(d.placaCamion || '—')}</u> · Fecha: ${d.fecha || ''}
+        `;
+      }
+
+      renderAll();
+      updateMeshColors();
+    }
+  } catch (err) {
+    console.error('Error al cargar inspección en 3D:', err);
+    renderAll();
+  }
+}
+
 /* ============ Arranque del stage 3D ============ */
 const stage = document.querySelector('three-d-stage');
 customElements.whenDefined('three-d-stage')
-  .then(() => initStage(stage).then(renderAll))
+  .then(() => initStage(stage).then(() => {
+    renderAll();
+    updateMeshColors();
+  }))
   .catch((err) => console.error('Error inicializando visor 3D:', err));
 
 /* ============ Sesión ============ */
 document.getElementById('btnSalir').addEventListener('click', () => cerrarSesion());
 
-protegerPagina({}, ({ user, perfil }) => {
+protegerPagina({}, async ({ user, perfil }) => {
   currentUser = user;
   currentPerfil = perfil;
   const nombreVisible = perfil.nombre || user.email;
   document.getElementById('nombreUsuario').textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;
   document.getElementById('avatarUsuario').textContent = iniciales(nombreVisible);
-  renderAll();
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const idVer = urlParams.get('ver') || urlParams.get('id');
+  if (idVer) {
+    await cargarInspeccionExistente(idVer);
+  } else {
+    renderAll();
+  }
 });
