@@ -41,13 +41,17 @@
     --radius:12px;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;height:100%;padding:0;overflow:hidden;}
+  html{
+    margin:0;padding:0;height:100%;
+  }
   body{
+    margin:0;padding:0;height:100%;min-height:100%;
     background:var(--bg);
     color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-tap-highlight-color:transparent;
-    display:flex;flex-direction:column;height:100vh;
+    display:flex;flex-direction:column;
+    overflow:hidden;
   }
   three-d-stage:not(:defined){visibility:hidden}
 
@@ -112,8 +116,8 @@
   .unidad-title svg{width:16px;height:16px;color:var(--gold-dark);flex-shrink:0;}
   .unidad-grid-primario{
     display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
-    gap:10px;
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+    gap:8px;
   }
 
   .ficha-campo{
@@ -261,10 +265,11 @@
   }
 
   .side-panel{
-    width:400px;flex-shrink:0;border-left:1px solid var(--line);
+    width:350px;flex-shrink:0;border-left:1px solid var(--line);
     display:flex;flex-direction:column;background:var(--bg);overflow:hidden;
+    height:100%;min-height:0;
   }
-  .panel-top{flex-shrink:0;padding:16px;border-bottom:1px solid var(--line);}
+  .panel-top{flex-shrink:0;padding:14px 16px;border-bottom:1px solid var(--line);}
   .panel-top__row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
   .panel-top__row span:first-child{font-weight:700;font-size:14px;color:var(--navy);}
   .panel-top__row span:last-child{font-size:13px;color:var(--text-soft);}
@@ -276,13 +281,29 @@
     border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:inherit;
     padding:10px 16px;
   }
-  .btn-primary{background:var(--navy);color:#fff;width:100%;margin-top:12px;}
+  .btn-primary{background:var(--navy);color:#fff;width:100%;margin-top:10px;}
   .btn-primary:disabled{opacity:.45;cursor:not-allowed;}
   .btn-primary:not(:disabled):hover{background:var(--navy-light);}
   .btn-ghost{background:transparent;color:var(--gold-dark);padding:4px 8px;font-size:12px;margin-bottom:8px;}
   .btn-ghost:hover{background:var(--navy-soft);}
 
-  #panelBody{flex:1;overflow-y:auto;padding:12px 16px;}
+  #panelBody{
+    flex:1;overflow-y:auto !important;overflow-x:hidden;
+    padding:10px 16px 24px;min-height:0;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  }
+  #panelBody::-webkit-scrollbar{
+    width:6px;
+  }
+  #panelBody::-webkit-scrollbar-track{
+    background:rgba(0,0,0,0.03);border-radius:4px;
+  }
+  #panelBody::-webkit-scrollbar-thumb{
+    background:#94a3b8;border-radius:4px;
+  }
+  #panelBody::-webkit-scrollbar-thumb:hover{
+    background:#64748b;
+  }
   .list-heading{font-size:12px;color:var(--text-soft);margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em;}
   .part-row{padding:10px 8px;border-radius:10px;display:flex;align-items:center;gap:10px;}
   .part-row--list{cursor:pointer;}
@@ -384,134 +405,185 @@
   }
 
   /* ==========================================================================
-     Adaptación para Tablet (20.50 cm x 11.00 cm · 8.7" a 9.2")
+     Adaptabilidad Responsive y Soporte para Tablet / Pantallas Medianas
      ========================================================================== */
 
-  /* Tablet Vertical / Modo Retrato (11 cm ancho · pantalla ≤ 860px) */
-  @media (max-width: 860px), (orientation: portrait) and (max-width: 950px) {
-    body {
-      overflow-y: auto;
-      height: auto;
-      min-height: 100vh;
-    }
-    .main-area {
-      flex-direction: column;
-      overflow: visible;
-      flex: none;
-    }
-    .stage-wrap {
-      width: 100%;
-      height: 42vh;
-      min-height: 280px;
-      max-height: 380px;
-      flex: none;
-      border-bottom: 2px solid var(--line);
-    }
-    .side-panel {
-      width: 100% !important;
-      border-left: none;
-      flex: none;
-      min-height: 460px;
-      overflow: visible;
-    }
-    #panelBody {
-      overflow-y: visible;
-    }
-    .unidad-grid-primario {
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+  /* Vista Normal Lado a Lado para Pantallas Medianas y Tablets (680px a 960px)
+     Mantiene la vista estándar (3D a la izquierda, lista de inspección a la derecha) */
+  @media (min-width: 680px) and (max-width: 960px) {
+    .sesion-bar {
+      padding: 5px 14px;
+      font-size: 12px;
     }
     .nav {
-      flex-wrap: wrap;
-      gap: 8px;
-      padding: 8px 14px;
+      padding: 6px 14px;
     }
     .nav-brand {
       font-size: 16px;
     }
     .doc-code {
-      font-size: 11px;
+      display: none;
     }
-    #hintOverlay {
-      font-size: 11.5px;
-      padding: 6px 10px;
-      max-width: 230px;
-      top: 10px;
-      left: 10px;
+    .unidad-container {
+      padding: 6px 14px 8px;
+    }
+    .unidad-grid-primario {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .ficha-campo {
+      padding: 4px 8px;
+    }
+    .ficha-campo label {
+      font-size: 10px;
+    }
+    .ficha-campo input {
+      font-size: 12px;
+    }
+    .side-panel {
+      width: 320px;
+    }
+    .panel-top {
+      padding: 10px 14px;
+    }
+    .btn-primary {
+      margin-top: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+    #panelBody {
+      padding: 8px 12px 20px;
+    }
+    .part-row {
+      padding: 8px 10px;
+      min-height: 42px;
     }
   }
 
-  /* Tablet Horizontal / Modo Paisaje (11 cm alto · altura ≤ 620px) */
-  @media (max-height: 620px) and (min-width: 650px) {
+  /* Tablet Horizontal / Pantallas de poca altura (altura ≤ 640px) */
+  @media (max-height: 640px) and (min-width: 680px) {
     .sesion-bar {
-      padding: 4px 14px;
-      font-size: 11.5px;
+      padding: 3px 12px;
+      font-size: 11px;
     }
     .sesion-avatar {
-      width: 22px;
-      height: 22px;
-      font-size: 10px;
+      width: 20px;
+      height: 20px;
+      font-size: 9px;
     }
     .nav {
-      padding: 5px 14px;
+      padding: 4px 12px;
+    }
+    .nav-brand {
+      font-size: 14px;
+    }
+    .doc-code {
+      display: none;
+    }
+    .seg-opt {
+      padding: 5px 12px;
+      font-size: 12px;
+    }
+    .unidad-container {
+      padding: 4px 12px 5px;
+    }
+    .unidad-header {
+      margin-bottom: 2px;
+    }
+    .unidad-title {
+      font-size: 11.5px;
+    }
+    .unidad-grid-primario {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 5px;
+    }
+    .ficha-campo {
+      padding: 3px 6px;
+      border-radius: 6px;
+    }
+    .ficha-campo label {
+      font-size: 9px;
+      margin-bottom: 0;
+    }
+    .ficha-campo input {
+      font-size: 11.5px;
+    }
+    .side-panel {
+      width: 310px;
+    }
+    .panel-top {
+      padding: 6px 12px;
+    }
+    .btn-primary {
+      margin-top: 6px;
+      padding: 7px 10px;
+      font-size: 12.5px;
+    }
+    #panelBody {
+      padding: 6px 10px 16px;
+    }
+    .part-row {
+      padding: 7px 8px;
+      min-height: 40px;
+    }
+  }
+
+  /* Móviles y Pantallas Angostas (ancho < 680px) */
+  @media (max-width: 679px) {
+    html, body {
+      height: auto !important;
+      min-height: 100% !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      -webkit-overflow-scrolling: touch;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+    .main-area {
+      flex-direction: column !important;
+      overflow: visible !important;
+      flex: none !important;
+      height: auto !important;
+    }
+    .stage-wrap {
+      width: 100% !important;
+      height: 250px !important;
+      min-height: 210px !important;
+      max-height: 270px !important;
+      flex: none !important;
+      border-bottom: 2px solid var(--line);
+    }
+    .side-panel {
+      width: 100% !important;
+      border-left: none !important;
+      flex: none !important;
+      overflow: visible !important;
+      height: auto !important;
+      min-height: auto !important;
+      padding-bottom: 40px !important;
+    }
+    #panelBody {
+      overflow-y: visible !important;
+      height: auto !important;
+      max-height: none !important;
+      padding: 10px 14px 30px !important;
+    }
+    .unidad-grid-primario {
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .nav {
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 12px;
     }
     .nav-brand {
       font-size: 15px;
     }
     .doc-code {
       display: none;
-    }
-    .seg-opt {
-      padding: 6px 12px;
-      font-size: 12px;
-    }
-    .unidad-container {
-      padding: 4px 14px 6px;
-    }
-    .unidad-header {
-      margin-bottom: 3px;
-    }
-    .unidad-title {
-      font-size: 12px;
-    }
-    .unidad-grid-primario {
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
-    }
-    .ficha-campo {
-      padding: 3px 7px;
-      border-radius: 8px;
-    }
-    .ficha-campo label {
-      font-size: 9.5px;
-      margin-bottom: 0;
-    }
-    .ficha-campo input {
-      font-size: 12px;
-    }
-    .side-panel {
-      width: 360px;
-    }
-    .panel-top {
-      padding: 8px 14px;
-    }
-    .btn-primary {
-      margin-top: 6px;
-      padding: 8px 12px;
-      font-size: 13px;
-    }
-    #panelBody {
-      padding: 8px 12px;
-    }
-    .photo-slot {
-      height: 110px;
-    }
-    .item-row {
-      padding: 6px 0;
-    }
-    .part-row {
-      padding: 8px 10px;
-      min-height: 44px;
     }
   }
 </style>
@@ -597,6 +669,6 @@
   <div class="dialog" id="dialogBody"></div>
 </div>
 
-<script type="module" src="app.js?v=20260909_06"></script>
+<script type="module" src="app.js?v=20260909_07"></script>
 </body>
 </html>
