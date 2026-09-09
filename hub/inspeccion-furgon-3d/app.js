@@ -226,27 +226,40 @@ function animateDoors(open, duration = 800) {
   requestAnimationFrame(step);
 }
 
+let listFilterMode = 'active'; // 'active', 'exterior', 'interior', 'all'
+
 /**
  * Cambia el modo principal entre Vista Externa y Vista Interna.
  */
 function setViewMode(mode) {
-  if (mode === state.viewMode || !model) return;
   state.viewMode = mode;
   state.selectedPart = null;
+  listFilterMode = 'active';
 
-  if (mode === 'interior') {
-    // Abrir puertas y activar corte seccionado idéntico a la imagen
-    animateDoors(true, 850);
-    model.applyCutaway('interior', null, camera.position.z >= 0 ? 1 : -1);
-    animateCamera(interiorDefault.cam.pos, interiorDefault.cam.target, 850);
-  } else {
-    // Cerrar puertas y contenedor sólido
-    animateDoors(false, 850);
-    model.applyCutaway('exterior');
-    animateCamera(camExterior.pos, camExterior.target, 850);
+  if (model) {
+    try {
+      if (mode === 'interior') {
+        // Abrir puertas y activar corte seccionado
+        animateDoors(true, 850);
+        const zSign = camera ? (camera.position.z >= 0 ? 1 : -1) : 1;
+        model.applyCutaway('interior', null, zSign);
+        const pos = interiorDefault?.cam?.pos || interiorDefault?.pos;
+        const target = interiorDefault?.cam?.target || interiorDefault?.target;
+        if (pos && target) animateCamera(pos, target, 850);
+      } else {
+        // Cerrar puertas y contenedor sólido
+        animateDoors(false, 850);
+        model.applyCutaway('exterior');
+        const pos = camExterior?.cam?.pos || camExterior?.pos;
+        const target = camExterior?.cam?.target || camExterior?.target;
+        if (pos && target) animateCamera(pos, target, 850);
+      }
+      updateMeshColors();
+    } catch (err) {
+      console.warn('Aviso al animar vista 3D:', err);
+    }
   }
 
-  updateMeshColors();
   renderAll();
 }
 
@@ -262,25 +275,31 @@ function selectPart(partId) {
   // Si la parte seleccionada es de otro modo de vista (por ejemplo desde la lista lateral), sincronizar
   if (isInterior && state.viewMode !== 'interior') {
     state.viewMode = 'interior';
-    animateDoors(true, 800);
+    if (model) animateDoors(true, 800);
   } else if (!isInterior && state.viewMode !== 'exterior') {
     state.viewMode = 'exterior';
-    animateDoors(false, 800);
+    if (model) animateDoors(false, 800);
   }
 
   // Aplicar el corte seccionado correspondiente sin ocultar la pared seleccionada
-  if (state.viewMode === 'interior') {
-    const zSign = camera ? (camera.position.z >= 0 ? 1 : -1) : 1;
-    model.applyCutaway('interior', partId, zSign);
-    const config = interiorConfigs[partId];
-    if (config) animateCamera(config.cam.pos, config.cam.target, 800);
-  } else {
-    model.applyCutaway('exterior');
-    const config = exteriorConfigs[partId];
-    if (config) animateCamera(config.cam.pos, config.cam.target, 800);
+  if (model) {
+    try {
+      if (state.viewMode === 'interior') {
+        const zSign = camera ? (camera.position.z >= 0 ? 1 : -1) : 1;
+        model.applyCutaway('interior', partId, zSign);
+        const config = interiorConfigs[partId];
+        if (config) animateCamera(config.cam.pos, config.cam.target, 800);
+      } else {
+        model.applyCutaway('exterior');
+        const config = exteriorConfigs[partId];
+        if (config) animateCamera(config.cam.pos, config.cam.target, 800);
+      }
+      updateMeshColors();
+    } catch (err) {
+      console.warn('Aviso al enfocar pieza 3D:', err);
+    }
   }
 
-  updateMeshColors();
   renderAll();
 }
 
@@ -290,16 +309,26 @@ function selectPart(partId) {
 function deselectPart() {
   state.selectedPart = null;
 
-  if (state.viewMode === 'interior') {
-    const zSign = camera ? (camera.position.z >= 0 ? 1 : -1) : 1;
-    model.applyCutaway('interior', null, zSign);
-    animateCamera(interiorDefault.cam.pos, interiorDefault.cam.target, 700);
-  } else {
-    model.applyCutaway('exterior');
-    animateCamera(camExterior.pos, camExterior.target, 700);
+  if (model) {
+    try {
+      if (state.viewMode === 'interior') {
+        const zSign = camera ? (camera.position.z >= 0 ? 1 : -1) : 1;
+        model.applyCutaway('interior', null, zSign);
+        const pos = interiorDefault?.cam?.pos || interiorDefault?.pos;
+        const target = interiorDefault?.cam?.target || interiorDefault?.target;
+        if (pos && target) animateCamera(pos, target, 700);
+      } else {
+        model.applyCutaway('exterior');
+        const pos = camExterior?.cam?.pos || camExterior?.pos;
+        const target = camExterior?.cam?.target || camExterior?.target;
+        if (pos && target) animateCamera(pos, target, 700);
+      }
+      updateMeshColors();
+    } catch (err) {
+      console.warn('Aviso al resetear vista 3D:', err);
+    }
   }
 
-  updateMeshColors();
   renderAll();
 }
 
@@ -416,6 +445,10 @@ async function initStage(stage) {
   interiorDefault = {
     pos: V(halfL + 2.6, H * 0.58, 0.001),
     target: V(-halfL * 0.2, H * 0.45, 0),
+    cam: {
+      pos: V(halfL + 2.6, H * 0.58, 0.001),
+      target: V(-halfL * 0.2, H * 0.45, 0),
+    },
   };
 
   // Vistas enfocadas para partes exteriores (Piloto = +Z, Copiloto = -Z)
@@ -553,24 +586,76 @@ function renderPanel() {
 
 function renderPartList() {
   const wrap = document.createElement('div');
-  const heading = document.createElement('div');
-  heading.className = 'list-heading';
-  heading.textContent = state.viewMode === 'exterior' ? 'Condición Externa' : 'Condición Interna';
-  wrap.appendChild(heading);
 
-  Object.keys(PART_DEFS).filter((id) => PART_DEFS[id].mode === state.viewMode).forEach((id) => {
-    const status = model ? partStatus(id) : 'pending';
-    const css = STATUS_CSS[status];
-    const row = document.createElement('div');
-    row.className = 'part-row part-row--list';
-    row.innerHTML = `
-      <span class="dot" style="background:${css.color}"></span>
-      <span class="part-row__label">${escapeHtml(PART_DEFS[id].label)}</span>
-      <span class="tag" style="background:${css.bg};color:${css.color}">${css.label}</span>
-    `;
-    row.onclick = () => selectPart(id);
-    wrap.appendChild(row);
-  });
+  const extKeys = Object.keys(PART_DEFS).filter((id) => PART_DEFS[id].mode === 'exterior');
+  const intKeys = Object.keys(PART_DEFS).filter((id) => PART_DEFS[id].mode === 'interior');
+
+  // Selector integrado de Vista Externa / Vista Interna / Todas
+  const switcher = document.createElement('div');
+  switcher.className = 'seg panel-mode-switcher';
+  switcher.innerHTML = `
+    <button type="button" class="seg-opt ${state.viewMode === 'exterior' && listFilterMode !== 'all' ? 'active' : ''}" id="panelTabExt">
+      🚚 Externa (${extKeys.length})
+    </button>
+    <button type="button" class="seg-opt ${state.viewMode === 'interior' && listFilterMode !== 'all' ? 'active' : ''}" id="panelTabInt">
+      🚪 Interna (${intKeys.length})
+    </button>
+    <button type="button" class="seg-opt ${listFilterMode === 'all' ? 'active' : ''}" id="panelTabAll">
+      📋 Todas (${extKeys.length + intKeys.length})
+    </button>
+  `;
+
+  switcher.querySelector('#panelTabExt').onclick = () => {
+    listFilterMode = 'exterior';
+    setViewMode('exterior');
+  };
+  switcher.querySelector('#panelTabInt').onclick = () => {
+    listFilterMode = 'interior';
+    setViewMode('interior');
+  };
+  switcher.querySelector('#panelTabAll').onclick = () => {
+    listFilterMode = 'all';
+    renderAll();
+  };
+  wrap.appendChild(switcher);
+
+  function renderGroup(title, keys) {
+    const groupWrap = document.createElement('div');
+    groupWrap.style.marginBottom = '16px';
+
+    const heading = document.createElement('div');
+    heading.className = 'list-heading';
+    heading.textContent = title;
+    groupWrap.appendChild(heading);
+
+    keys.forEach((id) => {
+      const def = PART_DEFS[id];
+      const status = model ? partStatus(id) : 'pending';
+      const css = STATUS_CSS[status];
+      const row = document.createElement('div');
+      row.className = 'part-row part-row--list';
+
+      row.innerHTML = `
+        <span class="dot" style="background:${css.color}"></span>
+        <span class="part-row__label">${escapeHtml(def.label)}</span>
+        <span class="tag" style="background:${css.bg};color:${css.color}">${css.label}</span>
+      `;
+      row.onclick = () => selectPart(id);
+      groupWrap.appendChild(row);
+    });
+
+    return groupWrap;
+  }
+
+  if (listFilterMode === 'all') {
+    wrap.appendChild(renderGroup('CONDICIÓN EXTERNA', extKeys));
+    wrap.appendChild(renderGroup('CONDICIÓN INTERNA', intKeys));
+  } else if (state.viewMode === 'interior') {
+    wrap.appendChild(renderGroup('CONDICIÓN INTERNA', intKeys));
+  } else {
+    wrap.appendChild(renderGroup('CONDICIÓN EXTERNA', extKeys));
+  }
+
   return wrap;
 }
 
@@ -583,8 +668,12 @@ function renderPartDetail(partId) {
   const wrap = document.createElement('div');
 
   const back = document.createElement('button');
-  back.className = 'btn btn-ghost';
-  back.textContent = '‹ Volver a la lista';
+  back.type = 'button';
+  back.className = 'btn-volver-lista';
+  back.innerHTML = `
+    <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+    Volver al listado (${state.viewMode === 'exterior' ? 'Exteriores' : 'Interiores'})
+  `;
   back.onclick = deselectPart;
   wrap.appendChild(back);
 
@@ -614,14 +703,14 @@ function renderPartDetail(partId) {
     seg.className = 'seg item-toggle';
     const si = document.createElement('button');
     si.type = 'button';
-    si.textContent = 'Cumple';
-    si.className = 'seg-opt' + (ans[it.id] === 'si' ? ' active' : '');
+    si.textContent = '✓ Cumple';
+    si.className = 'seg-opt seg-opt--cumple' + (ans[it.id] === 'si' ? ' active' : '');
     si.disabled = state.saved;
     si.onclick = () => setAnswer(partId, it.id, 'si');
     const no = document.createElement('button');
     no.type = 'button';
-    no.textContent = 'No Cumple';
-    no.className = 'seg-opt' + (ans[it.id] === 'no' ? ' active' : '');
+    no.textContent = '✕ No Cumple';
+    no.className = 'seg-opt seg-opt--nocumple' + (ans[it.id] === 'no' ? ' active' : '');
     no.disabled = state.saved;
     no.onclick = () => setAnswer(partId, it.id, 'no');
     seg.appendChild(si);
