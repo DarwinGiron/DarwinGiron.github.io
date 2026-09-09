@@ -638,7 +638,7 @@ async function inicializarHistorial() {
     });
   }
   if (btnDescargarTransporte) {
-    btnDescargarTransporte.addEventListener("click", () => descargarRegistrosCSV());
+    btnDescargarTransporte.addEventListener("click", () => descargarRegistrosExcel());
   }
 
   await cargarListaTransporte();
@@ -924,84 +924,72 @@ async function eliminarVerificacion(docId, data) {
 }
 
 /**
- * Descarga los registros filtrados en formato CSV (compatible con Excel con BOM UTF-8)
+ * Descarga los registros filtrados en formato Excel nativo (.xlsx) usando SheetJS
  */
-function descargarRegistrosCSV() {
+async function descargarRegistrosExcel() {
   const registros = registrosFiltradosTransporte();
   if (!registros.length) {
     mostrarToast("No hay registros en el rango de fechas seleccionado para descargar.", "error");
     return;
   }
 
+  // Asegurar que XLSX esté disponible (si no, cargar dinámicamente)
+  if (typeof window.XLSX === "undefined") {
+    try {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    } catch (e) {
+      console.error("No se pudo cargar la librería XLSX:", e);
+      mostrarToast("No se pudo cargar el exportador de Excel.", "error");
+      return;
+    }
+  }
+
   const desde = filtroFechaDesde?.value || primerDiaMesISOTransporte();
   const hasta = filtroFechaHasta?.value || fechaHoyISOTransporte();
 
-  const encabezados = [
-    "ID Registro",
-    "Fecha Inspección",
-    "Placa Camión",
-    "Empresa de Transporte",
-    "Piloto",
-    "Tarjeta Circulación (TC)",
-    "No. Equipo",
-    "No. Marchamo",
-    "Orden de Producción",
-    "Cliente",
-    "No. Picking",
-    "Resultado",
-    "Cumplimiento %",
-    "Puntos Cumplidos",
-    "Total Puntos",
-    "Inspector Responsable",
-    "Inspector Inocuidad",
-    "Observaciones Generales",
-    "Origen",
-  ];
-
-  const escaparCSV = (valor) => {
-    const str = String(valor ?? "").trim();
-    if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes(";")) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
-
   const filas = registros.map((r) => {
     const aprobado = esContenedorAprobado(r);
-    return [
-      escaparCSV(r.id),
-      escaparCSV(r.fecha || ""),
-      escaparCSV(r.placaCamion || ""),
-      escaparCSV(r.transporte || ""),
-      escaparCSV(r.nombrePiloto || ""),
-      escaparCSV(r.tc || ""),
-      escaparCSV(r.numeroEquipo || ""),
-      escaparCSV(r.numeroMarchamo || ""),
-      escaparCSV(r.ordenProduccion || ""),
-      escaparCSV(r.cliente || ""),
-      escaparCSV(r.numeroPicking || ""),
-      escaparCSV(aprobado ? "APROBADO" : "RECHAZADO"),
-      escaparCSV(r.cumplimientoPorcentaje ?? (aprobado ? 100 : 0)),
-      escaparCSV(r.cumplidos ?? ""),
-      escaparCSV(r.total ?? ""),
-      escaparCSV(r.inspectorNombre || ""),
-      escaparCSV(r.inspectorInocuidad || ""),
-      escaparCSV(r.observacionesGenerales || ""),
-      escaparCSV(r.origen || "inspeccion_transporte"),
-    ].join(",");
+    const pct = r.calificacion ?? r.cumplimientoPorcentaje ?? (aprobado ? 100 : 0);
+    return {
+      "Fecha": r.fecha || "",
+      "Placa": r.placaCamion || "",
+      "Empresa / Transporte": r.transporte || "",
+      "Piloto": r.nombrePiloto || "",
+      "Tarjeta Circulación (TC)": r.tc || "",
+      "Estado de Liberación": aprobado ? "APROBADO" : "RECHAZADO",
+      "Calificación (%)": pct,
+      "Puntos Cumplidos": r.cumplidos ?? (aprobado ? (r.total || 34) : "-"),
+      "Total Puntos": r.total ?? "-",
+      "Inspector Responsable": r.inspectorNombre || "",
+      "ID Registro": r.id || "",
+    };
   });
 
-  const contenidoCSV = "\uFEFF" + [encabezados.join(","), ...filas].join("\r\n");
-  const blob = new Blob([contenidoCSV], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", `Liberacion_Contenedores_${desde}_al_${hasta}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const hoja = window.XLSX.utils.json_to_sheet(filas);
+  hoja["!cols"] = [
+    { wch: 14 }, // Fecha
+    { wch: 14 }, // Placa
+    { wch: 28 }, // Empresa / Transporte
+    { wch: 28 }, // Piloto
+    { wch: 24 }, // Tarjeta Circulación (TC)
+    { wch: 22 }, // Estado de Liberación
+    { wch: 16 }, // Calificación (%)
+    { wch: 18 }, // Puntos Cumplidos
+    { wch: 14 }, // Total Puntos
+    { wch: 26 }, // Inspector Responsable
+    { wch: 28 }, // ID Registro
+  ];
 
-  mostrarToast(`Se descargaron ${registros.length} registros de liberación exitosamente.`, "exito");
+  const libro = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(libro, hoja, "Liberación de Contenedores");
+  window.XLSX.writeFile(libro, `Liberacion_Contenedores_${desde}_al_${hasta}.xlsx`);
+
+  mostrarToast(`Se descargó el archivo Excel (.xlsx) con ${registros.length} registros exitosamente.`, "exito");
 }
 
