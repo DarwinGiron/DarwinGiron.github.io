@@ -10,8 +10,6 @@
 <meta http-equiv="Expires" content="0" />
 <title>Liberación de Contenedores · LOG-FO-101</title>
 
-<!-- Visor 3D comentado a solicitud (copia completa respaldada en copia-3d-respaldo/ e index-3d-backup.html) -->
-<!--
 <script type="importmap">
 {
   "imports": {
@@ -23,7 +21,6 @@
 }
 </script>
 <script src="./three-d-stage.js"></script>
--->
 
 <style>
   :root{
@@ -45,17 +42,18 @@
   }
   *{box-sizing:border-box;}
   html{
-    margin:0;padding:0;height:auto;min-height:100%;
+    margin:0;padding:0;height:100%;
   }
   body{
-    margin:0;padding:0;height:auto;min-height:100vh;
+    margin:0;padding:0;height:100%;min-height:100%;
     background:var(--bg);
     color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-tap-highlight-color:transparent;
     display:flex;flex-direction:column;
-    overflow-y:auto;overflow-x:hidden;
+    overflow:hidden;
   }
+  three-d-stage:not(:defined){visibility:hidden}
 
   .sesion-bar{
     flex-shrink:0;
@@ -257,38 +255,21 @@
     padding:8px 20px;font-size:13px;font-weight:600;
   }
 
-  .main-area{
-    flex:1;
-    display:block;
-    width:100%;
-    max-width:860px;
-    margin:0 auto;
-    padding:18px 16px 80px;
-    overflow:visible;
+  .main-area{flex:1;display:flex;overflow:hidden;min-height:0;}
+  .stage-wrap{flex:1;position:relative;min-width:0;}
+  three-d-stage{width:100%;height:100%;display:block;}
+  #hintOverlay{
+    position:absolute;top:16px;left:16px;background:rgba(255,255,255,0.92);
+    border-radius:12px;padding:10px 14px;font-size:12.5px;color:#2e2b25;
+    box-shadow:0 3px 10px rgba(46,43,37,.16);max-width:280px;
   }
-  .stage-wrap{display:none !important;}
-  three-d-stage{display:none !important;}
-  #hintOverlay{display:none !important;}
 
   .side-panel{
-    width:100%;
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    display:flex;
-    flex-direction:column;
-    background:var(--surface);
-    box-shadow:0 4px 16px rgba(15,42,74,0.06);
-    overflow:visible;
-    height:auto;
-    min-height:auto;
+    width:350px;flex-shrink:0;border-left:1px solid var(--line);
+    display:flex;flex-direction:column;background:var(--bg);overflow:hidden;
+    height:100%;min-height:0;
   }
-  .panel-top{
-    flex-shrink:0;
-    padding:16px 20px;
-    border-bottom:1px solid var(--line);
-    background:#f8fafc;
-    border-radius:var(--radius) var(--radius) 0 0;
-  }
+  .panel-top{flex-shrink:0;padding:14px 16px;border-bottom:1px solid var(--line);}
   .panel-top__row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
   .panel-top__row span:first-child{font-weight:700;font-size:14px;color:var(--navy);}
   .panel-top__row span:last-child{font-size:13px;color:var(--text-soft);}
@@ -307,10 +288,21 @@
   .btn-ghost:hover{background:var(--navy-soft);}
 
   #panelBody{
-    padding:16px 20px 28px;
-    overflow:visible;
-    height:auto;
-    min-height:0;
+    flex:1;overflow-y:auto !important;overflow-x:hidden;
+    padding:10px 16px 24px;min-height:0;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  }
+  #panelBody::-webkit-scrollbar{
+    width:6px;
+  }
+  #panelBody::-webkit-scrollbar-track{
+    background:rgba(0,0,0,0.03);border-radius:4px;
+  }
+  #panelBody::-webkit-scrollbar-thumb{
+    background:#94a3b8;border-radius:4px;
+  }
+  #panelBody::-webkit-scrollbar-thumb:hover{
+    background:#64748b;
   }
   .list-heading{font-size:12px;color:var(--text-soft);margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em;}
   .part-row{padding:10px 8px;border-radius:10px;display:flex;align-items:center;gap:10px;}
@@ -413,13 +405,35 @@
   }
 
   /* ==========================================================================
-     Adaptabilidad para Tablet y Móvil (100% amigable para tablet vertical)
+     Adaptación Específica para Modo Vertical / Retrato (Tablet como teléfono)
      ========================================================================== */
-  .btn-scroll-jump, .btn-scroll-top-3d {
-    display: none !important;
+  .btn-scroll-jump {
+    display: none;
+  }
+  .btn-scroll-top-3d {
+    display: none;
   }
 
-  @media (max-width: 860px) {
+  @media (orientation: portrait), (max-width: 860px) {
+    html {
+      height: auto !important;
+      min-height: 100% !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+    }
+    body {
+      height: auto !important;
+      min-height: 100% !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      display: block !important;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: auto;
+    }
+    .sesion-bar {
+      padding: 6px 14px;
+      font-size: 12px;
+    }
     .nav {
       padding: 8px 14px;
       flex-wrap: wrap;
@@ -439,34 +453,162 @@
       gap: 8px;
     }
     .main-area {
-      padding: 14px 12px 60px;
+      display: block !important;
+      flex-direction: column !important;
+      overflow: visible !important;
+      flex: none !important;
+      height: auto !important;
+      min-height: auto !important;
+    }
+    .stage-wrap {
+      width: 100% !important;
+      height: 240px !important;
+      min-height: 200px !important;
+      max-height: 260px !important;
+      display: block !important;
+      position: relative !important;
+      border-bottom: 2px solid var(--line);
+    }
+    #hintOverlay {
+      font-size: 11px;
+      padding: 5px 9px;
+      max-width: 220px;
+      top: 8px;
+      left: 8px;
+    }
+    .side-panel {
+      width: 100% !important;
+      border-left: none !important;
+      display: block !important;
+      overflow: visible !important;
+      height: auto !important;
+      min-height: auto !important;
+      padding-bottom: 80px !important;
     }
     .panel-top {
-      padding: 12px 14px;
+      padding: 12px 16px;
     }
     #panelBody {
-      padding: 12px 14px 20px;
+      display: block !important;
+      overflow: visible !important;
+      overflow-y: visible !important;
+      height: auto !important;
+      max-height: none !important;
+      padding: 10px 14px 20px !important;
     }
     .part-row {
-      padding: 12px 12px;
-      min-height: 52px;
+      padding: 11px 12px;
+      min-height: 48px;
+      margin-bottom: 5px;
+      border: 1px solid rgba(0,0,0,0.05);
+      background: #ffffff;
+    }
+    .btn-scroll-jump {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      position: absolute;
+      bottom: 8px;
+      right: 10px;
+      background: var(--navy);
+      color: #fff;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 11.5px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(15,42,74,0.3);
+      z-index: 10;
+    }
+    .btn-scroll-top-3d {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: calc(100% - 24px);
+      margin: 16px auto 30px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      background: #e2e8f0;
+      color: var(--navy);
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid var(--line);
+      cursor: pointer;
+      font-family: inherit;
     }
   }
 
-  @media (max-width: 520px) {
-    .unidad-grid-primario {
-      grid-template-columns: 1fr;
-      gap: 6px;
+  /* ==========================================================================
+     Adaptación para Modo Horizontal / Paisaje (Tablet horizontal y escritorios)
+     ========================================================================== */
+  @media (orientation: landscape) and (max-height: 640px) {
+    .sesion-bar {
+      padding: 3px 12px;
+      font-size: 11px;
+    }
+    .sesion-avatar {
+      width: 20px;
+      height: 20px;
+      font-size: 9px;
     }
     .nav {
-      justify-content: space-between;
+      padding: 4px 12px;
     }
-    .seg {
-      width: 100%;
+    .nav-brand {
+      font-size: 14px;
+    }
+    .doc-code {
+      display: none;
     }
     .seg-opt {
-      flex: 1;
-      text-align: center;
+      padding: 5px 12px;
+      font-size: 12px;
+    }
+    .unidad-container {
+      padding: 4px 12px 5px;
+    }
+    .unidad-header {
+      margin-bottom: 2px;
+    }
+    .unidad-title {
+      font-size: 11.5px;
+    }
+    .unidad-grid-primario {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 5px;
+    }
+    .ficha-campo {
+      padding: 3px 6px;
+      border-radius: 6px;
+    }
+    .ficha-campo label {
+      font-size: 9px;
+      margin-bottom: 0;
+    }
+    .ficha-campo input {
+      font-size: 11.5px;
+    }
+    .side-panel {
+      width: 320px;
+    }
+    .panel-top {
+      padding: 6px 12px;
+    }
+    .btn-primary {
+      margin-top: 6px;
+      padding: 7px 10px;
+      font-size: 12.5px;
+    }
+    #panelBody {
+      padding: 6px 10px 16px;
+    }
+    .part-row {
+      padding: 7px 8px;
+      min-height: 40px;
     }
   }
 </style>
@@ -533,12 +675,13 @@
 <div id="savedBanner"></div>
 
 <div class="main-area">
-  <!-- Visor 3D comentado a solicitud (copia completa respaldada en copia-3d-respaldo/ e index-3d-backup.html)
   <div class="stage-wrap">
     <three-d-stage name="furgon" background="#f0eee6"></three-d-stage>
     <div id="hintOverlay">Toca una parte del contenedor o de la lista para inspeccionarla. Arrastra para rotar.</div>
+    <button type="button" class="btn-scroll-jump" id="btnBajarLista" onclick="document.querySelector('.side-panel').scrollIntoView({behavior:'smooth'})">
+      📋 Bajar a la lista de inspección ↓
+    </button>
   </div>
-  -->
 
   <div class="side-panel">
     <div class="panel-top">
@@ -547,6 +690,9 @@
       <button class="btn btn-primary" id="btnFinalizar" type="button" disabled>Finalizar e Guardar Inspección</button>
     </div>
     <div id="panelBody"></div>
+    <button type="button" class="btn-scroll-top-3d" id="btnSubir3D" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+      ↑ Volver arriba al modelo 3D
+    </button>
   </div>
 </div>
 
@@ -554,6 +700,6 @@
   <div class="dialog" id="dialogBody"></div>
 </div>
 
-<script type="module" src="app.js?v=20260909_09"></script>
+<script type="module" src="app.js?v=20260909_08"></script>
 </body>
 </html>

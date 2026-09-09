@@ -618,7 +618,7 @@ function renderPartList() {
 
   keys.forEach((id) => {
     const def = PART_DEFS[id];
-    const status = partStatus(id);
+    const status = model ? partStatus(id) : 'pending';
     const css = STATUS_CSS[status];
     const row = document.createElement('div');
     row.className = 'part-row part-row--list';
@@ -639,7 +639,7 @@ function renderPartList() {
 function renderPartDetail(partId) {
   const def = PART_DEFS[partId];
   const ans = partItemsAnswered(partId);
-  const status = partStatus(partId);
+  const status = model ? partStatus(partId) : 'pending';
   const css = STATUS_CSS[status];
 
   const wrap = document.createElement('div');
@@ -827,7 +827,7 @@ async function confirmSave() {
   const allIds = Object.keys(PART_DEFS);
   let passCount = 0, failCount = 0;
   allIds.forEach((id) => {
-    const st = partStatus(id);
+    const st = model ? partStatus(id) : 'pending';
     if (st === 'pass') passCount += 1;
     if (st === 'fail') failCount += 1;
   });
@@ -1086,18 +1086,14 @@ async function cargarInspeccionExistente(docId) {
   }
 }
 
-/* ============ Arranque del stage 3D (Comentado a solicitud: versión con 3D respaldada en copia-3d-respaldo/ y app-3d-backup.js) ============ */
-/*
+/* ============ Arranque del stage 3D ============ */
 const stage = document.querySelector('three-d-stage');
-if (stage) {
-  customElements.whenDefined('three-d-stage')
-    .then(() => initStage(stage).then(() => {
-      renderAll();
-      updateMeshColors();
-    }))
-    .catch((err) => console.error('Error inicializando visor 3D:', err));
-}
-*/
+customElements.whenDefined('three-d-stage')
+  .then(() => initStage(stage).then(() => {
+    renderAll();
+    updateMeshColors();
+  }))
+  .catch((err) => console.error('Error inicializando visor 3D:', err));
 
 /* ============ Sesión ============ */
 document.getElementById('btnSalir').addEventListener('click', () => cerrarSesion());
