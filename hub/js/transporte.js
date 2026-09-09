@@ -34,6 +34,7 @@ import {
   iniciales,
 } from "./utils.js";
 import { ZONAS, ZONA_CABINA, idItem } from "./transporte-datos.js";
+import { montarVisor3DDetalle, limpiarVisor3DDetalle } from "./furgon-visor-detalle.js";
 
 const COLEC_REGISTROS = "verificaciones_transporte";
 const ETIQUETA_VISTA = { externa: "Exterior", interna: "Interior" };
@@ -600,6 +601,7 @@ async function inicializarHistorial() {
 
   if (btnVolver) {
     btnVolver.addEventListener("click", () => {
+      limpiarVisor3DDetalle();
       vistaDetalle.classList.add("oculto");
       vistaLista.classList.remove("oculto");
       history.pushState(null, "", "/hub/verificacion-transporte/historial.html");
@@ -757,14 +759,9 @@ function renderListaTransporte() {
           <span class="${aprobado ? "badge-aprobado" : "badge-rechazado"}">
             ${aprobado ? "✓ APROBADO" : "✕ RECHAZADO"} · ${pct}%
           </span>
-          <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
-            <a href="../inspeccion-furgon-3d/index.html?ver=${encodeURIComponent(data.id)}" class="btn btn-secundario btn-sm" style="text-decoration:none;" title="Ver modelo 3D">
-              Visor 3D 🚚
-            </a>
-            <button type="button" class="btn btn-primario btn-sm btn-ver-detalle" data-id="${data.id}">
-              Ver Detalle →
-            </button>
-          </div>
+          <button type="button" class="btn btn-primario btn-sm btn-ver-detalle" data-id="${data.id}">
+            Ver Detalle →
+          </button>
         </div>
       </div>
     `;
@@ -866,6 +863,9 @@ async function verDetalle(docId) {
         </div>
       </section>
 
+      <!-- Visor 3D Estático Integrado: Resumen visual de inspección y desviaciones -->
+      <div id="contenedor-visor-3d-detalle"></div>
+
       <section class="tarjeta mb-4">
         <h2 class="tarjeta__titulo">Cabina, Camión y Piloto</h2>
         <div class="editor-lista">
@@ -885,12 +885,12 @@ async function verDetalle(docId) {
       <div class="grupo-botones" id="detalle-acciones-transporte"></div>
     `;
 
+    // Montar el resumen visual 3D interactivo con las desviaciones remarcadas en rojo
+    await montarVisor3DDetalle(document.getElementById("contenedor-visor-3d-detalle"), data);
+
     const puedeGestionar = esRolDeGestion(perfilActual.rol) || data.inspectorUid === usuarioActual.uid;
     const accionesEl = document.getElementById("detalle-acciones-transporte");
     accionesEl.innerHTML = `
-      <a href="../inspeccion-furgon-3d/index.html?ver=${encodeURIComponent(docId)}" class="btn btn-dorado btn-ancho-auto" style="text-decoration:none;">
-        Ver en Visor 3D 🚚
-      </a>
       ${esRolDeGestion(perfilActual.rol) ? `<button type="button" class="btn btn-peligro btn-ancho-auto" id="btn-eliminar-transporte">Eliminar registro</button>` : ""}
     `;
 
