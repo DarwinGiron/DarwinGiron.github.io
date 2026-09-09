@@ -405,18 +405,39 @@
   }
 
   /* ==========================================================================
-     Adaptabilidad Responsive y Soporte para Tablet / Pantallas Medianas
+     Adaptación Específica para Modo Vertical / Retrato (Tablet como teléfono)
      ========================================================================== */
+  .btn-scroll-jump {
+    display: none;
+  }
+  .btn-scroll-top-3d {
+    display: none;
+  }
 
-  /* Vista Normal Lado a Lado para Pantallas Medianas y Tablets (680px a 960px)
-     Mantiene la vista estándar (3D a la izquierda, lista de inspección a la derecha) */
-  @media (min-width: 680px) and (max-width: 960px) {
+  @media (orientation: portrait), (max-width: 860px) {
+    html {
+      height: auto !important;
+      min-height: 100% !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+    }
+    body {
+      height: auto !important;
+      min-height: 100% !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      display: block !important;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: auto;
+    }
     .sesion-bar {
-      padding: 5px 14px;
+      padding: 6px 14px;
       font-size: 12px;
     }
     .nav {
-      padding: 6px 14px;
+      padding: 8px 14px;
+      flex-wrap: wrap;
+      gap: 8px;
     }
     .nav-brand {
       font-size: 16px;
@@ -425,43 +446,106 @@
       display: none;
     }
     .unidad-container {
-      padding: 6px 14px 8px;
+      padding: 8px 14px 10px;
     }
     .unidad-grid-primario {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 6px;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
     }
-    .ficha-campo {
-      padding: 4px 8px;
+    .main-area {
+      display: block !important;
+      flex-direction: column !important;
+      overflow: visible !important;
+      flex: none !important;
+      height: auto !important;
+      min-height: auto !important;
     }
-    .ficha-campo label {
-      font-size: 10px;
+    .stage-wrap {
+      width: 100% !important;
+      height: 240px !important;
+      min-height: 200px !important;
+      max-height: 260px !important;
+      display: block !important;
+      position: relative !important;
+      border-bottom: 2px solid var(--line);
     }
-    .ficha-campo input {
-      font-size: 12px;
+    #hintOverlay {
+      font-size: 11px;
+      padding: 5px 9px;
+      max-width: 220px;
+      top: 8px;
+      left: 8px;
     }
     .side-panel {
-      width: 320px;
+      width: 100% !important;
+      border-left: none !important;
+      display: block !important;
+      overflow: visible !important;
+      height: auto !important;
+      min-height: auto !important;
+      padding-bottom: 80px !important;
     }
     .panel-top {
-      padding: 10px 14px;
-    }
-    .btn-primary {
-      margin-top: 8px;
-      padding: 8px 12px;
-      font-size: 13px;
+      padding: 12px 16px;
     }
     #panelBody {
-      padding: 8px 12px 20px;
+      display: block !important;
+      overflow: visible !important;
+      overflow-y: visible !important;
+      height: auto !important;
+      max-height: none !important;
+      padding: 10px 14px 20px !important;
     }
     .part-row {
-      padding: 8px 10px;
-      min-height: 42px;
+      padding: 11px 12px;
+      min-height: 48px;
+      margin-bottom: 5px;
+      border: 1px solid rgba(0,0,0,0.05);
+      background: #ffffff;
+    }
+    .btn-scroll-jump {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      position: absolute;
+      bottom: 8px;
+      right: 10px;
+      background: var(--navy);
+      color: #fff;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 11.5px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(15,42,74,0.3);
+      z-index: 10;
+    }
+    .btn-scroll-top-3d {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: calc(100% - 24px);
+      margin: 16px auto 30px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      background: #e2e8f0;
+      color: var(--navy);
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid var(--line);
+      cursor: pointer;
+      font-family: inherit;
     }
   }
 
-  /* Tablet Horizontal / Pantallas de poca altura (altura ≤ 640px) */
-  @media (max-height: 640px) and (min-width: 680px) {
+  /* ==========================================================================
+     Adaptación para Modo Horizontal / Paisaje (Tablet horizontal y escritorios)
+     ========================================================================== */
+  @media (orientation: landscape) and (max-height: 640px) {
     .sesion-bar {
       padding: 3px 12px;
       font-size: 11px;
@@ -509,7 +593,7 @@
       font-size: 11.5px;
     }
     .side-panel {
-      width: 310px;
+      width: 320px;
     }
     .panel-top {
       padding: 6px 12px;
@@ -525,65 +609,6 @@
     .part-row {
       padding: 7px 8px;
       min-height: 40px;
-    }
-  }
-
-  /* Móviles y Pantallas Angostas (ancho < 680px) */
-  @media (max-width: 679px) {
-    html, body {
-      height: auto !important;
-      min-height: 100% !important;
-      overflow-y: auto !important;
-      overflow-x: hidden !important;
-      -webkit-overflow-scrolling: touch;
-    }
-    body {
-      display: flex;
-      flex-direction: column;
-    }
-    .main-area {
-      flex-direction: column !important;
-      overflow: visible !important;
-      flex: none !important;
-      height: auto !important;
-    }
-    .stage-wrap {
-      width: 100% !important;
-      height: 250px !important;
-      min-height: 210px !important;
-      max-height: 270px !important;
-      flex: none !important;
-      border-bottom: 2px solid var(--line);
-    }
-    .side-panel {
-      width: 100% !important;
-      border-left: none !important;
-      flex: none !important;
-      overflow: visible !important;
-      height: auto !important;
-      min-height: auto !important;
-      padding-bottom: 40px !important;
-    }
-    #panelBody {
-      overflow-y: visible !important;
-      height: auto !important;
-      max-height: none !important;
-      padding: 10px 14px 30px !important;
-    }
-    .unidad-grid-primario {
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-    .nav {
-      flex-wrap: wrap;
-      gap: 6px;
-      padding: 8px 12px;
-    }
-    .nav-brand {
-      font-size: 15px;
-    }
-    .doc-code {
-      display: none;
     }
   }
 </style>
@@ -653,6 +678,9 @@
   <div class="stage-wrap">
     <three-d-stage name="furgon" background="#f0eee6"></three-d-stage>
     <div id="hintOverlay">Toca una parte del contenedor o de la lista para inspeccionarla. Arrastra para rotar.</div>
+    <button type="button" class="btn-scroll-jump" id="btnBajarLista" onclick="document.querySelector('.side-panel').scrollIntoView({behavior:'smooth'})">
+      📋 Bajar a la lista de inspección ↓
+    </button>
   </div>
 
   <div class="side-panel">
@@ -662,6 +690,9 @@
       <button class="btn btn-primary" id="btnFinalizar" type="button" disabled>Finalizar e Guardar Inspección</button>
     </div>
     <div id="panelBody"></div>
+    <button type="button" class="btn-scroll-top-3d" id="btnSubir3D" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+      ↑ Volver arriba al modelo 3D
+    </button>
   </div>
 </div>
 
@@ -669,6 +700,6 @@
   <div class="dialog" id="dialogBody"></div>
 </div>
 
-<script type="module" src="app.js?v=20260909_07"></script>
+<script type="module" src="app.js?v=20260909_08"></script>
 </body>
 </html>

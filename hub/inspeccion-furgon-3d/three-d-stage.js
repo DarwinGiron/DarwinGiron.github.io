@@ -13,7 +13,7 @@
       background: var(--stage-bg, #f0eee6);
       overflow: hidden;
     }
-    canvas { display: block; outline: none; }
+    canvas { display: block; outline: none; touch-action: pan-y !important; }
     .note {
       position: absolute;
       left: 16px;
@@ -102,6 +102,7 @@
       const controls = new controlsMod.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.08;
+      renderer.domElement.style.touchAction = 'pan-y';
       this._controls = controls;
 
       scene.add(new THREE.HemisphereLight(0xffffff, 0xd0d8e2, 1.0));
