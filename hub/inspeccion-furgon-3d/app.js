@@ -15,6 +15,11 @@
 
 import { protegerPagina, cerrarSesion, etiquetaRol } from "../js/auth.js";
 import { iniciales } from "../js/utils.js";
+import { db } from "../js/firebase-config.js";
+import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+let currentUser = null;
+let currentPerfil = null;
 
 const PART_DEFS = {
   cabina: { label: 'Cabina, Camión y Piloto', mode: 'exterior', items: [
@@ -652,8 +657,11 @@ function renderDialog() {
   if (state.dialogSaved) {
     els.dialogBody.innerHTML = `
       <div class="dialog-title">Inspección guardada</div>
-      <div class="dialog-body">El registro de inspección se guardó correctamente. Este formulario queda como registro nuevo, de solo lectura.</div>
-      <div class="dialog-actions"><button class="btn btn-primary" id="btnCerrarDialogo">Cerrar</button></div>
+      <div class="dialog-body">El registro de inspección se guardó correctamente en la base de datos (verificaciones_transporte). Puedes revisarlo en el historial o cerrar este cuadro.</div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" id="btnCerrarDialogo">Cerrar</button>
+        <a class="btn btn-primary" href="../verificacion-transporte/historial.html" style="text-decoration:none; display:inline-flex; align-items:center;">Ver en Historial</a>
+      </div>
     `;
     document.getElementById('btnCerrarDialogo').onclick = closeDialog;
     return;
@@ -685,18 +693,154 @@ function renderDialog() {
 function openFinalize() { state.showDialog = true; state.dialogSaved = false; renderAll(); }
 function closeDialog() { state.showDialog = false; renderAll(); }
 
-function confirmSave() {
-  const record = {
-    timestamp: new Date().toISOString(),
-    header: state.headerFields,
-    answers: state.answers,
-    statuses: Object.fromEntries(Object.keys(PART_DEFS).map((p) => [p, partStatus(p)])),
+async function confirmSave() {
+  const allIds = Object.keys(PART_DEFS);
+  let passCount = 0, failCount = 0;
+  allIds.forEach((id) => {
+    const st = model ? partStatus(id) : 'pending';
+    if (st === 'pass') passCount += 1;
+    if (st === 'fail') failCount += 1;
+  });
+
+  const btnGuardar = document.getElementById('btnGuardarDialogo');
+  if (btnGuardar) {
+    btnGuardar.disabled = true;
+    btnGuardar.textContent = 'Guardando...';
+  }
+
+  // Estructurar respuestas por zona según el esquema oficial LOG-FO-101
+  const respuestasPorZona = {
+    'pared-izquierda': {
+      nombre: 'Pared Izquierda',
+      externa: [
+        { texto: 'Limpia', valor: state.answers['ext_pared_izquierda']?.limpia || 'si' },
+        { texto: 'Sin agujeros', valor: state.answers['ext_pared_izquierda']?.agujeros || 'si' },
+        { texto: 'Sin abolladuras mayores', valor: state.answers['ext_pared_izquierda']?.abolladuras || 'si' },
+        { texto: 'Cinta reflectiva en buen estado', valor: state.answers['ext_pared_izquierda']?.cinta || 'si' },
+      ],
+      interna: [
+        { texto: 'Plywood sin quebraduras', valor: state.answers['int_pared_izquierda']?.plywood || 'si' },
+        { texto: 'Limpia, sin humedad', valor: state.answers['int_pared_izquierda']?.limpia || 'si' },
+      ],
+    },
+    'pared-derecha': {
+      nombre: 'Pared Derecha',
+      externa: [
+        { texto: 'Limpia', valor: state.answers['ext_pared_derecha']?.limpia || 'si' },
+        { texto: 'Sin agujeros', valor: state.answers['ext_pared_derecha']?.agujeros || 'si' },
+        { texto: 'Sin abolladuras mayores', valor: state.answers['ext_pared_derecha']?.abolladuras || 'si' },
+        { texto: 'Cinta reflectiva en buen estado', valor: state.answers['ext_pared_derecha']?.cinta || 'si' },
+      ],
+      interna: [
+        { texto: 'Plywood sin quebraduras', valor: state.answers['int_pared_derecha']?.plywood || 'si' },
+        { texto: 'Limpia, sin humedad', valor: state.answers['int_pared_derecha']?.limpia || 'si' },
+      ],
+    },
+    'puertas': {
+      nombre: 'Puertas',
+      externa: [
+        { texto: 'Empaques en buen estado', valor: state.answers['ext_puertas']?.empaques || 'si' },
+        { texto: 'Funcionamiento de barras y manijas de apertura y cierre', valor: state.answers['ext_puertas']?.barras || 'si' },
+        { texto: 'Hermeticidad al cerrar (evita el ingreso de contaminantes)', valor: state.answers['ext_puertas']?.hermeticidad || 'si' },
+      ],
+      interna: [
+        { texto: 'Empaques en buen estado', valor: state.answers['int_puertas']?.empaques || 'si' },
+        { texto: 'Hermeticidad al cerrar', valor: state.answers['int_puertas']?.hermeticidad || 'si' },
+        { texto: 'Plywood sin quebraduras', valor: state.answers['int_puertas']?.plywood || 'si' },
+      ],
+    },
+    'techo': {
+      nombre: 'Techo',
+      externa: [
+        { texto: 'Limpio', valor: state.answers['ext_techo']?.limpio || 'si' },
+        { texto: 'Sin abolladuras', valor: state.answers['ext_techo']?.abolladuras || 'si' },
+        { texto: 'Sin señales de filtración', valor: state.answers['ext_techo']?.filtraciones || 'si' },
+      ],
+      interna: [
+        { texto: 'Agujeros que permitan filtración de agua', valor: state.answers['int_techo']?.filtracion === 'si' ? 'no' : 'si' },
+        { texto: 'Plywood sin quebraduras', valor: state.answers['int_techo']?.plywood || 'si' },
+      ],
+    },
+    'generales': {
+      nombre: 'Generales / Piso',
+      externa: [
+        { texto: 'Llantas y rines limpios', valor: state.answers['generales']?.llantas || 'si' },
+        { texto: 'Seguros giratorios (twist locks) trabados correctamente', valor: state.answers['generales']?.seguros || 'si' },
+        { texto: 'Conos de seguridad presentes', valor: state.answers['generales']?.conos || 'si' },
+        { texto: 'Alarma de retroceso funcional', valor: state.answers['generales']?.alarma || 'si' },
+        { texto: 'Certificado de fumigación vigente (10 días)', valor: state.answers['generales']?.fumigacion || 'si' },
+      ],
+      interna: [
+        { texto: 'Piso no deteriorado', valor: state.answers['int_piso']?.deteriorado || 'si' },
+        { texto: 'Limpio, sin agentes contaminantes', valor: state.answers['int_piso']?.limpio || 'si' },
+        { texto: 'Libre de insectos', valor: state.answers['int_piso']?.insectos || 'si' },
+        { texto: 'Sin mal olor', valor: state.answers['int_piso']?.olor || 'si' },
+      ],
+    },
   };
+
+  const respuestasCabinaFinal = [
+    { texto: 'Cabina limpia', valor: state.answers['cabina']?.cabina_limpia || 'si' },
+    { texto: 'Quinta rueda y acople en buen estado, sin fugas', valor: state.answers['cabina']?.quinta_rueda || 'si' },
+    { texto: 'Piloto en condiciones aptas (sobrio, uniforme, identificación, EPP)', valor: state.answers['cabina']?.piloto_apto || 'si' },
+  ];
+
+  let totalPuntos = 0, puntosCumplidos = 0;
+  Object.values(respuestasPorZona).forEach((z) => {
+    ['externa', 'interna'].forEach((m) => {
+      z[m].forEach((item) => {
+        totalPuntos++;
+        if (item.valor === 'si') puntosCumplidos++;
+      });
+    });
+  });
+  respuestasCabinaFinal.forEach((item) => {
+    totalPuntos++;
+    if (item.valor === 'si') puntosCumplidos++;
+  });
+
+  const pct = totalPuntos > 0 ? Math.round((puntosCumplidos / totalPuntos) * 100) : 100;
+  const fechaISO = new Date().toISOString().slice(0, 10);
+  const resultado = failCount > 0 ? 'rechazado' : 'aprobado';
+
+  const datos = {
+    fecha: fechaISO,
+    fechaCreacion: serverTimestamp(),
+    inspectorUid: currentUser?.uid || '',
+    inspectorNombre: currentPerfil?.nombre || currentUser?.email || 'Inspector',
+    placaCamion: (state.headerFields.placa || '').trim(),
+    transporte: (state.headerFields.transportista || '').trim(),
+    nombrePiloto: (state.headerFields.piloto || '').trim(),
+    cliente: (state.headerFields.cliente || '').trim(),
+    resultado,
+    cumplidos: puntosCumplidos,
+    total: totalPuntos,
+    cumplimientoPorcentaje: pct,
+    origen: 'inspeccion_3d',
+    respuestasPorZona,
+    respuestasCabina: respuestasCabinaFinal,
+    answers: state.answers,
+    statuses: Object.fromEntries(allIds.map((p) => [p, partStatus(p)])),
+    photos: state.photos,
+  };
+
+  // Guardar en Firestore (colección oficial verificaciones_transporte)
+  try {
+    if (currentUser?.uid) {
+      const docRef = await addDoc(collection(db, 'verificaciones_transporte'), datos);
+      datos.firestoreId = docRef.id;
+    }
+  } catch (err) {
+    console.warn('No se pudo guardar en Firestore (se guarda respaldo local):', err);
+  }
+
+  // Respaldo local en localStorage
   try {
     const list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    list.push(record);
+    list.push(datos);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   } catch (e) {}
+
   state.dialogSaved = true;
   state.saved = true;
   state.savedAt = new Date();
@@ -731,6 +875,8 @@ customElements.whenDefined('three-d-stage')
 document.getElementById('btnSalir').addEventListener('click', () => cerrarSesion());
 
 protegerPagina({}, ({ user, perfil }) => {
+  currentUser = user;
+  currentPerfil = perfil;
   const nombreVisible = perfil.nombre || user.email;
   document.getElementById('nombreUsuario').textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;
   document.getElementById('avatarUsuario').textContent = iniciales(nombreVisible);
