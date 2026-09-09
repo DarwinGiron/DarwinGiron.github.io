@@ -563,43 +563,35 @@ function primerDiaMesISOTransporte() {
 }
 
 /**
- * Valida de forma estricta si un contenedor fue aprobado o no.
- * Cualquier punto rechazado ("no") o porcentaje inferior a 100% determina RECHAZADO (Rojo).
+ * Determina si el contenedor fue aprobado o no según lo guardado directamente en la base de datos.
+ * No recalcula en tiempo real: lee el estado explícito registrado (aprobado / resultado / estado).
  */
 function esContenedorAprobado(data) {
   if (!data) return false;
-  const res = String(data.resultado || "").toLowerCase().trim();
-  if (res === "rechazado" || res === "no_pasa" || res === "no pasa" || res === "rechazada" || res === "fallido") {
-    return false;
+  // 1. Campo booleano directo guardado en base de datos
+  if (typeof data.aprobado === "boolean") {
+    return data.aprobado;
   }
-  if (typeof data.cumplimientoPorcentaje === "number" && data.cumplimientoPorcentaje < 100) {
-    return false;
+  // 2. Campo resultado guardado en base de datos
+  if (data.resultado) {
+    const res = String(data.resultado).toLowerCase().trim();
+    if (res === "aprobado" || res === "aprobada") return true;
+    if (res === "rechazado" || res === "rechazada" || res === "no_pasa" || res === "no pasa" || res === "fallido") return false;
   }
-  if (typeof data.total === "number" && typeof data.cumplidos === "number" && data.total > 0 && data.cumplidos < data.total) {
-    return false;
+  // 3. Campo estado guardado en base de datos
+  if (data.estado) {
+    const est = String(data.estado).toLowerCase().trim();
+    if (est === "aprobado" || est === "aprobada") return true;
+    if (est === "rechazado" || est === "rechazada") return false;
   }
-  // Revisión detallada de respuestas de zonas (exterior e interior)
-  if (data.respuestasPorZona) {
-    for (const z of Object.values(data.respuestasPorZona)) {
-      if (Array.isArray(z.externa) && z.externa.some((it) => it.valor === "no")) return false;
-      if (Array.isArray(z.interna) && z.interna.some((it) => it.valor === "no")) return false;
-    }
+  // 4. Compatibilidad con registros legados que solo guardaban cumplimientoPorcentaje
+  if (typeof data.calificacion === "number") {
+    return data.calificacion === 100;
   }
-  // Revisión de cabina
-  if (Array.isArray(data.respuestasCabina) && data.respuestasCabina.some((it) => it.valor === "no")) {
-    return false;
+  if (typeof data.cumplimientoPorcentaje === "number") {
+    return data.cumplimientoPorcentaje === 100;
   }
-  // Revisión de respuestas de partes 3D
-  if (data.answers && typeof data.answers === "object") {
-    for (const part of Object.values(data.answers)) {
-      if (part && typeof part === "object") {
-        for (const val of Object.values(part)) {
-          if (val === "no") return false;
-        }
-      }
-    }
-  }
-  return res === "aprobado" || res === "aprobada" || data.cumplimientoPorcentaje === 100;
+  return false;
 }
 
 async function inicializarHistorial() {

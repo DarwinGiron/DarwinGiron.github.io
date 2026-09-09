@@ -108,6 +108,8 @@ const state = {
   dialogSaved: false,
   saved: false,
   savedAt: null,
+  aprobado: null,
+  resultado: null,
 };
 
 let THREE, model, camera, controls, stageEl;
@@ -519,7 +521,15 @@ function renderProgress() {
 function renderSavedBanner() {
   if (state.saved) {
     els.savedBanner.style.display = 'block';
-    els.savedBanner.textContent = `Inspección guardada el ${state.savedAt ? state.savedAt.toLocaleString('es-GT') : ''} — registro cerrado (solo lectura).`;
+    const aprobado = state.aprobado === true || state.resultado === 'aprobado';
+    els.savedBanner.style.background = aprobado ? '#e6f6e6' : '#fceaea';
+    els.savedBanner.style.color = aprobado ? '#006300' : '#b32626';
+    els.savedBanner.style.border = aprobado ? '1.5px solid #86efac' : '1.5px solid #fca5a5';
+    els.savedBanner.style.padding = '10px 16px';
+    els.savedBanner.style.fontWeight = '700';
+    els.savedBanner.innerHTML = `
+      Modo solo lectura (${aprobado ? '✓ CONTENEDOR APROBADO' : '✕ CONTENEDOR RECHAZADO'}) · Placa: <u>${escapeHtml(state.headerFields.placa || '—')}</u> · TC: <u>${escapeHtml(state.headerFields.tc || '—')}</u> · Piloto: ${escapeHtml(state.headerFields.piloto || '—')}
+    `;
   } else {
     els.savedBanner.style.display = 'none';
   }
@@ -678,16 +688,40 @@ function renderDialog() {
   const allIds = Object.keys(PART_DEFS);
   let passCount = 0, failCount = 0;
   allIds.forEach((id) => {
-    const st = model ? partStatus(id) : 'pending';
+    const st = partStatus(id);
     if (st === 'pass') passCount += 1;
     if (st === 'fail') failCount += 1;
   });
 
+  let totalPuntos = 0, puntosCumplidos = 0;
+  allIds.forEach((id) => {
+    const def = PART_DEFS[id];
+    const ans = partItemsAnswered(id);
+    def.items.forEach((it) => {
+      totalPuntos++;
+      if (ans[it.id] === 'si') puntosCumplidos++;
+    });
+  });
+  const pct = totalPuntos > 0 ? Math.round((puntosCumplidos / totalPuntos) * 100) : 100;
+  const esAprobado = failCount === 0 && puntosCumplidos === totalPuntos;
+
   els.dialogBody.innerHTML = `
-    <div class="dialog-title">Confirmar inspección</div>
+    <div class="dialog-title">Confirmar Calificación de Inspección</div>
     <div class="dialog-body">
-      <div style="margin-bottom:8px;">Se evaluaron ${allIds.length} secciones: <b>${passCount}</b> aprobadas, <b>${failCount}</b> rechazadas.</div>
-      ${failCount ? '<div style="font-size:13px;color:#8c491a;margin-bottom:8px;">Se registrarán las secciones rechazadas para seguimiento.</div>' : ''}
+      <div style="padding:12px 14px; border-radius:8px; margin-bottom:12px; font-weight:700; ${esAprobado ? 'background:#dcfce7; color:#15803d; border:1.5px solid #86efac;' : 'background:#fee2e2; color:#b91c1c; border:1.5px solid #fca5a5;'}">
+        <div style="font-size:14px; display:flex; align-items:center; gap:6px;">
+          ${esAprobado ? '✓ Calificación: 100% · CONTENEDOR APROBADO' : `✕ Calificación: ${pct}% · CONTENEDOR RECHAZADO`}
+        </div>
+        <div style="font-size:12px; font-weight:500; margin-top:4px; opacity:0.9;">
+          ${esAprobado 
+            ? 'Cumple satisfactoriamente con todos los puntos evaluados.' 
+            : `Se detectaron ${failCount} sección${failCount > 1 ? 'es' : ''} no conformes.`}
+        </div>
+      </div>
+      <div style="font-size:12.5px; color:var(--text-soft); line-height:1.4;">
+        Este registro se guardará directamente en la base de datos con el estado de liberación: 
+        <strong style="color:${esAprobado ? '#15803d' : '#b91c1c'}; font-size:13px;">${esAprobado ? 'APROBADO' : 'RECHAZADO'}</strong>.
+      </div>
     </div>
     <div class="dialog-actions">
       <button class="btn btn-ghost" id="btnCancelarDialogo">Cancelar</button>
@@ -824,7 +858,9 @@ async function confirmSave() {
 
   const pct = totalPuntos > 0 ? Math.round((puntosCumplidos / totalPuntos) * 100) : 100;
   const fechaISO = state.headerFields.fecha || new Date().toISOString().slice(0, 10);
-  const resultado = failCount > 0 ? 'rechazado' : 'aprobado';
+  const esAprobado = failCount === 0 && puntosCumplidos === totalPuntos;
+  const resultadoTexto = esAprobado ? 'aprobado' : 'rechazado';
+  const estadoTexto = esAprobado ? 'Aprobado' : 'Rechazado';
 
   const datos = {
     fecha: fechaISO,
@@ -835,10 +871,14 @@ async function confirmSave() {
     nombrePiloto: (state.headerFields.piloto || '').trim(),
     placaCamion: (state.headerFields.placa || '').trim(),
     tc: (state.headerFields.tc || '').trim(),
-    resultado,
+    // Se guarda explícitamente si fue aprobado o no en base a la calificación
+    aprobado: esAprobado,
+    resultado: resultadoTexto,
+    estado: estadoTexto,
+    calificacion: pct,
+    cumplimientoPorcentaje: pct,
     cumplidos: puntosCumplidos,
     total: totalPuntos,
-    cumplimientoPorcentaje: pct,
     origen: 'inspeccion_3d',
     respuestasPorZona,
     respuestasCabina: respuestasCabinaFinal,
@@ -867,6 +907,8 @@ async function confirmSave() {
   state.dialogSaved = true;
   state.saved = true;
   state.savedAt = new Date();
+  state.aprobado = esAprobado;
+  state.resultado = resultadoTexto;
   renderAll();
 }
 
@@ -915,18 +957,11 @@ async function cargarInspeccionExistente(docId) {
       state.saved = true;
       state.savedAt = d.fechaCreacion?.toDate?.() || (d.fecha ? new Date(d.fecha + 'T12:00:00') : new Date());
 
-      const aprobado = d.resultado === 'aprobado' || d.cumplimientoPorcentaje === 100;
-      if (els.savedBanner) {
-        els.savedBanner.style.display = 'block';
-        els.savedBanner.style.background = aprobado ? '#e6f6e6' : '#fceaea';
-        els.savedBanner.style.color = aprobado ? '#006300' : '#b32626';
-        els.savedBanner.style.border = aprobado ? '1.5px solid #86efac' : '1.5px solid #fca5a5';
-        els.savedBanner.style.padding = '10px 16px';
-        els.savedBanner.style.fontWeight = '700';
-        els.savedBanner.innerHTML = `
-          Modo solo lectura (${aprobado ? '✓ CONTENEDOR APROBADO' : '✕ CONTENEDOR RECHAZADO'}) · Placa: <u>${escapeHtml(d.placaCamion || '—')}</u> · TC: <u>${escapeHtml(d.tc || '—')}</u> · Piloto: ${escapeHtml(d.nombrePiloto || '—')}
-        `;
-      }
+      const aprobado = typeof d.aprobado === 'boolean'
+        ? d.aprobado
+        : (d.resultado === 'aprobado' || d.cumplimientoPorcentaje === 100);
+      state.aprobado = aprobado;
+      state.resultado = aprobado ? 'aprobado' : 'rechazado';
 
       renderAll();
       updateMeshColors();
