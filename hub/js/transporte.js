@@ -752,9 +752,10 @@ function renderListaTransporte() {
           <div class="texto-suave texto-xs mt-1">
             Piloto: <strong>${escaparHtml(data.nombrePiloto || "—")}</strong> · TC: ${escaparHtml(data.tc || "—")} · Fecha: <strong>${formatearFechaISOCorta(data.fecha)}</strong>
           </div>
+          ${data.ordenProduccion || data.cliente ? `
           <div class="texto-suave texto-xs">
-            Orden: ${escaparHtml(data.ordenProduccion || "—")} · Cliente: ${escaparHtml(data.cliente || "—")}
-          </div>
+            ${data.ordenProduccion ? `Orden: ${escaparHtml(data.ordenProduccion)}` : ''} ${data.cliente ? `· Cliente: ${escaparHtml(data.cliente)}` : ''}
+          </div>` : ''}
           <div class="texto-suave texto-xs">
             Inspector: ${escaparHtml(data.inspectorNombre || "—")}
           </div>
@@ -862,14 +863,14 @@ async function verDetalle(docId) {
           ${ficha("Nombre de Piloto", data.nombrePiloto)}
           ${ficha("Placa", data.placaCamion)}
           ${ficha("Tarjeta Circulación (TC)", data.tc)}
-          ${ficha("# Equipo", data.numeroEquipo)}
-          ${ficha("# Marchamo", data.numeroMarchamo)}
-          ${ficha("Orden de Producción", data.ordenProduccion)}
-          ${ficha("Cliente", data.cliente)}
-          ${ficha("No. de Picking", data.numeroPicking)}
           ${ficha("Fecha Inspección", formatearFechaISOCorta(data.fecha))}
           ${ficha("Inspector", data.inspectorNombre)}
-          ${ficha("Inspector de Inocuidad", data.inspectorInocuidad)}
+          ${data.numeroEquipo ? ficha("# Equipo", data.numeroEquipo) : ""}
+          ${data.numeroMarchamo ? ficha("# Marchamo", data.numeroMarchamo) : ""}
+          ${data.ordenProduccion ? ficha("Orden de Producción", data.ordenProduccion) : ""}
+          ${data.cliente ? ficha("Cliente", data.cliente) : ""}
+          ${data.numeroPicking ? ficha("No. de Picking", data.numeroPicking) : ""}
+          ${data.inspectorInocuidad ? ficha("Inspector de Inocuidad", data.inspectorInocuidad) : ""}
         </div>
       </section>
 

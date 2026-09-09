@@ -103,14 +103,6 @@ const state = {
     piloto: '',
     placa: '',
     tc: '',
-    numeroEquipo: '',
-    numeroMarchamo: '',
-    ordenProduccion: '',
-    cliente: '',
-    numeroPicking: '',
-    inspectorInocuidad: '',
-    fecha: new Date().toISOString().slice(0, 10),
-    observacionesGenerales: '',
   },
   showDialog: false,
   dialogSaved: false,
@@ -480,16 +472,7 @@ const els = {
   piloto: document.getElementById('campoPiloto'),
   placa: document.getElementById('campoPlaca'),
   tc: document.getElementById('campoTc'),
-  numeroEquipo: document.getElementById('campoEquipo'),
-  numeroMarchamo: document.getElementById('campoMarchamo'),
-  ordenProduccion: document.getElementById('campoOrden'),
-  cliente: document.getElementById('campoCliente'),
-  numeroPicking: document.getElementById('campoPicking'),
-  inspectorInocuidad: document.getElementById('campoInspectorInocuidad'),
-  fecha: document.getElementById('campoFecha'),
-  btnToggleCamposExtra: document.getElementById('btnToggleCamposExtra'),
-  panelCamposSecundarios: document.getElementById('panelCamposSecundarios'),
-  labelToggleCamposExtra: document.getElementById('labelToggleCamposExtra'),
+  fecha: document.getElementById('fechaHoy'),
   savedBanner: document.getElementById('savedBanner'),
   progressCount: document.getElementById('progressCount'),
   progressBar: document.getElementById('progressBar'),
@@ -507,17 +490,15 @@ function escapeHtml(s) {
 }
 
 function renderHeaderFields() {
-  const fields = [
-    'transporte', 'piloto', 'placa', 'tc',
-    'numeroEquipo', 'numeroMarchamo', 'ordenProduccion',
-    'cliente', 'numeroPicking', 'inspectorInocuidad', 'fecha'
-  ];
-  fields.forEach((key) => {
+  ['transporte', 'piloto', 'placa', 'tc'].forEach((key) => {
     if (els[key]) {
       els[key].value = state.headerFields[key] || '';
       els[key].disabled = state.saved;
     }
   });
+  if (els.fecha) {
+    els.fecha.textContent = 'Fecha: ' + new Date().toLocaleDateString('es-GT');
+  }
 }
 
 function renderTabs() {
@@ -707,10 +688,6 @@ function renderDialog() {
     <div class="dialog-body">
       <div style="margin-bottom:8px;">Se evaluaron ${allIds.length} secciones: <b>${passCount}</b> aprobadas, <b>${failCount}</b> rechazadas.</div>
       ${failCount ? '<div style="font-size:13px;color:#8c491a;margin-bottom:8px;">Se registrarán las secciones rechazadas para seguimiento.</div>' : ''}
-      <div style="margin-top:10px;">
-        <label style="font-size:12px; font-weight:700; color:var(--text-soft); display:block; margin-bottom:4px;">Comentarios u observaciones adicionales (opcional):</label>
-        <textarea id="dialogObservaciones" rows="3" style="width:100%; border:1px solid var(--line); border-radius:8px; padding:8px; font-family:inherit; font-size:13px; resize:vertical; box-sizing:border-box;" placeholder="Notas adicionales del furgón o transporte...">${escapeHtml(state.headerFields.observacionesGenerales || '')}</textarea>
-      </div>
     </div>
     <div class="dialog-actions">
       <button class="btn btn-ghost" id="btnCancelarDialogo">Cancelar</button>
@@ -747,11 +724,6 @@ async function confirmSave() {
     if (st === 'pass') passCount += 1;
     if (st === 'fail') failCount += 1;
   });
-
-  const obsEl = document.getElementById('dialogObservaciones');
-  if (obsEl) {
-    state.headerFields.observacionesGenerales = obsEl.value.trim();
-  }
 
   const btnGuardar = document.getElementById('btnGuardarDialogo');
   if (btnGuardar) {
@@ -863,13 +835,6 @@ async function confirmSave() {
     nombrePiloto: (state.headerFields.piloto || '').trim(),
     placaCamion: (state.headerFields.placa || '').trim(),
     tc: (state.headerFields.tc || '').trim(),
-    numeroEquipo: (state.headerFields.numeroEquipo || '').trim(),
-    numeroMarchamo: (state.headerFields.numeroMarchamo || '').trim(),
-    ordenProduccion: (state.headerFields.ordenProduccion || '').trim(),
-    cliente: (state.headerFields.cliente || '').trim(),
-    numeroPicking: (state.headerFields.numeroPicking || '').trim(),
-    inspectorInocuidad: (state.headerFields.inspectorInocuidad || '').trim(),
-    observacionesGenerales: (state.headerFields.observacionesGenerales || '').trim(),
     resultado,
     cumplidos: puntosCumplidos,
     total: totalPuntos,
@@ -918,29 +883,13 @@ function renderAll() {
 els.extBtn.onclick = () => setViewMode('exterior');
 els.intBtn.onclick = () => setViewMode('interior');
 
-const campoKeys = [
-  'transporte', 'piloto', 'placa', 'tc',
-  'numeroEquipo', 'numeroMarchamo', 'ordenProduccion',
-  'cliente', 'numeroPicking', 'inspectorInocuidad', 'fecha'
-];
-campoKeys.forEach((key) => {
+['transporte', 'piloto', 'placa', 'tc'].forEach((key) => {
   if (els[key]) {
     els[key].oninput = (e) => {
       state.headerFields[key] = e.target.value;
     };
   }
 });
-
-if (els.btnToggleCamposExtra && els.panelCamposSecundarios) {
-  els.btnToggleCamposExtra.onclick = () => {
-    const isHidden = els.panelCamposSecundarios.classList.toggle('oculto');
-    if (els.labelToggleCamposExtra) {
-      els.labelToggleCamposExtra.textContent = isHidden
-        ? '+ Más datos (Equipo, Marchamo, OP, Picking) ▾'
-        : '− Menos datos ▴';
-    }
-  };
-}
 
 els.btnFinalizar.onclick = openFinalize;
 els.dialogBackdrop.onclick = (e) => { if (e.target === els.dialogBackdrop) closeDialog(); };
@@ -955,19 +904,6 @@ async function cargarInspeccionExistente(docId) {
       state.headerFields.piloto = d.nombrePiloto || '';
       state.headerFields.placa = d.placaCamion || '';
       state.headerFields.tc = d.tc || '';
-      state.headerFields.numeroEquipo = d.numeroEquipo || '';
-      state.headerFields.numeroMarchamo = d.numeroMarchamo || '';
-      state.headerFields.ordenProduccion = d.ordenProduccion || '';
-      state.headerFields.cliente = d.cliente || '';
-      state.headerFields.numeroPicking = d.numeroPicking || '';
-      state.headerFields.inspectorInocuidad = d.inspectorInocuidad || '';
-      state.headerFields.fecha = d.fecha || '';
-      state.headerFields.observacionesGenerales = d.observacionesGenerales || '';
-
-      if (d.numeroEquipo || d.numeroMarchamo || d.ordenProduccion || d.cliente || d.numeroPicking || d.inspectorInocuidad) {
-        if (els.panelCamposSecundarios) els.panelCamposSecundarios.classList.remove('oculto');
-        if (els.labelToggleCamposExtra) els.labelToggleCamposExtra.textContent = '− Menos datos ▴';
-      }
 
       if (d.answers && typeof d.answers === 'object') {
         state.answers = d.answers;
