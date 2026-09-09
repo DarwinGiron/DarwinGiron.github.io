@@ -34,7 +34,7 @@ import {
   iniciales,
 } from "./utils.js";
 import { ZONAS, ZONA_CABINA, idItem } from "./transporte-datos.js";
-import { montarVisor3DDetalle, limpiarVisor3DDetalle } from "./furgon-visor-detalle.js";
+import { montarVisor3DDetalle, limpiarVisor3DDetalle } from "./furgon-visor-detalle.js?v=20260909_02";
 
 const COLEC_REGISTROS = "verificaciones_transporte";
 const ETIQUETA_VISTA = { externa: "Exterior", interna: "Interior" };
