@@ -660,9 +660,17 @@ body.tema-reportes .tarjeta-reporte {
 
 body.tema-reportes .tarjeta-reporte:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(30,20,70,0.14); }
 
-body.tema-reportes .tarjeta-reporte .foto-portada { position: relative; width: 100%; aspect-ratio: 16/9; background: #eceef3; }
+body.tema-reportes .tarjeta-reporte .foto-portada { position: relative; width: 100%; aspect-ratio: 16/9; background: #eceef3; overflow: hidden; }
 
-body.tema-reportes .tarjeta-reporte .foto-portada img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* La foto va posicionada (no en flujo) a propósito: con height:100% dentro de
+   un recuadro de alto automático, el navegador se cae a la proporción real de
+   la imagen y estira el recuadro —una foto vertical de celular ocupaba el
+   triple de alto que una horizontal y descuadraba la rejilla—. Al sacarla del
+   flujo, el 16/9 manda siempre y object-fit recorta lo que sobra. */
+body.tema-reportes .tarjeta-reporte .foto-portada img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
 
 body.tema-reportes .tarjeta-reporte .foto-portada .etiqueta-gravedad { position: absolute; top: 8px; right: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
 

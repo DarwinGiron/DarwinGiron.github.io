@@ -679,7 +679,14 @@ function puntoPlanoAGPS(punto, corners) {
 // ---------------------------------------------------------------------------
 function formatearFechaHora(timestamp) {
   if (!timestamp) return "";
-  const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  // Normalmente llega un Timestamp de Firestore, pero un registro viejo o
+  // importado puede traer el objeto plano {seconds}, un texto o milisegundos:
+  // sin contemplarlos, la tarjeta mostraba "Invalid Date".
+  let d;
+  if (typeof timestamp.toDate === "function") d = timestamp.toDate();
+  else if (typeof timestamp.seconds === "number") d = new Date(timestamp.seconds * 1000);
+  else d = new Date(timestamp);
+  if (isNaN(d)) return "";
   return d.toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" });
 }
 
