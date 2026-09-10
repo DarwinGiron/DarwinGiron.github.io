@@ -123,6 +123,11 @@
 
     <div class="tarjeta">
       <h3>Mapa de calor - Plano de planta</h3>
+      <div class="campo" style="max-width:320px;">
+        <label for="filtro-categoria-mapa">Filtrar por problema detectado</label>
+        <select id="filtro-categoria-mapa"><option value="">Todos los problemas</option></select>
+      </div>
+      <p class="ayuda" id="contador-filtro-mapa" style="margin-top:-6px; margin-bottom:12px;"></p>
       <div class="contenedor-plano" id="contenedor-plano-dash"></div>
       <div class="leyenda-calor">
         <span><span class="punto" style="background:#e74c3c;"></span>Crítico</span>
@@ -161,6 +166,8 @@ let usuarioAdmin = null;
 let ultimosValidados = [];
 let ultimosTodos = [];
 let ultimoDesde = null, ultimoHasta = null;
+let marcoPlanoDash = null;
+let categoriasMapaListas = false;
 
 protegerPagina("dashboard", async (user, perfil, permisos) => {
   aplicarVisibilidadNav(perfil, permisos);
@@ -234,9 +241,27 @@ async function cargarDatosYRenderizar() {
   const porCategoria = contarPorCampo(validados.map((r) => ({ categoria: textoCategoria(r) })), "categoria");
   renderizarGraficaBarras("grafica-norma", Object.keys(porCategoria), Object.values(porCategoria), "#F1D27A");
 
-  const marcoPlano = await cargarPlanoImagenReal(document.getElementById("contenedor-plano-dash"));
-  await pintarPuntosPlanoReal(marcoPlano, validados, mostrarDetalleUbicacion);
+  if (!categoriasMapaListas) {
+    categoriasMapaListas = true;
+    await poblarSelectCategorias(document.getElementById("filtro-categoria-mapa"));
+    document.getElementById("filtro-categoria-mapa").options[0].textContent = "Todos los problemas";
+  }
+  marcoPlanoDash = await cargarPlanoImagenReal(document.getElementById("contenedor-plano-dash"));
+  renderizarMapaFiltrado();
 }
+
+/** Repinta el mapa de calor con los validados del período actual, filtrados
+ * por el problema detectado (categoría) elegido, sin recargar el plano ni
+ * los demás datos. */
+async function renderizarMapaFiltrado() {
+  const categoria = document.getElementById("filtro-categoria-mapa").value;
+  const filtrados = categoria ? ultimosValidados.filter((r) => textoCategoria(r) === categoria) : ultimosValidados;
+  document.getElementById("contador-filtro-mapa").textContent = categoria
+    ? `Mostrando ${filtrados.length} hallazgo(s) de "${categoria}" en el período.`
+    : "";
+  if (marcoPlanoDash) await pintarPuntosPlanoReal(marcoPlanoDash, filtrados, mostrarDetalleUbicacion);
+}
+document.getElementById("filtro-categoria-mapa").addEventListener("change", renderizarMapaFiltrado);
 
 function renderizarTablaTop(idTbody, filas, plantillaFila, colspan = 4, mensajeVacio = "Sin datos en el período seleccionado.") {
   const tbody = document.getElementById(idTbody);
