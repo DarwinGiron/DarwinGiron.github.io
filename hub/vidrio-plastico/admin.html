@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <script src="/js/tema-horario.js"></script>
+  <base href="/hub/vidrio-plastico/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Configurar SIG-FO-111 · SGI</title>
+  <link rel="stylesheet" href="/css/estilos.css" />
+</head>
+<body class="tema-hub">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="../index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">PPR</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Configurar SIG-FO-111</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <div class="app-header__acciones">
+        <span class="avatar avatar--claro avatar--sm" id="avatar-usuario" aria-hidden="true">—</span>
+        <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <a href="../configuraciones.html" class="btn btn-secundario btn-sm btn-ancho-auto mb-2">
+        ← Volver a Configuraciones
+      </a>
+
+      <section id="zona-semilla" class="oculto"></section>
+
+      <div id="zona-editor" class="oculto">
+        <div class="tabs">
+          <button type="button" class="tabs__item activo" data-tab="puntos">Puntos</button>
+          <button type="button" class="tabs__item" data-tab="riesgos">Tipos de riesgo</button>
+          <button type="button" class="tabs__item" data-tab="encabezado">Encabezado</button>
+        </div>
+
+        <!-- PUNTOS -->
+        <section class="pestana activa" data-pestana="puntos">
+          <div class="flex-entre mb-2">
+            <p class="texto-suave texto-sm mb-0">
+              Puntos a inspeccionar. Son las mismas preguntas para todos los inspectores.
+            </p>
+            <button type="button" id="btn-nuevo-punto" class="btn btn-dorado btn-sm btn-ancho-auto">
+              + Punto
+            </button>
+          </div>
+          <div class="campo mb-2">
+            <label for="filtro-admin">Buscar</label>
+            <input type="search" id="filtro-admin" placeholder="Ej. Montacarga, espejo…" />
+          </div>
+          <p class="texto-suave texto-sm" id="conteo-puntos">—</p>
+          <div id="lista-puntos-admin" class="editor-lista"></div>
+        </section>
+
+        <!-- RIESGOS -->
+        <section class="pestana" data-pestana="riesgos">
+          <p class="texto-suave texto-sm mb-2">
+            Qué significa cada nivel y cuál exige escribir la acción requerida.
+          </p>
+          <div id="lista-riesgos-admin" class="editor-lista"></div>
+        </section>
+
+        <!-- ENCABEZADO -->
+        <section class="pestana" data-pestana="encabezado">
+          <p class="texto-suave texto-sm mb-2">
+            Datos del formato que se muestran arriba del registro.
+          </p>
+          <div id="lista-encabezado" class="editor-lista"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="modal-fondo" class="modal-fondo oculto">
+    <div class="modal-caja">
+      <div class="modal-caja__cabecera">
+        <h3 id="modal-titulo" style="margin:0;">Editar</h3>
+        <button type="button" id="btn-cerrar-modal" class="btn btn-icono btn-secundario">✕</button>
+      </div>
+      <form id="form-modal"></form>
+    </div>
+  </div>
+
+  <script type="module" src="/hub/js/vidrio-admin.js"></script>
+</body>
+</html>

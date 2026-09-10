@@ -54,7 +54,7 @@ filtroBusqueda.addEventListener("input", renderizar);
 /** Texto donde busca el filtro: todo lo que el usuario podría teclear de memoria. */
 function textoBuscable(registro) {
   const muestras = (registro.muestras || [])
-    .map((m) => `${m.areaMaquina} ${m.superficie} ${m.resultado}`)
+    .map((m) => `${m.zonaNombre || ""} ${m.tipoNombre || ""} ${m.detalle || ""} ${m.resultado}`)
     .join(" ");
   return `${registro.proceso || ""} ${registro.supervisor || ""} ${
     registro.inspectorNombre || ""
@@ -81,6 +81,18 @@ function renderizar() {
   lista.innerHTML = visibles.map(tarjetaDe).join("");
 }
 
+/**
+ * El límite de una muestra. Los registros viejos lo traían como texto
+ * libre ("< 10 UFC/cm²"); los nuevos lo guardan como rango numérico
+ * heredado de la tabla de muestreo, así que se soportan los dos.
+ */
+function textoLimiteMuestra(m) {
+  if (m.limiteMin !== undefined && m.limiteMin !== null) {
+    return `${m.limiteMin} a ${m.limiteMax} ${m.unidad || "URL"}`;
+  }
+  return m.limite || "—";
+}
+
 function tarjetaDe(registro) {
   const muestras = registro.muestras || [];
   const desviaciones = muestras.filter((m) => m.desviacion).length;
@@ -90,14 +102,17 @@ function tarjetaDe(registro) {
       (m) => `
         <div class="editor-item" style="margin-bottom: var(--e2);">
           <div class="flex-entre mb-1">
-            <strong class="texto-sm">${escaparHtml(m.areaMaquina || "—")}</strong>
+            <strong class="texto-sm">${escaparHtml(m.zonaNombre || m.areaMaquina || "—")}</strong>
             <span class="badge ${m.desviacion ? "badge-dorado" : "badge-exito"}">
               ${m.desviacion ? "Fuera del límite" : "Conforme"}
             </span>
           </div>
-          <div class="texto-suave texto-sm">Superficie: ${escaparHtml(m.superficie || "—")}</div>
-          <div class="texto-suave texto-sm">Límite: ${escaparHtml(m.limite || "—")}</div>
-          <div class="texto-suave texto-sm">Resultado: ${escaparHtml(m.resultado || "—")}</div>
+          <div class="texto-suave texto-sm">Tipo: ${escaparHtml(m.tipoNombre || "—")}</div>
+          <div class="texto-suave texto-sm">Punto: ${escaparHtml(m.detalle || m.superficie || "—")}</div>
+          <div class="texto-suave texto-sm">Límite: ${escaparHtml(textoLimiteMuestra(m))}</div>
+          <div class="texto-suave texto-sm">Resultado: ${escaparHtml(
+            m.resultado === undefined || m.resultado === "" ? "—" : `${m.resultado} ${m.unidad || ""}`.trim()
+          )}</div>
         </div>
       `
     )

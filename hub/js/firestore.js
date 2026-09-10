@@ -10,6 +10,9 @@
 //   inspecciones/{fecha_turno_uid}             (un recorrido completo por turno)
 //   auditoriasBpm/{aaaa-mm}                    (auditoría de BPM, SIG-FO-116)
 //   hisopados/{autoId}                         (registro de hisopado)
+//   hisopadoConfig/tabla                       (tabla de muestreo SIG-TA-102)
+//   sigfo111Config/formato                     (puntos y riesgos del SIG-FO-111)
+//   registrosVidrio/{autoId}                   (registro SIG-FO-111)
 // =========================================================
 
 import {
@@ -383,4 +386,82 @@ export async function listarHisopados(filtros = {}) {
 /** Elimina un registro de hisopado (solo gestión, ver firestore.rules). */
 export async function eliminarHisopado(id) {
   await deleteDoc(doc(db, "hisopados", id));
+}
+
+/* ---------------------------------------------------------
+   Tabla de muestreo de hisopados (SIG-TA-102)
+   Un solo documento: la tabla completa (tipos de muestra con su rango
+   límite y las zonas de cada uno). Vive aparte de los registros porque
+   es catálogo, no historial — cambiarla no reescribe lo ya muestreado.
+   --------------------------------------------------------- */
+
+/** Obtiene la tabla de muestreo, o null si todavía no se ha cargado. */
+export async function obtenerTablaHisopado() {
+  const snap = await getDoc(doc(db, "hisopadoConfig", "tabla"));
+  return snap.exists() ? snap.data() : null;
+}
+
+/** Guarda la tabla de muestreo completa (solo gestión, ver firestore.rules). */
+export async function guardarTablaHisopado(tabla, uid) {
+  await setDoc(
+    doc(db, "hisopadoConfig", "tabla"),
+    { ...tabla, actualizadaEn: serverTimestamp(), actualizadaPor: uid },
+    { merge: true }
+  );
+}
+
+/* ---------------------------------------------------------
+   SIG-FO-111 — Vidrio y plástico quebradizo
+   Mismo reparto que el hisopado: un documento de catálogo con los puntos
+   a inspeccionar y la escala de riesgo, y una colección aparte con los
+   recorridos ya hechos.
+   --------------------------------------------------------- */
+
+/** Obtiene el formato configurado (puntos + escala de riesgo), o null. */
+export async function obtenerFormatoVidrio() {
+  const snap = await getDoc(doc(db, "sigfo111Config", "formato"));
+  return snap.exists() ? snap.data() : null;
+}
+
+/** Guarda el formato configurado (solo gestión, ver firestore.rules). */
+export async function guardarFormatoVidrio(formato, uid) {
+  await setDoc(
+    doc(db, "sigfo111Config", "formato"),
+    { ...formato, actualizadoEn: serverTimestamp(), actualizadoPor: uid },
+    { merge: true }
+  );
+}
+
+/** Guarda un registro de vidrio y plástico quebradizo. Devuelve su id. */
+export async function crearRegistroVidrio(datos) {
+  const referencia = await addDoc(collection(db, "registrosVidrio"), {
+    ...datos,
+    creadoEn: serverTimestamp(),
+  });
+  return referencia.id;
+}
+
+/**
+ * Lista registros del SIG-FO-111, del más reciente al más antiguo.
+ * Igual que los hisopados: el inspector solo puede consultar los suyos.
+ */
+export async function listarRegistrosVidrio(filtros = {}) {
+  const condiciones = [];
+  if (filtros.inspectorUid) {
+    condiciones.push(where("inspectorUid", "==", filtros.inspectorUid));
+  }
+
+  const consulta = query(
+    collection(db, "registrosVidrio"),
+    ...condiciones,
+    orderBy("fecha", "desc"),
+    limitarA(filtros.max || 200)
+  );
+  const snap = await getDocs(consulta);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** Elimina un registro del SIG-FO-111 (solo gestión, ver firestore.rules). */
+export async function eliminarRegistroVidrio(id) {
+  await deleteDoc(doc(db, "registrosVidrio", id));
 }

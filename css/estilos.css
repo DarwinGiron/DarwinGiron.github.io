@@ -1714,6 +1714,70 @@ body.tema-hub .tarjeta--plana { box-shadow: none; }
 /* Tarjeta que reclama atención: se usa en el registro de hisopado cuando
    alguna muestra quedó fuera del límite y las correcciones inmediatas
    dejan de ser opcionales. */
+/* SIG-FO-111 — escala de riesgo y selector por punto.
+   Los tres niveles son excluyentes y se tocan con el dedo en tablet, así
+   que son botones anchos, no radios diminutos. */
+body.tema-hub .lista-riesgos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--e2);
+  font-size: var(--txt-sm);
+}
+
+body.tema-hub .lista-riesgos li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+}
+
+body.tema-hub .riesgo-opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e2);
+}
+
+body.tema-hub .riesgo-opcion {
+  flex: 1 1 140px;
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-md, 10px);
+  background: var(--superficie);
+  color: var(--tinta-2);
+  font-size: var(--txt-sm);
+  font-weight: 650;
+  cursor: pointer;
+  transition: background var(--tr-rapida), border-color var(--tr-rapida), color var(--tr-rapida);
+}
+
+body.tema-hub .riesgo-opcion:hover { border-color: var(--tinta-3); }
+
+body.tema-hub .riesgo-badge.riesgo-1,
+body.tema-hub .riesgo-opcion.riesgo-1.activo {
+  background: var(--estado-bien-suave);
+  border-color: var(--estado-bien-mark);
+  color: var(--estado-bien-ink);
+}
+
+body.tema-hub .riesgo-badge.riesgo-2,
+body.tema-hub .riesgo-opcion.riesgo-2.activo {
+  background: var(--estado-alerta-suave);
+  border-color: var(--estado-alerta-mark);
+  color: var(--estado-alerta-ink);
+}
+
+body.tema-hub .riesgo-badge.riesgo-3,
+body.tema-hub .riesgo-opcion.riesgo-3.activo {
+  background: var(--estado-critico-suave);
+  border-color: var(--estado-critico-mark);
+  color: var(--estado-critico-ink);
+}
+
+/* Veredicto en línea de una muestra de hisopado: conforme o fuera del rango. */
+body.tema-hub .texto-alerta { color: var(--estado-critico-ink); font-weight: 700; }
+body.tema-hub .texto-exito { color: var(--estado-bien-ink); font-weight: 650; }
+
 body.tema-hub .tarjeta--alerta {
   border-color: var(--estado-alerta-mark);
   background: var(--estado-alerta-suave);
@@ -2533,6 +2597,40 @@ body.tema-hub .tabs__item.activo {
   color: var(--marino-700);
   border-bottom-color: var(--dorado-500);
 }
+
+/* Tabla ancha (cuadrícula de muestreo del SIG-TA-102, matrices zona × mes).
+   El scroll horizontal vive en el contenedor, nunca en el body. */
+body.tema-hub .tabla-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-lg);
+  background: var(--superficie);
+}
+
+body.tema-hub .tabla-muestreo {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--txt-sm);
+}
+
+body.tema-hub .tabla-muestreo th,
+body.tema-hub .tabla-muestreo td {
+  padding: var(--e2) var(--e3);
+  border-bottom: 1px solid var(--borde);
+  white-space: nowrap;
+  text-align: left;
+}
+
+body.tema-hub .tabla-muestreo thead th {
+  position: sticky;
+  top: 0;
+  background: var(--superficie-2, var(--superficie));
+  font-weight: 700;
+  color: var(--tinta-2);
+}
+
+body.tema-hub .tabla-muestreo tbody tr:last-child td { border-bottom: none; }
 
 body.tema-hub .pestana { display: none; }
 

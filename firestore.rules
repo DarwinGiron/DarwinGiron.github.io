@@ -9,8 +9,9 @@ rules_version = '2';
 //      procesos, categorias, configuracion, puntosNorma.
 //   2. "hub" (repo sig-fo-115, copiado a hub/ dentro de este mismo sitio) —
 //      colecciones: usuarios (COMPARTIDA con Reportes), checklists,
-//      inspecciones (SIG-FO-115), hisopados, liberaciones (SIG-FO-101),
-//      sigfo101Config, verificaciones_transporte.
+//      inspecciones (SIG-FO-115), hisopados, hisopadoConfig,
+//      registrosVidrio (SIG-FO-111), sigfo111Config, liberaciones
+//      (SIG-FO-101), sigfo101Config, verificaciones_transporte.
 // Un proyecto de Firebase publica un ÚNICO archivo de reglas para TODA la
 // base de datos, así que ESTE archivo es el único que existe y el único que
 // se publica. Antes había copias "de referencia" en hub/ y hub/sig-fo-101/;
@@ -323,6 +324,40 @@ service cloud.firestore {
 
       // El autor corrige su propio registro; un gestor corrige cualquiera.
       // Ninguno puede cambiarle el dueño.
+      allow update: if esUsuarioActivo()
+        && (resource.data.inspectorUid == request.auth.uid || esGestor())
+        && request.resource.data.inspectorUid == resource.data.inspectorUid;
+
+      allow delete: if esGestor();
+    }
+
+    // ---- hisopadoConfig / sigfo111Config (catálogos de formato) ------
+    // Son catálogo, no historial: cualquier usuario activo los lee porque
+    // el formulario los necesita para dibujarse (los límites del hisopado,
+    // los puntos del SIG-FO-111), y solo un gestor los edita.
+    match /hisopadoConfig/{docId} {
+      allow read: if esUsuarioActivo();
+      allow write: if esGestor();
+    }
+
+    match /sigfo111Config/{docId} {
+      allow read: if esUsuarioActivo();
+      allow write: if esGestor();
+    }
+
+    // ---- registrosVidrio (SIG-FO-111) --------------------------
+    // Mismo alcance que los hisopados: el inspector ve y edita los suyos,
+    // un gestor ve todos.
+    match /registrosVidrio/{registroId} {
+      allow get: if autenticado()
+        && (esGestor() || resource.data.inspectorUid == request.auth.uid);
+
+      allow list: if esGestor()
+        || (esUsuarioActivo() && resource.data.inspectorUid == request.auth.uid);
+
+      allow create: if esUsuarioActivo()
+        && request.resource.data.inspectorUid == request.auth.uid;
+
       allow update: if esUsuarioActivo()
         && (resource.data.inspectorUid == request.auth.uid || esGestor())
         && request.resource.data.inspectorUid == resource.data.inspectorUid;

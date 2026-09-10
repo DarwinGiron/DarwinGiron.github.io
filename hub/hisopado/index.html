@@ -49,12 +49,26 @@
 
       <section class="tarjeta">
         <div class="flex-entre mb-1">
+          <h2 class="tarjeta__titulo mb-0">Tabla de muestreo</h2>
+          <span class="badge badge-neutro" id="etiqueta-mes">—</span>
+        </div>
+        <p class="texto-suave texto-sm" id="ayuda-tabla">
+          Rangos por tipo de muestra y programación anual (SIG-TA-102).
+        </p>
+        <div class="tabla-scroll">
+          <table class="tabla-muestreo" id="tabla-referencia"></table>
+        </div>
+      </section>
+
+      <section class="tarjeta">
+        <div class="flex-entre mb-1">
           <h2 class="tarjeta__titulo mb-0">Muestras</h2>
           <span class="badge badge-neutro" id="contador-muestras">0</span>
         </div>
         <p class="texto-suave texto-sm">
-          Una muestra por superficie hisopada. Marca “Fuera del límite” cuando el
-          resultado se desvíe: abajo se pedirán las correcciones inmediatas.
+          Elige la zona y el límite se aplica solo, según la tabla de muestreo
+          SIG-TA-102. Si el resultado se sale del rango, abajo se piden las
+          correcciones inmediatas.
         </p>
         <div id="muestras-contenedor"></div>
         <button type="button" id="btn-agregar-muestra" class="btn btn-secundario btn-sm btn-ancho-auto">
@@ -99,25 +113,18 @@
         </button>
       </div>
       <div class="campo">
-        <label>Área o máquina</label>
-        <input type="text" data-campo="areaMaquina" />
+        <label>Zona a muestrear</label>
+        <select data-campo="zonaId"></select>
       </div>
       <div class="campo">
-        <label>Superficie</label>
-        <input type="text" data-campo="superficie" />
-      </div>
-      <div class="campo">
-        <label>Límite</label>
-        <input type="text" data-campo="limite" placeholder="Ej. &lt; 10 UFC/cm²" />
+        <label>Punto exacto (área, máquina o persona)</label>
+        <input type="text" data-campo="detalle" placeholder="Ej. Banda 3, turno B" />
       </div>
       <div class="campo">
         <label>Resultado</label>
-        <input type="text" data-campo="resultado" />
+        <input type="number" inputmode="decimal" data-campo="resultado" placeholder="Ej. 220" />
       </div>
-      <label class="check-linea">
-        <input type="checkbox" data-campo="desviacion" />
-        Fuera del límite (desviación)
-      </label>
+      <p class="texto-suave texto-sm mb-0 muestra-veredicto">Elige una zona para ver su límite.</p>
     </div>
   </template>
 
