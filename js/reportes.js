@@ -958,7 +958,7 @@ function suscribirReportesPropios(uid, callback, onError) {
 
 const ETIQUETAS_ESTADO_HALLAZGO = { abierto: "Abierto", en_proceso: "En proceso", corregido: "Corregido" };
 
-function renderizarListaReportes(reportesPropios, alClic, mensajeVacio = "Todavía no tiene reportes registrados.") {
+function renderizarListaReportes(reportesPropios, alClic, mensajeVacio = "Todavía no tiene reportes registrados.", mostrarInspector = false) {
   const cont = document.getElementById("lista-reportes");
   if (!reportesPropios.length) {
     cont.innerHTML = `<p class="ayuda">${mensajeVacio}</p>`;
@@ -967,6 +967,10 @@ function renderizarListaReportes(reportesPropios, alClic, mensajeVacio = "Todav�
 
   cont.innerHTML = reportesPropios.map((r) => {
     const estadoHallazgo = r.estadoHallazgo || "abierto";
+    // Cuando la lista trae reportes de todo el equipo hay que decir de quién
+    // es cada uno; en la lista propia sobraría.
+    const autor = mostrarInspector && r.inspectorNombre
+      ? `<div class="meta"><p>${r.inspectorNombre}</p></div>` : "";
     return `
       <div class="tarjeta tarjeta-reporte" data-id="${r.id}" style="cursor:pointer;">
         <div class="foto-portada">
@@ -976,6 +980,7 @@ function renderizarListaReportes(reportesPropios, alClic, mensajeVacio = "Todav�
         <div class="cuerpo">
           <h3>${r.zona} — ${r.proceso}</h3>
           <p>${(r.descripcion || "").slice(0, 90)}${r.descripcion && r.descripcion.length > 90 ? "..." : ""}</p>
+          ${autor}
           <div class="meta"><p>${formatearFechaHora(r.fechaHora)}${r.turno ? " · " + r.turno : ""}</p></div>
           <div class="meta"><span class="etiqueta-hallazgo ${estadoHallazgo}">${ETIQUETAS_ESTADO_HALLAZGO[estadoHallazgo]}</span></div>
         </div>

@@ -46,7 +46,8 @@
         </div>
       </div>
       <button type="button" class="btn btn-secundario btn-pequeno" id="btn-limpiar-filtros-reportes">Limpiar filtros</button>
-      <p class="ayuda" id="contador-filtros-reportes" style="margin-top:8px;"></p>
+      <p class="ayuda" id="alcance-reportes" style="margin-top:8px;"></p>
+      <p class="ayuda" id="contador-filtros-reportes" style="margin-top:2px;"></p>
     </div>
 
     <div id="lista-reportes" class="rejilla-reportes"></div>
@@ -93,6 +94,14 @@ let cargandoPaginaReportesPropios = false;
 // Todos los reportes del usuario, ya ordenados; de aquí se van mostrando de
 // 10 en 10 (ver traerReportesPropios).
 let reportesPropiosOrdenados = null;
+// Quien revisa el trabajo del equipo (admin o con permiso de validación) ve
+// los reportes de TODOS los inspectores; el inspector común sigue viendo solo
+// los suyos. Se usan esos dos perfiles y no todos los que pueden leer, porque
+// son los únicos que además pueden guardar el estado del hallazgo de un
+// reporte ajeno: mostrárselo a quien no puede tocarlo solo daría un error al
+// guardar.
+let verReportesDeTodos = false;
+let ultimoDocDeTodos = null;
 
 // Se permite cualquier rol (null): tanto inspectores como el admin pueden
 // ver la lista de sus propios reportes.
@@ -101,8 +110,13 @@ protegerPagina(null, async (user, perfil, permisos) => {
   document.getElementById("nombre-inspector").textContent = perfil.nombre || perfil.correo;
   montarNavPrincipal(perfil, permisos);
   inicializarCampana(perfil, user.uid);
-  await inicializarFiltrosReportes();
 
+  verReportesDeTodos = perfil.rol === "admin" || Boolean(permisos && permisos.validacion);
+  document.getElementById("alcance-reportes").textContent = verReportesDeTodos
+    ? "Reportes de todos los inspectores, del más reciente al más antiguo."
+    : "";
+
+  await inicializarFiltrosReportes();
   await cargarPaginaReportesPropios();
 });
 
@@ -111,11 +125,15 @@ async function cargarPaginaReportesPropios() {
   cargandoPaginaReportesPropios = true;
   actualizarBotonCargarMasReportes();
   try {
-    if (!reportesPropiosOrdenados) await traerReportesPropios();
-    reportesCacheActual = reportesPropiosOrdenados.slice(
-      0, reportesCacheActual.length + REPORTES_PROPIOS_POR_PAGINA
-    );
-    hayMasReportesPropios = reportesCacheActual.length < reportesPropiosOrdenados.length;
+    if (verReportesDeTodos) {
+      await traerPaginaDeTodos();
+    } else {
+      if (!reportesPropiosOrdenados) await traerReportesPropios();
+      reportesCacheActual = reportesPropiosOrdenados.slice(
+        0, reportesCacheActual.length + REPORTES_PROPIOS_POR_PAGINA
+      );
+      hayMasReportesPropios = reportesCacheActual.length < reportesPropiosOrdenados.length;
+    }
     aplicarFiltrosReportes();
 
     // Si se llegó con reportes.html#reporte-<id> (ej. enlace directo desde la
@@ -151,6 +169,21 @@ async function cargarPaginaReportesPropios() {
  * se ordena por la fecha del hallazgo, que es la que se ve en la tarjeta, con
  * la de creación como respaldo.
  */
+/**
+ * Reportes de todo el equipo, de 10 en 10. Aquí sí se le pide el orden a
+ * Firestore —por "fechaHora", la fecha que se ve en la tarjeta—: al no llevar
+ * filtro, ordenar por un solo campo no necesita índice compuesto, así que se
+ * traen únicamente los 10 que se van a mostrar en vez de la colección entera.
+ */
+async function traerPaginaDeTodos() {
+  let consulta = colReportes.orderBy("fechaHora", "desc").limit(REPORTES_PROPIOS_POR_PAGINA);
+  if (ultimoDocDeTodos) consulta = consulta.startAfter(ultimoDocDeTodos);
+  const snap = await consulta.get();
+  reportesCacheActual = reportesCacheActual.concat(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  ultimoDocDeTodos = snap.docs.length ? snap.docs[snap.docs.length - 1] : ultimoDocDeTodos;
+  hayMasReportesPropios = snap.docs.length === REPORTES_PROPIOS_POR_PAGINA;
+}
+
 async function traerReportesPropios() {
   const snap = await colReportes.where("inspectorUid", "==", usuarioActual.uid).get();
   reportesPropiosOrdenados = snap.docs
@@ -218,8 +251,10 @@ function aplicarFiltrosReportes() {
     ? `Mostrando ${filtrados.length} de ${reportesCacheActual.length} reportes.`
     : "";
 
-  renderizarListaReportes(filtrados, abrirModalReporte,
-    hayFiltrosActivos ? "Ningún reporte coincide con los filtros aplicados." : "Todavía no tiene reportes registrados.");
+  const mensajeVacio = hayFiltrosActivos
+    ? "Ningún reporte coincide con los filtros aplicados."
+    : (verReportesDeTodos ? "Todavía no hay reportes registrados." : "Todavía no tiene reportes registrados.");
+  renderizarListaReportes(filtrados, abrirModalReporte, mensajeVacio, verReportesDeTodos);
 }
 
 function abrirModalReporte(reporte) {
