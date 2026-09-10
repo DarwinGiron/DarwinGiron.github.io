@@ -82,6 +82,9 @@
       </div>
       <div id="lista-vacia" class="aviso aviso-info" style="display:none;">No hay reportes en esta bandeja.</div>
       <div class="rejilla-reportes" id="rejilla-reportes"></div>
+      <div style="display:flex; justify-content:center; margin-top:16px;">
+        <button class="btn btn-secundario" id="btn-cargar-mas" style="display:none;">Cargar 20 más</button>
+      </div>
     </div>
   </main>
 </div>
@@ -116,6 +119,18 @@ let reportesCache = [];
 let mapaModalGPS = null;
 let gpsCorregidoMod = null;
 
+// "Pendientes" se mantiene en vivo (onSnapshot): son pocos y hay que verlos
+// apenas entran. "Validados" puede acumular años de historial, así que se
+// pagina de 20 en 20 con consultas puntuales (.get) en vez de escuchar en
+// vivo la colección completa — antes se releía TODO lo validado (y cada vez
+// que se cambiaba de pestaña se sumaba un listener más sin cerrar el
+// anterior), lo cual crecía sin límite con el tiempo.
+const REPORTES_POR_PAGINA = 20;
+let unsubscribeReportes = null;
+let ultimoDocValidados = null;
+let hayMasValidados = true;
+let cargandoPaginaValidados = false;
+
 protegerPagina("validacion", (user, perfil, permisos) => {
   usuarioAdmin = user;
   perfilAdmin = perfil;
@@ -137,16 +152,62 @@ function cargarReportes() {
   document.getElementById("tab-pendientes").classList.toggle("activo", estadoActual === "pendiente");
   document.getElementById("tab-validados").classList.toggle("activo", estadoActual === "validado");
 
-  colReportes.where("estado", "==", estadoActual).orderBy("creadoEn", "desc").onSnapshot((snap) => {
-    reportesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  if (unsubscribeReportes) { unsubscribeReportes(); unsubscribeReportes = null; }
+  reportesCache = [];
+  ultimoDocValidados = null;
+  hayMasValidados = true;
+  document.getElementById("btn-cargar-mas").style.display = "none";
+
+  if (estadoActual === "pendiente") {
+    unsubscribeReportes = colReportes.where("estado", "==", "pendiente").orderBy("creadoEn", "desc")
+      .onSnapshot((snap) => {
+        reportesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        renderizarRejilla();
+      }, (err) => {
+        console.error(err);
+        document.getElementById("rejilla-reportes").innerHTML = "";
+        document.getElementById("lista-vacia").style.display = "block";
+        document.getElementById("lista-vacia").textContent = "Error cargando reportes. Verifique su conexión.";
+      });
+  } else {
+    cargarPaginaValidados();
+  }
+}
+
+async function cargarPaginaValidados() {
+  if (cargandoPaginaValidados || !hayMasValidados) return;
+  cargandoPaginaValidados = true;
+  actualizarBotonCargarMas();
+  try {
+    let consulta = colReportes.where("estado", "==", "validado").orderBy("creadoEn", "desc").limit(REPORTES_POR_PAGINA);
+    if (ultimoDocValidados) consulta = consulta.startAfter(ultimoDocValidados);
+    const snap = await consulta.get();
+    reportesCache = reportesCache.concat(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    ultimoDocValidados = snap.docs.length ? snap.docs[snap.docs.length - 1] : ultimoDocValidados;
+    hayMasValidados = snap.docs.length === REPORTES_POR_PAGINA;
     renderizarRejilla();
-  }, (err) => {
+  } catch (err) {
     console.error(err);
     document.getElementById("rejilla-reportes").innerHTML = "";
     document.getElementById("lista-vacia").style.display = "block";
     document.getElementById("lista-vacia").textContent = "Error cargando reportes. Verifique su conexión.";
-  });
+  } finally {
+    cargandoPaginaValidados = false;
+    actualizarBotonCargarMas();
+  }
 }
+
+function actualizarBotonCargarMas() {
+  const btn = document.getElementById("btn-cargar-mas");
+  if (estadoActual !== "validado" || !hayMasValidados) {
+    btn.style.display = "none";
+    return;
+  }
+  btn.style.display = "inline-flex";
+  btn.disabled = cargandoPaginaValidados;
+  btn.textContent = cargandoPaginaValidados ? "Cargando..." : "Cargar 20 más";
+}
+document.getElementById("btn-cargar-mas").addEventListener("click", cargarPaginaValidados);
 
 function renderizarRejilla() {
   const rejilla = document.getElementById("rejilla-reportes");
