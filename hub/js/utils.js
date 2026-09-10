@@ -347,6 +347,52 @@ export function mostrarToast(mensaje, tipo = "info") {
   });
 }
 
+// ---------------------------------------------------------------------------
+// ENTRADA DE DATOS EN MAYÚSCULAS
+// Los registros de transporte se llenan siempre en mayúsculas para que el
+// mismo piloto, placa o proveedor no quede guardado de tres formas distintas
+// ("Herber Hurtado", "HERBER HURTADO", "herber hurtado") y los listados y
+// búsquedas los reconozcan como uno solo.
+// ---------------------------------------------------------------------------
+
+/** Pasa el campo a mayúsculas mientras se escribe, sin mover el cursor. */
+export function forzarMayusculas(inputEl) {
+  if (!inputEl) return;
+  inputEl.addEventListener("input", () => {
+    const enMayusculas = inputEl.value.toUpperCase();
+    if (enMayusculas === inputEl.value) return;
+    // Cambiar a mayúsculas no altera el largo del texto, así que la posición
+    // del cursor se puede restituir tal cual: sin esto saltaría al final y
+    // sería imposible corregir en medio de la palabra.
+    const inicio = inputEl.selectionStart;
+    const fin = inputEl.selectionEnd;
+    inputEl.value = enMayusculas;
+    inputEl.setSelectionRange(inicio, fin);
+  });
+}
+
+/**
+ * Da forma de placa: "C-" seguido de números y letras en mayúscula.
+ * Acepta que la escriban con o sin el prefijo ("570bxs" y "c570bxs" quedan
+ * igual: C-570BXS) y descarta guiones o espacios de más.
+ */
+export function formatearPlaca(texto) {
+  const limpio = String(texto ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const sinPrefijo = limpio.startsWith("C") ? limpio.slice(1) : limpio;
+  return sinPrefijo ? "C-" + sinPrefijo : "";
+}
+
+/** Aplica el formato de placa a un campo mientras se escribe. */
+export function forzarFormatoPlaca(inputEl) {
+  if (!inputEl) return;
+  const aplicar = () => {
+    const conFormato = formatearPlaca(inputEl.value);
+    if (conFormato !== inputEl.value) inputEl.value = conFormato;
+  };
+  inputEl.addEventListener("input", aplicar);
+  inputEl.addEventListener("blur", aplicar);
+}
+
 /** Evita inyección de HTML al insertar texto proveniente de datos del usuario. */
 export function escaparHtml(texto) {
   const div = document.createElement("div");

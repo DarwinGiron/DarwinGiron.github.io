@@ -14,7 +14,7 @@
 // =========================================================
 
 import { protegerPagina, cerrarSesion, etiquetaRol } from "../js/auth.js";
-import { iniciales } from "../js/utils.js";
+import { iniciales, forzarMayusculas, forzarFormatoPlaca } from "../js/utils.js";
 import { db } from "../js/firebase-config.js";
 import { collection, doc, getDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
@@ -1012,11 +1012,23 @@ configurarAutocompletadoProveedor({
   },
 });
 
+// Todo el encabezado se captura en mayúsculas, y la placa además con el
+// formato C-####. Los escuchas de formato se registran ANTES que el que
+// guarda en state para que lo guardado sea ya el texto corregido.
+forzarMayusculas(els.transporte);
+['piloto', 'tc'].forEach((key) => forzarMayusculas(els[key]));
+forzarFormatoPlaca(els.placa); // ya incluye las mayúsculas
+
 ['piloto', 'placa', 'tc'].forEach((key) => {
   if (els[key]) {
-    els[key].oninput = (e) => {
+    els[key].addEventListener('input', (e) => {
       state.headerFields[key] = e.target.value;
-    };
+    });
+    // El formato de la placa también se corrige al salir del campo: hay que
+    // guardar ese ajuste, que no dispara "input".
+    els[key].addEventListener('blur', (e) => {
+      state.headerFields[key] = e.target.value;
+    });
   }
 });
 
