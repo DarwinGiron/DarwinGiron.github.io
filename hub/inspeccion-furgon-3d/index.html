@@ -80,6 +80,11 @@
   .nav{
     flex-shrink:0;display:flex;align-items:center;gap:16px;
     padding:10px 20px;border-bottom:1px solid var(--line);background:var(--surface);
+    /* Fija el selector Vista Externa/Interna arriba de la pantalla al
+       hacer scroll por el listado largo, para no tener que subir hasta
+       el principio cada vez que se quiera cambiar de vista. */
+    position:sticky;top:0;z-index:40;
+    box-shadow:0 2px 8px rgba(15,42,74,0.06);
   }
   .nav-brand{font-size:18px;font-weight:800;color:var(--navy);}
   .doc-code{font-size:12px;color:var(--text-soft);}
@@ -556,6 +561,6 @@
   <div class="dialog" id="dialogBody"></div>
 </div>
 
-<script type="module" src="app.js?v=20260910_03"></script>
+<script type="module" src="app.js?v=20260910_04"></script>
 </body>
 </html>
