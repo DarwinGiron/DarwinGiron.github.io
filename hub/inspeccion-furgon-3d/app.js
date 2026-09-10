@@ -120,6 +120,12 @@ const state = {
 let THREE, model, camera, controls, stageEl;
 let interiorConfigs = {}, exteriorConfigs = {}, interiorDefault = null, camExterior = null;
 
+/** Fecha de HOY en hora local (no UTC) como "AAAA-MM-DD". Ver nota en confirmSave(). */
+function fechaHoyLocalISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function partItemsAnswered(partId) { return state.answers[partId] || {}; }
 
 function partStatus(partId) {
@@ -887,7 +893,7 @@ async function confirmSave() {
         { texto: 'Sin señales de filtración', valor: state.answers['ext_techo']?.filtraciones || 'si' },
       ],
       interna: [
-        { texto: 'Agujeros que permitan filtración de agua', valor: state.answers['int_techo']?.filtracion === 'si' ? 'no' : 'si' },
+        { texto: 'Sin agujeros que permitan filtración de agua', valor: state.answers['int_techo']?.filtracion || 'si' },
         { texto: 'Plywood sin quebraduras', valor: state.answers['int_techo']?.plywood || 'si' },
       ],
     },
@@ -913,6 +919,12 @@ async function confirmSave() {
     { texto: 'Cabina limpia', valor: state.answers['cabina']?.cabina_limpia || 'si' },
     { texto: 'Quinta rueda y acople en buen estado, sin fugas', valor: state.answers['cabina']?.quinta_rueda || 'si' },
     { texto: 'Piloto en condiciones aptas (sobrio, uniforme, identificación, EPP)', valor: state.answers['cabina']?.piloto_apto || 'si' },
+    // Pared Frontal (interior) — antes se perdía por completo al guardar:
+    // se evaluaba en el visor 3D (int_frente) pero nunca se incluía en el
+    // registro, así que una falla ahí no bajaba la calificación ni el
+    // resultado Aprobado/Rechazado.
+    { texto: 'Pared frontal: plywood sin quebraduras', valor: state.answers['int_frente']?.plywood || 'si' },
+    { texto: 'Pared frontal: limpia, sin humedad', valor: state.answers['int_frente']?.limpia || 'si' },
   ];
 
   let totalPuntos = 0, puntosCumplidos = 0;
@@ -930,7 +942,13 @@ async function confirmSave() {
   });
 
   const pct = totalPuntos > 0 ? Math.round((puntosCumplidos / totalPuntos) * 100) : 100;
-  const fechaISO = state.headerFields.fecha || new Date().toISOString().slice(0, 10);
+  // OJO: new Date().toISOString() da la fecha en UTC, no la fecha local.
+  // Guatemala es UTC-6, así que cualquier inspección guardada entre las
+  // 18:00 y la medianoche locales caía en el DÍA SIGUIENTE en UTC. Esa
+  // fecha "adelantada" quedaba por encima del "hasta" (hoy, en hora local)
+  // que usa el historial para filtrar, así que el registro más reciente
+  // del día desaparecía de la lista por defecto sin ningún error.
+  const fechaISO = state.headerFields.fecha || fechaHoyLocalISO();
   const esAprobado = failCount === 0 && puntosCumplidos === totalPuntos;
   const resultadoTexto = esAprobado ? 'aprobado' : 'rechazado';
   const estadoTexto = esAprobado ? 'Aprobado' : 'Rechazado';
@@ -964,23 +982,39 @@ async function confirmSave() {
     respuestasCabina: respuestasCabinaFinal,
     answers: state.answers,
     statuses: Object.fromEntries(allIds.map((p) => [p, partStatus(p)])),
-    photos: state.photos,
+    // Las fotos NO se guardan en Firestore: van como data URL en base64
+    // (varios cientos de KB a varios MB cada una) y un documento de
+    // Firestore tiene un límite de 1 MiB. Con 1-2 fotos adjuntas el
+    // addDoc de abajo fallaba (documento demasiado grande) y ese error
+    // quedaba oculto: la UI igual mostraba "guardado" porque el fallo se
+    // silenciaba. Las fotos quedan solo en el respaldo local.
   };
 
-  // Guardar en Firestore (colección oficial verificaciones_transporte)
-  try {
-    if (currentUser?.uid) {
-      const docRef = await addDoc(collection(db, 'verificaciones_transporte'), datos);
-      datos.firestoreId = docRef.id;
-    }
-  } catch (err) {
-    console.warn('No se pudo guardar en Firestore (se guarda respaldo local):', err);
+  // Guardar en Firestore (colección oficial verificaciones_transporte).
+  // Si falla, se detiene aquí y se avisa: antes este error se silenciaba
+  // (solo un console.warn) y la pantalla igual mostraba "Guardado", por lo
+  // que un registro rechazado -o cualquiera con fotos pesadas- podía NUNCA
+  // llegar a la base de datos sin que el inspector se enterara.
+  if (!currentUser?.uid) {
+    alert('No se pudo guardar: no hay una sesión activa. Vuelve a iniciar sesión e intenta de nuevo.');
+    if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar Inspección'; }
+    return;
   }
 
-  // Respaldo local en localStorage
+  try {
+    const docRef = await addDoc(collection(db, 'verificaciones_transporte'), datos);
+    datos.firestoreId = docRef.id;
+  } catch (err) {
+    console.error('No se pudo guardar la inspección en Firestore:', err);
+    alert(`No se pudo guardar la inspección en la base de datos.\n\nDetalle: ${err.message || err}\n\nLa inspección NO quedó registrada. Verifica tu conexión e intenta de nuevo.`);
+    if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar Inspección'; }
+    return;
+  }
+
+  // Respaldo local en localStorage (aquí sí, con fotos incluidas).
   try {
     const list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    list.push(datos);
+    list.push({ ...datos, photos: state.photos });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   } catch (e) {}
 

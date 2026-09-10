@@ -25,6 +25,7 @@ import {
   orderBy,
   limit,
   serverTimestamp,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   fechaHoyISO,
@@ -657,16 +658,23 @@ async function cargarListaTransporte() {
     const desde = filtroFechaDesde?.value || primerDiaMesISOTransporte();
     const hasta = filtroFechaHasta?.value || fechaHoyISOTransporte();
 
+    // Se filtra por "fechaCreacion" (Timestamp puesto por el servidor,
+    // SIEMPRE presente y correcto) en vez de por "fecha" (texto que arma el
+    // cliente con la hora local del dispositivo): un registro guardado
+    // cerca de medianoche, con la hora del dispositivo mal puesta, o con
+    // cualquier otra inconsistencia de formato en "fecha", igual aparece
+    // aquí porque no depende de ese campo para decidir si "es de hoy".
+    const desdeTs = Timestamp.fromDate(new Date(`${desde}T00:00:00`));
+    const hastaTs = Timestamp.fromDate(new Date(`${hasta}T23:59:59.999`));
     const q = query(
       collection(db, COLEC_REGISTROS),
-      where("fecha", ">=", desde),
-      where("fecha", "<=", hasta),
-      orderBy("fecha", "desc")
+      where("fechaCreacion", ">=", desdeTs),
+      where("fechaCreacion", "<=", hastaTs),
+      orderBy("fechaCreacion", "desc")
     );
     const snap = await getDocs(q);
-    estadoLista.registrosMes = snap.docs
-      .map((d) => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (b.fechaCreacion?.toMillis?.() || 0) - (a.fechaCreacion?.toMillis?.() || 0));
+
+    estadoLista.registrosMes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
     renderListaTransporte();
   } catch (err) {
