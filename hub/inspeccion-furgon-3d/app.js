@@ -102,7 +102,6 @@ const state = {
   viewMode: 'exterior',
   selectedPart: null,
   answers: {},
-  photos: {},
   headerFields: {
     transporte: '',
     piloto: '',
@@ -603,15 +602,23 @@ function renderSavedBanner() {
 }
 
 function renderPanel() {
+  // Se conserva la posición del scroll: al responder Sí/No, renderAll()
+  // reconstruye TODO el listado (ahora largo, con las ~12 secciones a la
+  // vez), y sin esto la página saltaría al inicio con cada clic.
+  const scrollY = window.scrollY;
   els.panelBody.innerHTML = '';
-  if (state.selectedPart) {
-    els.panelBody.appendChild(renderPartDetail(state.selectedPart));
-  } else {
-    els.panelBody.appendChild(renderPartList());
-  }
+  els.panelBody.appendChild(renderPartsInline());
+  window.scrollTo(0, scrollY);
 }
 
-function renderPartList() {
+/**
+ * Un solo listado continuo con TODAS las secciones (Cabina, Paredes,
+ * Puertas, Techo, Generales…) de la vista activa (Exterior/Interior), cada
+ * una con sus preguntas Sí/No visibles de una vez. Antes había que entrar a
+ * cada sección y volver al listado para pasar a la siguiente — eso es lo
+ * que se quitó aquí.
+ */
+function renderPartsInline() {
   const wrap = document.createElement('div');
 
   const isInterior = state.viewMode === 'interior';
@@ -621,58 +628,28 @@ function renderPartList() {
   wrap.appendChild(heading);
 
   const keys = Object.keys(PART_DEFS).filter((id) => PART_DEFS[id].mode === state.viewMode);
-
-  keys.forEach((id) => {
-    const def = PART_DEFS[id];
-    const status = partStatus(id);
-    const css = STATUS_CSS[status];
-    const row = document.createElement('div');
-    row.className = 'part-row part-row--list';
-    row.setAttribute('data-part', id);
-
-    row.innerHTML = `
-      <span class="dot" style="background:${css.color}"></span>
-      <span class="part-row__label">${escapeHtml(def.label)}</span>
-      <span class="tag" style="background:${css.bg};color:${css.color}">${css.label}</span>
-    `;
-    row.onclick = () => selectPart(id);
-    wrap.appendChild(row);
-  });
+  keys.forEach((id) => wrap.appendChild(renderPartSection(id)));
 
   return wrap;
 }
 
-function renderPartDetail(partId) {
+function renderPartSection(partId) {
   const def = PART_DEFS[partId];
   const ans = partItemsAnswered(partId);
   const status = partStatus(partId);
   const css = STATUS_CSS[status];
 
   const wrap = document.createElement('div');
-
-  const back = document.createElement('button');
-  back.type = 'button';
-  back.className = 'btn-volver-lista';
-  back.innerHTML = `
-    <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-    Volver al listado (${state.viewMode === 'exterior' ? 'Exteriores' : 'Interiores'})
-  `;
-  back.onclick = deselectPart;
-  wrap.appendChild(back);
+  wrap.className = 'part-section';
 
   const headRow = document.createElement('div');
   headRow.className = 'detail-head';
-  headRow.innerHTML = `<span class="dot" style="background:${css.color}"></span><div class="card-title">${escapeHtml(def.label)}</div>`;
+  headRow.innerHTML = `
+    <span class="dot" style="background:${css.color}"></span>
+    <div class="card-title">${escapeHtml(def.label)}</div>
+    <span class="tag" style="background:${css.bg};color:${css.color};margin-left:auto;">${css.label}</span>
+  `;
   wrap.appendChild(headRow);
-
-  const tag = document.createElement('span');
-  tag.className = 'tag';
-  tag.style.background = css.bg;
-  tag.style.color = css.color;
-  tag.style.marginBottom = '12px';
-  tag.style.display = 'inline-block';
-  tag.textContent = css.label;
-  wrap.appendChild(tag);
 
   def.items.forEach((it) => {
     const row = document.createElement('div');
@@ -701,44 +678,6 @@ function renderPartDetail(partId) {
     row.appendChild(seg);
     wrap.appendChild(row);
   });
-
-  const photoWrap = document.createElement('div');
-  photoWrap.className = 'photo-wrap';
-  const photoLabel = document.createElement('label');
-  photoLabel.textContent = 'Evidencia fotográfica (opcional)';
-  photoWrap.appendChild(photoLabel);
-
-  const photoSlot = document.createElement('div');
-  photoSlot.className = 'photo-slot';
-  const existing = state.photos[partId];
-  if (existing) {
-    const img = document.createElement('img');
-    img.src = existing;
-    photoSlot.appendChild(img);
-  } else {
-    photoSlot.classList.add('photo-slot--empty');
-    photoSlot.textContent = 'Adjuntar foto si aplica';
-  }
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.capture = 'environment';
-  input.style.display = 'none';
-  input.disabled = state.saved;
-  input.onchange = () => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      state.photos[partId] = reader.result;
-      renderAll();
-    };
-    reader.readAsDataURL(file);
-  };
-  photoSlot.onclick = () => { if (!state.saved) input.click(); };
-  photoWrap.appendChild(photoSlot);
-  photoWrap.appendChild(input);
-  wrap.appendChild(photoWrap);
 
   return wrap;
 }
@@ -1011,10 +950,10 @@ async function confirmSave() {
     return;
   }
 
-  // Respaldo local en localStorage (aquí sí, con fotos incluidas).
+  // Respaldo local en localStorage.
   try {
     const list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    list.push({ ...datos, photos: state.photos });
+    list.push(datos);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   } catch (e) {}
 
@@ -1097,9 +1036,6 @@ async function cargarInspeccionExistente(docId) {
 
       if (d.answers && typeof d.answers === 'object') {
         state.answers = d.answers;
-      }
-      if (d.photos && typeof d.photos === 'object') {
-        state.photos = d.photos;
       }
 
       state.saved = true;
