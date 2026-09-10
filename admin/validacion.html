@@ -306,7 +306,6 @@ function abrirModal(reporte) {
     <div class="detalle-meta">
       <div class="detalle-meta-item"><span class="detalle-meta-etq">Inspector</span><span class="detalle-meta-val">${reporte.inspectorNombre}</span></div>
       <div class="detalle-meta-item"><span class="detalle-meta-etq">Fecha</span><span class="detalle-meta-val">${formatearFechaHora(reporte.fechaHora)}</span></div>
-      <div class="detalle-meta-item"><span class="detalle-meta-etq">GPS del inspector</span><span class="detalle-meta-val">${reporte.gps ? reporte.gps.lat.toFixed(5) + ", " + reporte.gps.lng.toFixed(5) : "No disponible (" + (reporte.gpsError || "sin dato") + ")"}</span></div>
     </div>
 
     <h3 class="titulo-seccion-modal">Datos a validar</h3>
