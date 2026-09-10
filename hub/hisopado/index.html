@@ -38,12 +38,12 @@
           <input type="date" id="campo-fecha" />
         </div>
         <div class="campo">
-          <label for="campo-proceso">Proceso o área</label>
-          <input type="text" id="campo-proceso" placeholder="Ej. Corrugación" />
-        </div>
-        <div class="campo">
-          <label for="campo-supervisor">Supervisor que acompaña</label>
-          <input type="text" id="campo-supervisor" placeholder="Nombre del supervisor" />
+          <label for="campo-turno">Turno</label>
+          <select id="campo-turno">
+            <option value="1">Turno 1</option>
+            <option value="2">Turno 2</option>
+            <option value="3">Turno 3</option>
+          </select>
         </div>
       </section>
 
@@ -66,9 +66,8 @@
           <span class="badge badge-neutro" id="contador-muestras">0</span>
         </div>
         <p class="texto-suave texto-sm">
-          Elige la zona y el límite se aplica solo, según la tabla de muestreo
-          SIG-TA-102. Si el resultado se sale del rango, abajo se piden las
-          correcciones inmediatas.
+          Elige la superficie y el límite se aplica solo, según la tabla de
+          muestreo SIG-TA-102. Solo se captura el resultado en RLU.
         </p>
         <div id="muestras-contenedor"></div>
         <button type="button" id="btn-agregar-muestra" class="btn btn-secundario btn-sm btn-ancho-auto">
@@ -76,28 +75,21 @@
         </button>
       </section>
 
-      <section class="tarjeta" id="tarjeta-correcciones">
-        <h2 class="tarjeta__titulo">Correcciones inmediatas</h2>
-        <p class="texto-suave texto-sm" id="ayuda-correcciones">
-          Qué se hizo en el momento con las superficies que se salieron del límite.
+      <section class="tarjeta" id="tarjeta-observaciones">
+        <h2 class="tarjeta__titulo">Observaciones</h2>
+        <p class="texto-suave texto-sm" id="ayuda-observaciones">
+          Qué acciones inmediatas se realizaron y cualquier otra nota de la toma.
         </p>
         <div class="campo">
-          <label for="campo-correcciones">Correcciones inmediatas en caso de desviación</label>
+          <label for="campo-observaciones">Acciones inmediatas realizadas y observaciones</label>
           <textarea
-            id="campo-correcciones"
+            id="campo-observaciones"
             rows="4"
             placeholder="Ej. Se relavó la banda con solución clorada y se volvió a hisopar."
           ></textarea>
         </div>
       </section>
 
-      <section class="tarjeta">
-        <h2 class="tarjeta__titulo">Observaciones</h2>
-        <div class="campo">
-          <label for="campo-observaciones">Observaciones generales (opcional)</label>
-          <textarea id="campo-observaciones" rows="3"></textarea>
-        </div>
-      </section>
       <button type="button" id="btn-guardar" class="btn btn-dorado" style="margin-bottom: var(--e6, 24px);">
         Guardar registro
       </button>
@@ -113,20 +105,22 @@
         </button>
       </div>
       <div class="campo">
-        <label>Zona a muestrear</label>
+        <label>Superficie</label>
         <select data-campo="zonaId"></select>
       </div>
       <div class="campo">
-        <label>Punto exacto (área, máquina o persona)</label>
-        <input type="text" data-campo="detalle" placeholder="Ej. Banda 3, turno B" />
+        <label>Supervisor</label>
+        <input type="text" data-campo="supervisor" list="lista-supervisores" autocomplete="off" placeholder="Escribe o elige de la lista" />
       </div>
       <div class="campo">
-        <label>Resultado</label>
+        <label>Resultado (RLU)</label>
         <input type="number" inputmode="decimal" data-campo="resultado" placeholder="Ej. 220" />
       </div>
-      <p class="texto-suave texto-sm mb-0 muestra-veredicto">Elige una zona para ver su límite.</p>
+      <p class="texto-suave texto-sm mb-0 muestra-veredicto">Elige una superficie para ver su límite.</p>
     </div>
   </template>
+
+  <datalist id="lista-supervisores"></datalist>
 
   <script type="module" src="/hub/js/hisopado.js"></script>
 </body>

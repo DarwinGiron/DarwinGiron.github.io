@@ -7,13 +7,20 @@
 // ritmo del recorrido: se hisopa cuando toca muestrear, lo acompaña un
 // supervisor y el resultado del laboratorio puede llegar después.
 //
-// El límite NO se teclea: se elige la zona y el rango sale de la tabla de
-// muestreo SIG-TA-102 (ver hisopado/admin.html). La desviación tampoco se
-// marca a mano — se calcula comparando el resultado contra ese rango, así
-// que nadie puede guardar un valor fuera de rango como si fuera conforme.
+// Se captura lo mismo que la fila del formato en papel: SUPERFICIE,
+// SUPERVISOR, LÍMITE y RESULTADO. De esos cuatro solo dos se escriben —
+// el límite sale de la tabla de muestreo SIG-TA-102 al elegir la
+// superficie (ver hisopado/admin.html), y la desviación se calcula
+// comparando el resultado en RLU contra ese rango, así que nadie puede
+// guardar un valor fuera de rango como si fuera conforme.
 //
-// Un documento = UNA toma, con sus muestras y, si alguna se salió del
-// límite, las correcciones inmediatas aplicadas.
+// El supervisor es un campo de texto con búsqueda sobre los ya
+// registrados (mismo trato que el proveedor en la verificación de
+// transporte): se escribe, se autocompleta, y si es nuevo se da de alta
+// solo al guardar.
+//
+// Un documento = UNA toma de un turno, con sus muestras y las acciones
+// inmediatas que se hayan realizado.
 // =========================================================
 
 import { protegerPagina, cerrarSesion, etiquetaRol } from "./auth.js";
@@ -24,6 +31,12 @@ import {
   textoLimite,
   zonasConLimite,
 } from "./hisopado-datos.js";
+import {
+  llenarDatalistSupervisores,
+  normalizarNombreSupervisor,
+  obtenerCatalogoSupervisores,
+  registrarSupervisorSiNoExiste,
+} from "./supervisores.js";
 import {
   escaparHtml,
   fechaHoyISO,
@@ -37,13 +50,12 @@ const avatarUsuario = document.getElementById("avatar-usuario");
 const btnSalir = document.getElementById("btn-salir");
 
 const campoFecha = document.getElementById("campo-fecha");
-const campoProceso = document.getElementById("campo-proceso");
-const campoSupervisor = document.getElementById("campo-supervisor");
-const campoCorrecciones = document.getElementById("campo-correcciones");
+const campoTurno = document.getElementById("campo-turno");
 const campoObservaciones = document.getElementById("campo-observaciones");
 
-const tarjetaCorrecciones = document.getElementById("tarjeta-correcciones");
-const ayudaCorrecciones = document.getElementById("ayuda-correcciones");
+const tarjetaObservaciones = document.getElementById("tarjeta-observaciones");
+const ayudaObservaciones = document.getElementById("ayuda-observaciones");
+const datalistSupervisores = document.getElementById("lista-supervisores");
 const muestrasContenedor = document.getElementById("muestras-contenedor");
 const contadorMuestras = document.getElementById("contador-muestras");
 const btnAgregarMuestra = document.getElementById("btn-agregar-muestra");
@@ -60,6 +72,7 @@ const estado = {
   muestras: [],
   zonas: [],
   tabla: null,
+  catalogoSupervisores: null,
 };
 
 protegerPagina({}, async ({ user, perfil }) => {
@@ -78,6 +91,13 @@ protegerPagina({}, async ({ user, perfil }) => {
   } catch (error) {
     console.error("No se pudo cargar la tabla de muestreo:", error);
     mostrarToast("No se pudo cargar la tabla de muestreo.", "error");
+  }
+
+  try {
+    estado.catalogoSupervisores = await obtenerCatalogoSupervisores();
+    llenarDatalistSupervisores(datalistSupervisores, estado.catalogoSupervisores);
+  } catch (error) {
+    console.warn("Sin catálogo de supervisores:", error);
   }
 
   renderTablaReferencia();
@@ -133,8 +153,8 @@ function renderTablaReferencia() {
 
   tablaReferencia.innerHTML = `
     <thead>
-      <tr><th>Tipo</th><th>Zona</th><th>Cant.</th><th>Rango</th><th>${escaparHtml(
-        MESES[mes] || ""
+      <tr><th>Tipo</th><th>Superficie</th><th>Cant.</th><th>Rango</th><th>${escaparHtml(
+        (MESES[mes] || "").slice(0, 3)
       )}</th></tr>
     </thead>
     <tbody>${filas}</tbody>
@@ -153,12 +173,23 @@ function agregarMuestra() {
   const muestra = {
     id: generarId("hiso"),
     zonaId: estado.zonas[0]?.id || "",
-    detalle: "",
+    supervisor: ultimoSupervisor(),
     resultado: "",
   };
   estado.muestras.push(muestra);
   muestrasContenedor.appendChild(crearNodoMuestra(muestra));
   actualizarResumen();
+}
+
+/**
+ * En una misma toma casi siempre acompaña el mismo supervisor, así que la
+ * muestra nueva hereda el último escrito. Sigue siendo editable.
+ */
+function ultimoSupervisor() {
+  for (let i = estado.muestras.length - 1; i >= 0; i--) {
+    if (estado.muestras[i].supervisor) return estado.muestras[i].supervisor;
+  }
+  return "";
 }
 
 function zonaDe(muestra) {
@@ -195,6 +226,19 @@ function crearNodoMuestra(muestra) {
       pintarVeredicto(muestra, veredicto);
       actualizarResumen();
     });
+
+    // Al salir del campo se deja el nombre tal como ya está registrado,
+    // para no acabar con tres variantes del mismo supervisor.
+    if (campo === "supervisor") {
+      entrada.addEventListener("blur", () => {
+        const normalizado = normalizarNombreSupervisor(
+          entrada.value,
+          estado.catalogoSupervisores
+        );
+        entrada.value = normalizado;
+        muestra.supervisor = normalizado;
+      });
+    }
   });
 
   nodo.querySelector(".btn-eliminar-muestra").addEventListener("click", () => {
@@ -215,7 +259,7 @@ function crearNodoMuestra(muestra) {
 function pintarVeredicto(muestra, veredicto) {
   const zona = zonaDe(muestra);
   if (!zona) {
-    veredicto.textContent = "Elige una zona para ver su límite.";
+    veredicto.textContent = "Elige una superficie para ver su límite.";
     veredicto.className = "texto-suave texto-sm mb-0 muestra-veredicto";
     return;
   }
@@ -250,10 +294,10 @@ function actualizarResumen() {
   });
 
   const desviacion = hayDesviacion();
-  tarjetaCorrecciones.classList.toggle("tarjeta--alerta", desviacion);
-  ayudaCorrecciones.textContent = desviacion
-    ? "Hay muestras fuera del límite: describe qué se hizo de inmediato con ellas."
-    : "Qué se hizo en el momento con las superficies que se salieron del límite.";
+  tarjetaObservaciones.classList.toggle("tarjeta--alerta", desviacion);
+  ayudaObservaciones.textContent = desviacion
+    ? "Hay muestras fuera del límite: anota qué acciones inmediatas se realizaron."
+    : "Qué acciones inmediatas se realizaron y cualquier otra nota de la toma.";
 }
 
 /* ---------------------------------------------------------
@@ -262,17 +306,10 @@ function actualizarResumen() {
 
 btnGuardar.addEventListener("click", async () => {
   const fecha = campoFecha.value;
-  const proceso = campoProceso.value.trim();
-  const supervisor = campoSupervisor.value.trim();
-  const correcciones = campoCorrecciones.value.trim();
+  const observaciones = campoObservaciones.value.trim();
 
   if (!fecha) {
     mostrarToast("Indica la fecha de la toma.", "alerta");
-    return;
-  }
-  if (!proceso) {
-    mostrarToast("Indica el proceso o área donde se hisopó.", "alerta");
-    campoProceso.focus();
     return;
   }
 
@@ -286,11 +323,11 @@ btnGuardar.addEventListener("click", async () => {
         zonaId: m.zonaId,
         zonaNombre: zona?.nombre || "",
         tipoNombre: zona?.tipoNombre || "",
-        detalle: m.detalle.trim(),
+        supervisor: normalizarNombreSupervisor(m.supervisor, estado.catalogoSupervisores),
         resultado: Number(String(m.resultado).replace(",", ".")),
         limiteMin: zona?.limiteMin ?? null,
         limiteMax: zona?.limiteMax ?? null,
-        unidad: zona?.unidad || "URL",
+        unidad: zona?.unidad || "RLU",
         desviacion: evaluarResultado(zona, m.resultado) === true,
       };
     });
@@ -300,17 +337,21 @@ btnGuardar.addEventListener("click", async () => {
     return;
   }
   if (muestras.some((m) => !m.zonaId)) {
-    mostrarToast("Cada muestra necesita una zona de la tabla de muestreo.", "alerta");
+    mostrarToast("Cada muestra necesita una superficie de la tabla de muestreo.", "alerta");
+    return;
+  }
+  if (muestras.some((m) => !m.supervisor)) {
+    mostrarToast("Cada muestra necesita el supervisor que la acompañó.", "alerta");
     return;
   }
 
   const conDesviacion = muestras.filter((m) => m.desviacion).length;
-  if (conDesviacion > 0 && !correcciones) {
+  if (conDesviacion > 0 && !observaciones) {
     mostrarToast(
-      "Hay muestras fuera del límite: anota las correcciones inmediatas.",
+      "Hay muestras fuera del límite: anota qué acciones inmediatas se realizaron.",
       "alerta"
     );
-    campoCorrecciones.focus();
+    campoObservaciones.focus();
     return;
   }
 
@@ -318,14 +359,19 @@ btnGuardar.addEventListener("click", async () => {
   btnGuardar.textContent = "Guardando…";
 
   try {
+    // Los supervisores nuevos se dan de alta aquí, no en una pantalla
+    // aparte: la lista crece con el uso.
+    const nombres = [...new Set(muestras.map((m) => m.supervisor))];
+    await Promise.all(
+      nombres.map((nombre) => registrarSupervisorSiNoExiste(nombre, estado.usuario.uid))
+    );
+
     await crearHisopado({
       fecha,
-      proceso,
-      supervisor,
+      turno: Number(campoTurno.value),
       muestras,
       desviaciones: conDesviacion,
-      correcciones,
-      observaciones: campoObservaciones.value.trim(),
+      observaciones,
       inspectorUid: estado.usuario.uid,
       inspectorNombre: estado.perfil.nombre || estado.usuario.email,
     });

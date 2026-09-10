@@ -54,11 +54,9 @@ filtroBusqueda.addEventListener("input", renderizar);
 /** Texto donde busca el filtro: todo lo que el usuario podría teclear de memoria. */
 function textoBuscable(registro) {
   const muestras = (registro.muestras || [])
-    .map((m) => `${m.zonaNombre || ""} ${m.tipoNombre || ""} ${m.detalle || ""} ${m.resultado}`)
+    .map((m) => `${m.zonaNombre || ""} ${m.tipoNombre || ""} ${m.supervisor || ""} ${m.resultado}`)
     .join(" ");
-  return `${registro.proceso || ""} ${registro.supervisor || ""} ${
-    registro.inspectorNombre || ""
-  } ${muestras}`.toLowerCase();
+  return `${registro.proceso || ""} ${registro.inspectorNombre || ""} ${muestras}`.toLowerCase();
 }
 
 function renderizar() {
@@ -88,7 +86,7 @@ function renderizar() {
  */
 function textoLimiteMuestra(m) {
   if (m.limiteMin !== undefined && m.limiteMin !== null) {
-    return `${m.limiteMin} a ${m.limiteMax} ${m.unidad || "URL"}`;
+    return `${m.limiteMin} a ${m.limiteMax} ${m.unidad || "RLU"}`;
   }
   return m.limite || "—";
 }
@@ -108,7 +106,7 @@ function tarjetaDe(registro) {
             </span>
           </div>
           <div class="texto-suave texto-sm">Tipo: ${escaparHtml(m.tipoNombre || "—")}</div>
-          <div class="texto-suave texto-sm">Punto: ${escaparHtml(m.detalle || m.superficie || "—")}</div>
+          <div class="texto-suave texto-sm">Supervisor: ${escaparHtml(m.supervisor || "—")}</div>
           <div class="texto-suave texto-sm">Límite: ${escaparHtml(textoLimiteMuestra(m))}</div>
           <div class="texto-suave texto-sm">Resultado: ${escaparHtml(
             m.resultado === undefined || m.resultado === "" ? "—" : `${m.resultado} ${m.unidad || ""}`.trim()
@@ -118,16 +116,15 @@ function tarjetaDe(registro) {
     )
     .join("");
 
-  const correcciones = registro.correcciones
+  // Los registros viejos guardaban las correcciones aparte de las
+  // observaciones; ahora es un solo campo, así que se muestran juntos.
+  const notas = [registro.correcciones, registro.observaciones].filter(Boolean).join(" · ");
+  const observaciones = notas
     ? `
       <div class="alerta alerta-info" style="margin-top: var(--e2);">
-        <strong>Correcciones inmediatas:</strong> ${escaparHtml(registro.correcciones)}
+        <strong>Acciones inmediatas y observaciones:</strong> ${escaparHtml(notas)}
       </div>
     `
-    : "";
-
-  const observaciones = registro.observaciones
-    ? `<p class="texto-suave texto-sm">Observaciones: ${escaparHtml(registro.observaciones)}</p>`
     : "";
 
   const botonEliminar = estado.puedeEliminar
@@ -139,18 +136,16 @@ function tarjetaDe(registro) {
   return `
     <section class="tarjeta">
       <div class="flex-entre mb-1">
-        <h2 class="tarjeta__titulo mb-0">${escaparHtml(registro.proceso || "Sin proceso")}</h2>
+        <h2 class="tarjeta__titulo mb-0">${formatearFechaISOCorta(registro.fecha)}</h2>
         <span class="badge ${desviaciones ? "badge-dorado" : "badge-exito"}">
           ${desviaciones ? `${desviaciones} desviación(es)` : "Sin desviaciones"}
         </span>
       </div>
       <p class="texto-suave texto-sm">
-        ${formatearFechaISOCorta(registro.fecha)} ·
+        ${registro.turno ? `Turno ${escaparHtml(String(registro.turno))} · ` : ""}
         ${escaparHtml(registro.inspectorNombre || "—")}
-        ${registro.supervisor ? ` · Supervisor: ${escaparHtml(registro.supervisor)}` : ""}
       </p>
       ${filas}
-      ${correcciones}
       ${observaciones}
       ${botonEliminar}
     </section>

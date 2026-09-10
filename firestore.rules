@@ -10,7 +10,8 @@ rules_version = '2';
 //   2. "hub" (repo sig-fo-115, copiado a hub/ dentro de este mismo sitio) —
 //      colecciones: usuarios (COMPARTIDA con Reportes), checklists,
 //      inspecciones (SIG-FO-115), hisopados, hisopadoConfig,
-//      registrosVidrio (SIG-FO-111), sigfo111Config, liberaciones
+//      supervisores_hisopado, registrosVidrio (SIG-FO-111),
+//      sigfo111Config, liberaciones
 //      (SIG-FO-101), sigfo101Config, verificaciones_transporte.
 // Un proyecto de Firebase publica un ÚNICO archivo de reglas para TODA la
 // base de datos, así que ESTE archivo es el único que existe y el único que
@@ -343,6 +344,18 @@ service cloud.firestore {
     match /sigfo111Config/{docId} {
       allow read: if esUsuarioActivo();
       allow write: if esGestor();
+    }
+
+    // ---- supervisores_hisopado (catálogo que se llena solo) ------
+    // Igual que proveedores_transporte: cualquier usuario activo lo lee
+    // para autocompletar y puede dar de alta un nombre nuevo al guardar
+    // una toma. No se edita ni se borra desde la app — un nombre viejo
+    // sigue siendo válido en los registros que lo usaron.
+    match /supervisores_hisopado/{supervisorId} {
+      allow read: if esUsuarioActivo();
+      allow create: if esUsuarioActivo();
+      allow update: if esGestor();
+      allow delete: if false;
     }
 
     // ---- registrosVidrio (SIG-FO-111) --------------------------

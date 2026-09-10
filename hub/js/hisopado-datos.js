@@ -9,6 +9,9 @@
 // Eso es lo que permite que al elegir la zona en el registro el límite se
 // aplique solo.
 //
+// La unidad del ATP es RLU (Relative Light Units); en el Excel aparece
+// escrita "URL", que es la misma unidad con las letras trastocadas.
+//
 // "meses" es la programación anual del formato: en qué meses toca muestrear
 // esa zona (índice 0 = enero). En el Excel la cuadrícula venía vacía, así
 // que la semilla no programa nada; se marca desde Configuración.
@@ -25,7 +28,7 @@ export const MESES = [
 export const TABLA_SEMILLA = {
   codigo: "SIG-TA-102",
   revision: "Rev. 00",
-  unidad: "URL",
+  unidad: "RLU",
   tipos: [
     {
       id: "MANOS",
@@ -79,15 +82,15 @@ export function zonasConLimite(tabla) {
       tipoNombre: tipo.nombre,
       limiteMin: Number(tipo.limiteMin ?? 0),
       limiteMax: Number(tipo.limiteMax ?? 0),
-      unidad: tabla?.unidad || "URL",
+      unidad: tabla?.unidad || "RLU",
     }))
   );
 }
 
-/** Texto del rango tal como se muestra al inspector ("0 a 600 URL"). */
+/** Texto del rango tal como se muestra al inspector ("0 a 600 RLU"). */
 export function textoLimite(zona) {
   if (!zona) return "—";
-  return `${zona.limiteMin} a ${zona.limiteMax} ${zona.unidad || "URL"}`;
+  return `${zona.limiteMin} a ${zona.limiteMax} ${zona.unidad || "RLU"}`;
 }
 
 /**
