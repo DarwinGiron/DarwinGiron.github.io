@@ -193,6 +193,40 @@
           </a>
         </div>
       </section>
+
+      <!--
+        Administración: cuentas de acceso a la aplicación. Estaba como una
+        pestaña dentro del panel de SIG-FO-115, pero no pertenece a ese
+        checklist. Igual que Gestión SGI, arranca oculto y solo se descubre
+        para admin/coordinador (ver hub.js).
+      -->
+      <section id="seccion-administracion" class="oculto" style="margin-top: var(--e6, 24px);">
+        <div class="mb-4">
+          <h2 style="font-size: var(--txt-lg); font-weight: 800; color: var(--tinta); margin-bottom: var(--e1);">
+            Administración
+          </h2>
+          <p class="texto-suave texto-sm mb-0">
+            Cuentas y accesos de las personas que usan la aplicación.
+          </p>
+        </div>
+
+        <div class="editor-lista" style="gap: var(--e4);">
+          <a
+            href="usuarios.html"
+            class="tarjeta tarjeta-hover"
+            style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: var(--e4);"
+          >
+            <span class="avatar" aria-hidden="true" style="background:var(--marino-700); color:#fff; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;">
+              <svg class="icono" style="width: 24px; height: 24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </span>
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-weight: 800; font-size: var(--txt-lg); color: var(--tinta);">Gestión de usuarios</div>
+              <div class="texto-suave texto-sm">Invitar personas, asignar su rol y activar o desactivar cuentas.</div>
+            </div>
+            <span aria-hidden="true" style="font-size:20px; color: var(--tinta-3); flex:none;">→</span>
+          </a>
+        </div>
+      </section>
     </main>
 
     <nav class="nav-inferior">

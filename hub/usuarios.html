@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <script src="/js/tema-horario.js"></script>
+  <base href="/hub/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Gestión de Usuarios · SGI</title>
+  <link rel="stylesheet" href="/css/estilos.css" />
+</head>
+<body class="tema-hub">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">PPR</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Gestión de Usuarios</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <div class="app-header__acciones">
+        <span class="avatar avatar--claro avatar--sm" id="avatar-usuario" aria-hidden="true">—</span>
+        <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <a href="index.html" class="btn btn-secundario btn-sm btn-ancho-auto mb-2">
+        ← Volver al inicio
+      </a>
+
+      <div class="flex-entre mb-2">
+        <p class="texto-suave texto-sm mb-0">
+          Usuarios con acceso a la aplicación.
+        </p>
+        <button type="button" id="btn-invitar-usuario" class="btn btn-dorado btn-sm btn-ancho-auto">
+          + Invitar
+        </button>
+      </div>
+
+      <label class="check-linea" style="margin-bottom: var(--e4);">
+        <input type="checkbox" id="chk-mostrar-inactivos" />
+        Mostrar también usuarios inactivos
+      </label>
+
+      <div id="lista-usuarios" class="editor-lista"></div>
+    </main>
+  </div>
+
+  <div id="modal-fondo" class="modal-fondo oculto">
+    <div class="modal-caja">
+      <div class="modal-caja__cabecera">
+        <h3 id="modal-titulo" style="margin:0;">Editar</h3>
+        <button type="button" id="btn-cerrar-modal" class="btn btn-icono btn-secundario">✕</button>
+      </div>
+      <form id="form-modal"></form>
+    </div>
+  </div>
+
+  <script type="module" src="/hub/js/usuarios-admin.js"></script>
+</body>
+</html>

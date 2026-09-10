@@ -16,6 +16,7 @@ const perfilMenuPanel = document.getElementById("perfil-menu-panel");
 const perfilMenuNombre = document.getElementById("perfil-menu-nombre");
 
 const seccionGestionSgi = document.getElementById("seccion-gestion-sgi");
+const seccionAdministracion = document.getElementById("seccion-administracion");
 
 const modalAccion = document.getElementById("modal-accion-formato");
 const modalTitulo = document.getElementById("modal-formato-titulo");
@@ -40,6 +41,12 @@ protegerPagina({}, ({ user, perfil }) => {
   // levanta reportes desde el botón dentro del checklist.
   if (esRolDeGestion(perfil.rol) && seccionGestionSgi) {
     seccionGestionSgi.classList.remove("oculto");
+  }
+
+  // "Administración" (gestión de usuarios) sigue el mismo criterio: solo los
+  // roles de gestión administran cuentas.
+  if (esRolDeGestion(perfil.rol) && seccionAdministracion) {
+    seccionAdministracion.classList.remove("oculto");
   }
 
   inicializarTarjetas();

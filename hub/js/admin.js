@@ -9,7 +9,6 @@
 import {
   protegerPagina,
   cerrarSesion,
-  ROLES,
   ROLES_GESTION,
   etiquetaRol,
 } from "./auth.js";
@@ -17,18 +16,15 @@ import {
   obtenerChecklist,
   guardarBorradorChecklist,
   publicarVersionChecklist,
-  listarUsuarios,
-  guardarUsuario,
 } from "./firestore.js";
-import { invitarUsuario, generarContrasenaTemporal } from "./usuarios.js";
 import { sembrarChecklistInicial, aplicarAplicabilidadSugerida } from "./seed.js";
 import { CHECKLIST_ID } from "./firebase-config.js";
+import { crearModalFormulario } from "./modal-formulario.js";
 import {
   generarId,
   iniciales,
   mostrarToast,
   escaparHtml,
-  traducirErrorAuth,
 } from "./utils.js";
 
 /* ---------------------------------------------------------
@@ -53,9 +49,6 @@ const btnNuevaArea = document.getElementById("btn-nueva-area");
 const listaCriterios = document.getElementById("lista-criterios");
 const btnNuevoCriterio = document.getElementById("btn-nuevo-criterio");
 
-const btnInvitarUsuario = document.getElementById("btn-invitar-usuario");
-const chkMostrarInactivos = document.getElementById("chk-mostrar-inactivos");
-const listaUsuarios = document.getElementById("lista-usuarios");
 
 const versionVigenteEl = document.getElementById("version-vigente");
 const estadoBorradorEl = document.getElementById("estado-borrador");
@@ -70,10 +63,16 @@ const btnCerrarModal = document.getElementById("btn-cerrar-modal");
    Estado
    --------------------------------------------------------- */
 
+const { abrirModal, cerrarModal } = crearModalFormulario({
+  modalFondo,
+  modalTitulo,
+  formModal,
+  btnCerrarModal,
+});
+
 const estado = {
   usuario: null,
   checklist: null, // { id, codigo, nombre, areas, secciones, criterios, versionVigente, borradorModificado }
-  usuarios: [], // perfiles de /usuarios
 };
 
 /* ---------------------------------------------------------
@@ -87,7 +86,6 @@ protegerPagina({ rolesPermitidos: ROLES_GESTION }, async ({ user, perfil }) => {
   avatarUsuario.textContent = iniciales(nombreVisible);
 
   await cargarChecklist();
-  await cargarUsuarios();
 });
 
 btnSalir.addEventListener("click", () => cerrarSesion());
@@ -177,117 +175,6 @@ function reindexarOrden(lista) {
     item.orden = i + 1;
   });
 }
-
-/* ---------------------------------------------------------
-   Modal genérico
-   --------------------------------------------------------- */
-
-function abrirModal({ titulo, campos, valores = {}, alGuardar }) {
-  modalTitulo.textContent = titulo;
-  formModal.innerHTML = "";
-
-  for (const campo of campos) {
-    const contenedor = document.createElement("div");
-    contenedor.className = "campo";
-
-    if (campo.type === "checkbox") {
-      contenedor.innerHTML = `
-        <label class="check-linea">
-          <input type="checkbox" name="${campo.name}" ${
-        valores[campo.name] ? "checked" : ""
-      } />
-          ${escaparHtml(campo.label)}
-        </label>
-      `;
-    } else if (campo.type === "textarea") {
-      contenedor.innerHTML = `
-        <label>${escaparHtml(campo.label)}</label>
-        <textarea name="${campo.name}" ${campo.required ? "required" : ""} placeholder="${escaparHtml(
-        campo.placeholder || ""
-      )}">${escaparHtml(valores[campo.name] || "")}</textarea>
-      `;
-    } else if (campo.type === "select") {
-      contenedor.innerHTML = `
-        <label>${escaparHtml(campo.label)}</label>
-        <select name="${campo.name}">
-          ${campo.opciones
-            .map(
-              (op) =>
-                `<option value="${op.value}" ${
-                  valores[campo.name] === op.value ? "selected" : ""
-                }>${escaparHtml(op.label)}</option>`
-            )
-            .join("")}
-        </select>
-      `;
-    } else {
-      contenedor.innerHTML = `
-        <label>${escaparHtml(campo.label)}</label>
-        <input
-          type="${campo.type || "text"}"
-          name="${campo.name}"
-          ${campo.required ? "required" : ""}
-          ${campo.disabled ? "disabled" : ""}
-          ${campo.step ? `step="${campo.step}"` : ""}
-          value="${escaparHtml(valores[campo.name] ?? "")}"
-          placeholder="${escaparHtml(campo.placeholder || "")}"
-        />
-      `;
-    }
-
-    if (campo.ayuda) {
-      const ayuda = document.createElement("p");
-      ayuda.className = "campo-ayuda";
-      ayuda.textContent = campo.ayuda;
-      contenedor.appendChild(ayuda);
-    }
-
-    formModal.appendChild(contenedor);
-  }
-
-  const acciones = document.createElement("div");
-  acciones.className = "grupo-botones";
-  acciones.innerHTML = `
-    <button type="submit" class="btn btn-primario btn-ancho-auto">Guardar</button>
-    <button type="button" class="btn btn-secundario btn-ancho-auto" data-cerrar>Cancelar</button>
-  `;
-  formModal.appendChild(acciones);
-
-  formModal.querySelector("[data-cerrar]").addEventListener("click", cerrarModal);
-
-  formModal.onsubmit = async (evento) => {
-    evento.preventDefault();
-    const datos = new FormData(formModal);
-    const resultado = {};
-    for (const campo of campos) {
-      if (campo.type === "checkbox") {
-        resultado[campo.name] = formModal.querySelector(`[name="${campo.name}"]`).checked;
-      } else if (campo.type === "number") {
-        resultado[campo.name] = Number(datos.get(campo.name));
-      } else {
-        resultado[campo.name] = (datos.get(campo.name) || "").toString().trim();
-      }
-    }
-    try {
-      await alGuardar(resultado);
-      cerrarModal();
-    } catch (error) {
-      // El error ya fue mostrado por la función guardarCampos/alGuardar.
-    }
-  };
-
-  modalFondo.classList.remove("oculto");
-}
-
-function cerrarModal() {
-  modalFondo.classList.add("oculto");
-  formModal.onsubmit = null;
-}
-
-btnCerrarModal.addEventListener("click", cerrarModal);
-modalFondo.addEventListener("click", (evento) => {
-  if (evento.target === modalFondo) cerrarModal();
-});
 
 /* ---------------------------------------------------------
    ESTRUCTURA — Secciones y aspectos
@@ -892,213 +779,10 @@ listaCriterios.addEventListener("click", (evento) => {
    USUARIOS
    --------------------------------------------------------- */
 
-/** Opciones de rol para los formularios (derivadas de la definición única en auth.js). */
-const OPCIONES_ROL = Object.entries(ROLES).map(([value, def]) => ({
-  value,
-  label: def.etiqueta,
-}));
-
-async function cargarUsuarios() {
-  try {
-    estado.usuarios = await listarUsuarios();
-    renderUsuarios();
-  } catch (error) {
-    console.error("Error al cargar usuarios:", error);
-    listaUsuarios.innerHTML =
-      '<p class="texto-suave texto-sm">No se pudieron cargar los usuarios.</p>';
-  }
-}
-
-function renderUsuarios() {
-  const mostrarInactivos = chkMostrarInactivos.checked;
-  const visibles = estado.usuarios
-    .filter((u) => mostrarInactivos || u.activo !== false)
-    .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
-
-  listaUsuarios.innerHTML = "";
-
-  if (visibles.length === 0) {
-    listaUsuarios.innerHTML = `<p class="texto-suave texto-sm">${
-      mostrarInactivos
-        ? "Todavía no hay usuarios registrados."
-        : "No hay usuarios activos. Marca la casilla de arriba para ver los inactivos."
-    }</p>`;
-    return;
-  }
-
-  for (const u of visibles) {
-    const esYoMismo = u.uid === estado.usuario.uid;
-
-    const item = document.createElement("div");
-    item.className = "editor-item";
-    item.innerHTML = `
-      <div class="editor-item__cabecera">
-        <span class="avatar" aria-hidden="true" style="margin-top:2px;">${escaparHtml(
-          iniciales(u.nombre || u.email)
-        )}</span>
-        <span class="editor-item__titulo" style="flex-direction:column; align-items:flex-start; gap:var(--e1);">
-          <span style="display:flex; align-items:center; flex-wrap:wrap; gap:var(--e2);">
-            ${escaparHtml(u.nombre || u.email || u.uid)}
-            <span class="badge ${
-              ROLES[u.rol]?.gestion ? "badge-dorado" : "badge-marino"
-            }">${escaparHtml(etiquetaRol(u.rol))}</span>
-            ${u.activo === false ? '<span class="badge badge-neutro">Inactivo</span>' : ""}
-            ${esYoMismo ? '<span class="badge badge-exito">Tú</span>' : ""}
-          </span>
-          <span class="texto-suave texto-xs" style="font-weight:400;">
-            ${escaparHtml(u.email || "")}
-          </span>
-        </span>
-        <div class="editor-item__acciones">
-          <button class="btn btn-secundario btn-sm" data-accion="editar-usuario">Editar</button>
-        </div>
-      </div>
-    `;
-
-    item
-      .querySelector("[data-accion='editar-usuario']")
-      .addEventListener("click", () => abrirModalEditarUsuario(u));
-
-    listaUsuarios.appendChild(item);
-  }
-}
-
-chkMostrarInactivos.addEventListener("change", renderUsuarios);
-
-/* ---- Invitar (alta de cuenta + perfil, sin pedir el UID) ---- */
-
-btnInvitarUsuario.addEventListener("click", () => {
-  abrirModal({
-    titulo: "Invitar usuario",
-    campos: [
-      { name: "nombre", label: "Nombre completo", required: true, placeholder: "Ej: María López" },
-      {
-        name: "email",
-        label: "Correo electrónico",
-        type: "email",
-        required: true,
-        placeholder: "nombre@empresasgalindo.com",
-        ayuda: "Será su usuario para iniciar sesión.",
-      },
-      {
-        name: "rol",
-        label: "Rol",
-        type: "select",
-        opciones: OPCIONES_ROL,
-        ayuda:
-          "Administrador y Coordinador de SGIA tienen el mismo acceso: gestionan el checklist, los usuarios y ven todas las inspecciones.",
-      },
-      {
-        name: "contrasenaTemporal",
-        label: "Contraseña temporal",
-        required: true,
-        ayuda: "Compártela con la persona; podrá cambiarla después.",
-      },
-      {
-        name: "enviarCorreo",
-        label: "Enviar correo para que defina su propia contraseña",
-        type: "checkbox",
-      },
-    ],
-    valores: {
-      rol: "inspector",
-      contrasenaTemporal: generarContrasenaTemporal(),
-      enviarCorreo: true,
-    },
-    alGuardar: async ({ nombre, email, rol, contrasenaTemporal, enviarCorreo }) => {
-      if (contrasenaTemporal.length < 6) {
-        mostrarToast("La contraseña temporal debe tener al menos 6 caracteres.", "error");
-        throw new Error("Contraseña demasiado corta");
-      }
-
-      try {
-        const { correoEnviado } = await invitarUsuario({
-          nombre,
-          email,
-          rol,
-          contrasenaTemporal,
-          enviarCorreo,
-        });
-
-        mostrarToast(`Usuario "${nombre}" creado como ${etiquetaRol(rol)}. Contraseña temporal: ${contrasenaTemporal}.` +
-            (correoEnviado
-              ? " Se le envió además un correo para definir su propia contraseña."
-              : enviarCorreo
-              ? " (No se pudo enviar el correo; comparte la contraseña temporal.)"
-              : ""),
-          "exito"
-        );
-        await cargarUsuarios();
-      } catch (error) {
-        console.error("Error al invitar usuario:", error);
-        mostrarToast(traducirErrorAuth(error), "error");
-        throw error;
-      }
-    },
-  });
-});
-
-/* ---- Editar perfil existente ---- */
-
-function abrirModalEditarUsuario(u) {
-  const esYoMismo = u.uid === estado.usuario.uid;
-
-  abrirModal({
-    titulo: "Editar usuario",
-    campos: [
-      { name: "nombre", label: "Nombre completo", required: true },
-      {
-        name: "email",
-        label: "Correo electrónico",
-        type: "email",
-        disabled: true,
-        ayuda:
-          "El correo de acceso solo puede cambiarse desde Firebase Authentication en la consola.",
-      },
-      {
-        name: "rol",
-        label: "Rol",
-        type: "select",
-        opciones: OPCIONES_ROL,
-      },
-      {
-        name: "activo",
-        label: "Cuenta activa",
-        type: "checkbox",
-        ayuda: esYoMismo
-          ? "Es tu propia cuenta: si la desactivas o la pasas a Inspector, perderás el acceso a este panel."
-          : "Una cuenta inactiva no puede iniciar sesión ni registrar inspecciones.",
-      },
-    ],
-    valores: {
-      nombre: u.nombre || "",
-      email: u.email || "",
-      rol: u.rol || "inspector",
-      activo: u.activo !== false,
-    },
-    alGuardar: async ({ nombre, rol, activo }) => {
-      // Evita que un gestor se quede sin acceso sin darse cuenta.
-      if (esYoMismo && (!ROLES[rol]?.gestion || !activo)) {
-        const aviso = !ROLES[rol]?.gestion
-          ? "Estás quitándote a ti mismo los permisos de gestión."
-          : "Estás desactivando tu propia cuenta.";
-        if (!confirm(`${aviso} Perderás el acceso a este panel. ¿Continuar?`)) {
-          throw new Error("Cancelado por el usuario");
-        }
-      }
-
-      try {
-        await guardarUsuario(u.uid, { nombre, rol, activo });
-        mostrarToast("Usuario actualizado correctamente.", "exito");
-        await cargarUsuarios();
-      } catch (error) {
-        console.error("Error al guardar usuario:", error);
-        mostrarToast("No se pudo guardar el usuario.", "error");
-        throw error;
-      }
-    },
-  });
-}
+/* La gestión de usuarios vivía aquí como una pestaña más, pero son las
+   cuentas de toda la aplicación y no algo del checklist SIG-FO-115:
+   ahora tiene su propia pantalla (hub/usuarios.html, usuarios-admin.js),
+   a la que se entra desde una tarjeta del inicio del hub. */
 
 /* ---------------------------------------------------------
    PUBLICAR
