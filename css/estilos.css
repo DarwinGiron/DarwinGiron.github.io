@@ -2862,6 +2862,25 @@ body.tema-hub .calificacion__opcion.seleccionado {
 
 }
 
+/* Los modales aparecen como hoja pegada al borde inferior, que es el patrón
+   correcto en un teléfono en vertical (queda al alcance del pulgar). En
+   cualquier otra pantalla —tablet, pantalla dividida, o el mismo teléfono
+   acostado— se veía descolgado contra el borde de abajo, así que a partir de
+   aquí el modal se centra. El corte de 640px del bloque anterior dejaba
+   fuera a las tablets angostas. */
+@media (min-width: 481px), (orientation: landscape) {
+  body.tema-hub .modal-fondo {
+    align-items: center;
+    padding: var(--e5);
+  }
+
+  body.tema-hub .modal-caja {
+    border-radius: var(--r-xl);
+    max-height: 86svh;
+    padding: var(--e5);
+  }
+}
+
 body.tema-hub.pantalla-recorrido .app-header {
   flex-wrap: wrap;
   row-gap: var(--e2);
@@ -4125,6 +4144,15 @@ body.tema-sig-fo-101 .modal-fondo { align-items: center; }
 body.tema-sig-fo-101 .modal-caja { border-radius: var(--r-lg); max-height: 88svh; }
 
 
+}
+
+/* Mismo criterio que en el hub: la hoja pegada abajo es para el teléfono en
+   vertical; en tablet o acostado el modal se centra. El corte de 720px de
+   arriba dejaba descolgadas incluso a tablets de 700px. */
+@media (min-width: 481px), (orientation: landscape) {
+  body.tema-sig-fo-101 .modal-fondo { align-items: center; }
+
+  body.tema-sig-fo-101 .modal-caja { border-radius: var(--r-lg); max-height: 88svh; }
 }
 
 body.tema-sig-fo-101 .modal-caja__cabecera {
