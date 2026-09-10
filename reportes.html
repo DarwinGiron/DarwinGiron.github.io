@@ -22,7 +22,6 @@
     <nav>
       <a href="/hub/index.html">← Formatos</a>
       <a href="reportes.html" class="activo">Reportes</a>
-      <a href="inspector.html" data-modulo="nuevo-reporte">Nuevo reporte</a>
       <a href="admin/dashboard.html" data-modulo="dashboard" style="display:none;">Dashboard</a>
       <a href="admin/validacion.html" data-modulo="validacion" style="display:none;">Validación</a>
       <a href="admin/catalogos.html" data-modulo="configuraciones" style="display:none;">Configuraciones</a>
@@ -42,6 +41,13 @@
   </header>
 
   <main class="contenedor">
+    <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+      <a href="inspector.html" class="btn btn-primario" data-modulo="nuevo-reporte" style="display:none; text-decoration:none;">
+        <svg class="icono icono-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuevo reporte
+      </a>
+    </div>
+
     <div class="tarjeta filtros-reportes">
       <div class="fila-campos">
         <div class="campo" style="flex:2; min-width:220px;">
@@ -62,6 +68,9 @@
     </div>
 
     <div id="lista-reportes" class="rejilla-reportes"></div>
+    <div style="display:flex; justify-content:center; margin-top:16px;">
+      <button type="button" class="btn btn-secundario" id="btn-cargar-mas-reportes" style="display:none;">Cargar 5 más</button>
+    </div>
   </main>
 </div>
 
@@ -93,6 +102,14 @@ let reporteModalActualId = null;
 let modalAutoAbiertoDesdeHash = false;
 let reportesCacheActual = [];
 
+// La lista ya no escucha en vivo TODOS los reportes del usuario (podía crecer
+// sin límite con el tiempo): se pagina de 5 en 5, del más reciente al más
+// antiguo, con un botón "Cargar 5 más" para traer los siguientes.
+const REPORTES_PROPIOS_POR_PAGINA = 5;
+let ultimoDocReportesPropios = null;
+let hayMasReportesPropios = true;
+let cargandoPaginaReportesPropios = false;
+
 // Se permite cualquier rol (null): tanto inspectores como el admin pueden
 // ver la lista de sus propios reportes.
 protegerPagina(null, async (user, perfil, permisos) => {
@@ -102,26 +119,53 @@ protegerPagina(null, async (user, perfil, permisos) => {
   inicializarCampana(perfil, user.uid);
   await inicializarFiltrosReportes();
 
-  suscribirReportesPropios(user.uid, (reportes) => {
-    reportesCacheActual = reportes;
+  await cargarPaginaReportesPropios();
+});
+
+async function cargarPaginaReportesPropios() {
+  if (cargandoPaginaReportesPropios || !hayMasReportesPropios) return;
+  cargandoPaginaReportesPropios = true;
+  actualizarBotonCargarMasReportes();
+  try {
+    let consulta = colReportes.where("inspectorUid", "==", usuarioActual.uid).orderBy("creadoEn", "desc").limit(REPORTES_PROPIOS_POR_PAGINA);
+    if (ultimoDocReportesPropios) consulta = consulta.startAfter(ultimoDocReportesPropios);
+    const snap = await consulta.get();
+    reportesCacheActual = reportesCacheActual.concat(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    ultimoDocReportesPropios = snap.docs.length ? snap.docs[snap.docs.length - 1] : ultimoDocReportesPropios;
+    hayMasReportesPropios = snap.docs.length === REPORTES_PROPIOS_POR_PAGINA;
     aplicarFiltrosReportes();
 
-    // Si se llegó con reportes.html#reporte-<id> (ej. enlace directo), abrir
-    // directamente el detalle de ese reporte (una sola vez).
+    // Si se llegó con reportes.html#reporte-<id> (ej. enlace directo desde la
+    // campana de notificaciones), abrir directamente ese reporte. Si aún no
+    // está entre los cargados, se sigue paginando hasta encontrarlo.
     if (!modalAutoAbiertoDesdeHash && location.hash.startsWith("#reporte-")) {
       const id = location.hash.slice("#reporte-".length);
-      const reporte = reportes.find((r) => r.id === id);
+      const reporte = reportesCacheActual.find((r) => r.id === id);
       if (reporte) {
         modalAutoAbiertoDesdeHash = true;
         abrirModalReporte(reporte);
+      } else if (hayMasReportesPropios) {
+        cargarPaginaReportesPropios();
       }
     }
-  }, (err) => {
+  } catch (err) {
     console.error("Error cargando reportes:", err);
     document.getElementById("lista-reportes").innerHTML =
       `<p class="aviso aviso-error">No se pudo cargar sus reportes. Verifique su conexión.</p>`;
-  });
-});
+  } finally {
+    cargandoPaginaReportesPropios = false;
+    actualizarBotonCargarMasReportes();
+  }
+}
+
+function actualizarBotonCargarMasReportes() {
+  const btn = document.getElementById("btn-cargar-mas-reportes");
+  if (!hayMasReportesPropios) { btn.style.display = "none"; return; }
+  btn.style.display = "inline-flex";
+  btn.disabled = cargandoPaginaReportesPropios;
+  btn.textContent = cargandoPaginaReportesPropios ? "Cargando..." : "Cargar 5 más";
+}
+document.getElementById("btn-cargar-mas-reportes").addEventListener("click", cargarPaginaReportesPropios);
 
 // --- FILTROS: por zona/descripción (texto libre), proceso y categoría -----
 async function inicializarFiltrosReportes() {
