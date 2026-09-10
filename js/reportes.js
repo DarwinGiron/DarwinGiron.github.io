@@ -780,10 +780,21 @@ function inicializarCampana(perfil, uid) {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     if (panel.style.display === "none") {
-      const rect = btn.getBoundingClientRect();
-      panel.style.top = (rect.bottom + 8) + "px";
-      panel.style.right = (window.innerWidth - rect.right) + "px";
+      // Se mide con el panel ya montado pero invisible: su ancho depende de
+      // la pantalla (max-width: 90vw) y hace falta para ubicarlo.
+      panel.style.visibility = "hidden";
       panel.style.display = "block";
+      const rect = btn.getBoundingClientRect();
+      const ancho = panel.offsetWidth || 320;
+      // Por defecto cuelga hacia la izquierda del botón (campana arriba a la
+      // derecha); si no cabe —campana en la barra lateral izquierda— se abre
+      // hacia la derecha, siempre dentro de la pantalla.
+      let izquierda = rect.right - ancho;
+      if (izquierda < 8) izquierda = Math.min(rect.left, window.innerWidth - ancho - 8);
+      panel.style.left = Math.max(8, izquierda) + "px";
+      panel.style.right = "auto";
+      panel.style.top = (rect.bottom + 8) + "px";
+      panel.style.visibility = "";
     } else {
       panel.style.display = "none";
     }

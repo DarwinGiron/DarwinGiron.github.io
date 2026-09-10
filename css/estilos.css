@@ -276,8 +276,9 @@ body.tema-reportes .campana-panel {
      overflow-x: auto para poder desplazarse en pantallas angostas, y eso
      obliga a overflow-y: auto también (regla de CSS), lo que recortaría un
      panel absolute que se sale del <nav>. Con fixed, la posición se calcula
-     en JS (top/right) a partir del botón cada vez que se abre, y así el
-     panel queda libre de ese recorte. */
+     en JS (top/left) a partir del botón cada vez que se abre, y así el
+     panel queda libre de ese recorte —y sirve igual con la campana arriba a
+     la derecha que en la barra lateral izquierda. */
   position: fixed; width: 320px; max-width: 90vw;
   max-height: 420px; overflow-y: auto; background: #fff; border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.25); z-index: 250; color: var(--color-texto, #222);
@@ -736,13 +737,9 @@ body.tema-reportes .filtros-reportes .fila-campos { flex-wrap: wrap; margin-bott
 
 body.tema-reportes .filtros-reportes .campo { min-width: 160px; margin-bottom: 0; }
 
-@media (max-width: 600px) {
-body.tema-reportes .barra-superior { flex-wrap: wrap; }
-
-body.tema-reportes .barra-superior nav { width: 100%; justify-content: flex-start; order: 3; }
-
-
-}
+/* La barra de navegación (arriba en tablet/celular, lateral en computadora)
+   se define completa más abajo, al final de este sistema, para que quede
+   después de las reglas del tema oscuro. */
 
 
 /* ============================================================================
@@ -1149,6 +1146,133 @@ body.tema-reportes .barra-superior nav { width: 100%; justify-content: flex-star
 
 :root[data-theme="dark"] body.tema-reportes::-webkit-scrollbar-thumb { background: var(--gold-deep); border-radius: 10px; }
 
+
+/* ============================================================================
+   SISTEMA: Reportes — NAVEGACIÓN (banner arriba / barra lateral)
+   Aplica a las 6 pantallas con .barra-superior: inspector, reportes y
+   admin/{dashboard, validacion, catalogos, informes}. Todo se resuelve aquí,
+   en CSS, porque las 6 comparten exactamente la misma estructura
+   (#app > header.barra-superior + main.contenedor): así el banner es el mismo
+   en todas y no hay que mantenerlo página por página.
+
+   El problema que resuelve: los módulos vivían en una sola fila con
+   overflow-x, así que entre ~600px y ~1100px los últimos ("Configuraciones",
+   "Informes", "Salir") quedaban cortados fuera de la vista —parecía que se
+   borraban— y al bajar de 600px saltaban a otra fila. Ahora la posición es
+   estable en cada tamaño.
+
+   Se distingue tablet de computadora con "pointer" y no solo con el ancho:
+   una tablet en horizontal puede medir 1366px igual que una laptop, pero
+   reporta puntero grueso (dedo). Así la tablet siempre recibe el banner
+   de arriba, como se pidió.
+   ============================================================================ */
+
+/* --- Tablet y celular: banner arriba ------------------------------------- */
+/* La marca ocupa la primera fila y los módulos SIEMPRE la segunda, completa:
+   la barra se ve igual con 3 módulos que con 7, sin importar los permisos. */
+@media (max-width: 1099.98px), (pointer: coarse), (pointer: none) {
+  body.tema-reportes .barra-superior { flex-wrap: wrap; }
+
+  body.tema-reportes .barra-superior nav {
+    width: 100%;
+    order: 3;
+    justify-content: flex-start;
+  }
+}
+
+/* En tablet los módulos se acomodan en varias líneas antes que recortarse:
+   nunca queda uno escondido. En celular no cabrían, así que ahí se mantiene
+   la tira deslizable de siempre. */
+@media (min-width: 700px) and (max-width: 1099.98px),
+       (min-width: 700px) and (pointer: coarse),
+       (min-width: 700px) and (pointer: none) {
+  body.tema-reportes .barra-superior nav {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 2px;
+  }
+}
+
+/* --- Computadora: barra lateral vertical fija ---------------------------- */
+@media (min-width: 1100px) and (pointer: fine) {
+  body.tema-reportes #app {
+    display: grid;
+    grid-template-columns: 234px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  body.tema-reportes .barra-superior {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 20px;
+    height: 100vh;
+    padding: 20px 12px;
+    overflow-y: auto;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.12);
+  }
+
+  body.tema-reportes .barra-superior .marca { padding: 0 8px; }
+
+  /* En la barra lateral el título tiene ancho fijo: se deja envolver en vez
+     de recortarlo con puntos suspensivos. */
+  body.tema-reportes .barra-superior h1 { white-space: normal; font-size: 0.95rem; }
+
+  body.tema-reportes .barra-superior .subt { white-space: normal; }
+
+  body.tema-reportes .barra-superior nav {
+    flex: 1;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    overflow-x: visible;
+    overflow-y: auto;
+  }
+
+  body.tema-reportes .barra-superior a,
+  body.tema-reportes .barra-superior nav button {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+
+  /* El módulo activo se marca con una barra a la izquierda (en horizontal
+     era un subrayado). */
+  body.tema-reportes .barra-superior a.activo,
+  body.tema-reportes .barra-superior nav button.activo {
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 3px 0 0 var(--color-acento);
+  }
+
+  /* La campana se queda del ancho del icono para que el globito de conteo no
+     se vaya al extremo de la barra. */
+  body.tema-reportes .barra-superior .campana-contenedor { align-self: flex-start; }
+
+  body.tema-reportes .barra-superior .btn-salir {
+    margin: auto 0 0;
+    padding: 12px;
+    justify-content: flex-start;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* Tema oscuro: el borde y el separador de la marca giran 90°. */
+  :root[data-theme="dark"] body.tema-reportes .barra-superior {
+    border-bottom: none;
+    border-right: 1px solid var(--border-gold-soft);
+  }
+
+  :root[data-theme="dark"] body.tema-reportes .barra-superior .marca::after { display: none; }
+
+  :root[data-theme="dark"] body.tema-reportes .barra-superior a.activo,
+  :root[data-theme="dark"] body.tema-reportes .barra-superior nav button.activo {
+    background: var(--bg-panel) !important;
+    box-shadow: inset 3px 0 0 var(--gold) !important;
+  }
+
+  :root[data-theme="dark"] body.tema-reportes .barra-superior .btn-salir {
+    border-top-color: var(--border-gold-soft) !important;
+  }
+}
 
 
 /* ============================================================================
