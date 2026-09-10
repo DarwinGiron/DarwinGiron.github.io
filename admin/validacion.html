@@ -7,11 +7,8 @@
 <meta name="theme-color" content="#060605">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <title>Validación de Reportes - COGUSA SGI</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="/css/estilos.css">
 <style>
-  #mod-mapa-gps { height: 240px; border-radius: 10px; margin: 8px 0 0; }
-
   /* El CSS global solo define .detalle-meta / .titulo-seccion-modal para el
      tema oscuro; se agregan aquí las mismas reglas para el tema claro, que
      hasta ahora se veían sin estilo (bloque plano, sin recuadro). */
@@ -106,7 +103,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="../js/config.js"></script>
 <script src="../js/firebase-init.js"></script>
 <script src="../js/auth.js"></script>
@@ -116,7 +112,6 @@ let perfilAdmin = null;
 let usuarioAdmin = null;
 let estadoActual = "pendiente";
 let reportesCache = [];
-let mapaModalGPS = null;
 let gpsCorregidoMod = null;
 
 // "Pendientes" se mantiene en vivo (onSnapshot): son pocos y hay que verlos
@@ -247,9 +242,9 @@ function abrirModal(reporte) {
   const modal = document.getElementById("modal-fondo");
   const contenido = document.getElementById("modal-contenido");
 
-  // El modal debe quedar visible ANTES de crear el mapa Leaflet: si el mapa
-  // se inicializa dentro de un contenedor con display:none, mide 0x0 y
-  // renderiza en blanco/incompleto (se veía sobre todo en tablets).
+  // El modal debe quedar visible ANTES de cargar el plano: si se inicializa
+  // dentro de un contenedor con display:none, mide 0x0 y renderiza en
+  // blanco/incompleto (se veía sobre todo en tablets).
   modal.style.display = "flex";
 
   contenido.innerHTML = `
@@ -320,8 +315,8 @@ function abrirModal(reporte) {
     </div>
 
     <div class="campo" style="margin-top:16px; margin-bottom:0;">
-      <label>Ubicación GPS (arrastre el marcador si necesita corregirla)</label>
-      <div id="mod-mapa-gps"></div>
+      <label>Punto del hallazgo en el plano (toque el plano si necesita corregirlo)</label>
+      <div class="contenedor-plano" id="mod-contenedor-plano" style="margin-top:8px;"></div>
     </div>
   `;
 
@@ -329,40 +324,34 @@ function abrirModal(reporte) {
     <button class="btn btn-exito" id="btn-guardar-validacion">Guardar validación</button>
   `;
 
-  // --- Mapa GPS con marcador arrastrable para corregir la ubicación -------
-  if (mapaModalGPS) { mapaModalGPS.remove(); mapaModalGPS = null; }
-  const gpsInicial = reporte.gps || UBICACION_PLANTA_POR_DEFECTO;
-  gpsCorregidoMod = { lat: gpsInicial.lat, lng: gpsInicial.lng };
-  mapaModalGPS = L.map("mod-mapa-gps").setView([gpsInicial.lat, gpsInicial.lng], 17);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors", maxZoom: 19
-  }).addTo(mapaModalGPS);
-  const marcadorMod = L.marker([gpsInicial.lat, gpsInicial.lng], { draggable: true }).addTo(mapaModalGPS);
-  setTimeout(() => mapaModalGPS && mapaModalGPS.invalidateSize(), 100);
-
-  // El plano de distribución ya no se muestra en este modal (queda solo el
-  // mapa GPS, que es el que se corrige manualmente), pero el punto del plano
-  // se sigue calculando en segundo plano a partir del GPS —otras pantallas
-  // del sistema (mapa de calor, vista del plano) siguen dependiendo de él.
+  // --- Plano de la planta con el pin del hallazgo (el que marcan los
+  // inspectores manualmente en el reporte) — único mapa de este modal. Si el
+  // admin lo corrige tocando el plano, la posición GPS guardada se recalcula
+  // con la misma calibración (4 esquinas) que usa el resto del sistema, para
+  // que ambos datos queden siempre consistentes.
   let planoPuntoMod = reporte.planoPunto || null;
+  // Reportes antiguos guardaban el punto en coordenadas 0-1000 del plano
+  // esquemático anterior; se descartan para recalcular desde el GPS.
+  if (planoPuntoMod && (planoPuntoMod.x > 100 || planoPuntoMod.y > 100)) planoPuntoMod = null;
+  gpsCorregidoMod = reporte.gps || null;
   let esquinasPlanoMod = null;
-  obtenerEsquinasPlanoGPS().then((esquinas) => {
+
+  Promise.all([
+    cargarPlanoImagenReal(document.getElementById("mod-contenedor-plano")),
+    obtenerEsquinasPlanoGPS()
+  ]).then(([marco, esquinas]) => {
     esquinasPlanoMod = esquinas;
-    // Reportes antiguos guardaban el punto en coordenadas 0-1000 del plano
-    // esquemático anterior; se descartan para recalcular desde el GPS.
-    if (planoPuntoMod && (planoPuntoMod.x > 100 || planoPuntoMod.y > 100)) planoPuntoMod = null;
     if (!planoPuntoMod && esquinas && reporte.gps) {
       planoPuntoMod = gpsAPuntoPlano(reporte.gps, esquinas);
     }
-  });
-
-  marcadorMod.on("dragend", () => {
-    const pos = marcadorMod.getLatLng();
-    gpsCorregidoMod = { lat: pos.lat, lng: pos.lng };
-    if (esquinasPlanoMod) {
-      const punto = gpsAPuntoPlano(gpsCorregidoMod, esquinasPlanoMod);
-      if (punto) planoPuntoMod = punto;
+    if (planoPuntoMod) {
+      marcarPinEnPlano(marco, planoPuntoMod);
+      enfocarPuntoPlano(marco, planoPuntoMod);
     }
+    habilitarSeleccionPuntoPlanoReal(marco, (punto) => {
+      planoPuntoMod = punto;
+      if (esquinasPlanoMod) gpsCorregidoMod = puntoPlanoAGPS(punto, esquinasPlanoMod);
+    });
   });
 
   crearAutocompletarConCreacion({
@@ -462,7 +451,6 @@ function abrirModal(reporte) {
 
 function cerrarModal() {
   document.getElementById("modal-fondo").style.display = "none";
-  if (mapaModalGPS) { mapaModalGPS.remove(); mapaModalGPS = null; }
 }
 document.getElementById("cerrar-modal").addEventListener("click", cerrarModal);
 document.getElementById("modal-fondo").addEventListener("click", (e) => { if (e.target.id === "modal-fondo") cerrarModal(); });
