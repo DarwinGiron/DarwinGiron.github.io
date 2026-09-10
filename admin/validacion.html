@@ -9,7 +9,43 @@
 <title>Validación de Reportes - COGUSA SGI</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="/css/estilos.css">
-<style> #mod-mapa-gps { height: 220px; border-radius: 10px; margin: 10px 0; } </style>
+<style>
+  #mod-mapa-gps { height: 240px; border-radius: 10px; margin: 8px 0 0; }
+
+  /* El CSS global solo define .detalle-meta / .titulo-seccion-modal para el
+     tema oscuro; se agregan aquí las mismas reglas para el tema claro, que
+     hasta ahora se veían sin estilo (bloque plano, sin recuadro). */
+  body.tema-reportes .detalle-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px 18px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    background: #f7f7fb;
+    border: 1px solid var(--color-borde);
+    border-radius: 12px;
+  }
+  body.tema-reportes .detalle-meta-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  body.tema-reportes .detalle-meta-etq { font-size: .66rem; text-transform: uppercase; letter-spacing: .06em; color: var(--color-texto-suave); }
+  body.tema-reportes .detalle-meta-val { color: var(--color-texto); font-weight: 600; word-break: break-word; }
+  body.tema-reportes .titulo-seccion-modal { font-size: 1rem; margin: 2px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--color-borde); }
+
+  /* Modal de validación: en tablet/escritorio se ensancha y los campos se
+     acomodan en dos columnas para que el formulario completo (incluyendo el
+     mapa) quepa en pantalla con el mínimo de scroll posible. En celular se
+     mantiene una sola columna. */
+  #modal-fondo #mod-descripcion { min-height: 64px; }
+  #modal-fondo #mod-observaciones-inspector { min-height: 64px; }
+  @media (min-width: 720px) {
+    #modal-fondo .modal-caja { max-width: 900px; max-height: 94vh; }
+    #modal-fondo .campos-grid-validacion { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+    /* Las fotos pasan a una tira angosta y horizontal (en vez de cuadros
+       grandes) para no comerse la altura que necesita el mapa más abajo. */
+    #modal-fondo .fotos-grid { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; padding-bottom: 2px; }
+    #modal-fondo .fotos-grid > * { width: 92px; flex: 0 0 auto; }
+    #modal-fondo .campo { margin-bottom: 14px; }
+  }
+</style>
 </head>
 <body class="tema-reportes">
 <div id="app">
@@ -156,7 +192,7 @@ function abrirModal(reporte) {
   modal.style.display = "flex";
 
   contenido.innerHTML = `
-    <div class="fotos-grid" style="margin-bottom:14px;">
+    <div class="fotos-grid" style="margin-bottom:12px;">
       ${reporte.fotos.map((f) => `<div class="foto-miniatura"><img src="${f}"></div>`).join("")}
     </div>
     <div class="detalle-meta">
@@ -168,47 +204,47 @@ function abrirModal(reporte) {
     <h3 class="titulo-seccion-modal">Datos a validar</h3>
     <div class="campo">
       <label>Descripción del hallazgo</label>
-      <textarea id="mod-descripcion" rows="4" placeholder="Describa el hallazgo...">${(reporte.descripcion || "").replace(/&/g, "&amp;").replace(/</g, "&lt;")}</textarea>
+      <textarea id="mod-descripcion" rows="3" placeholder="Describa el hallazgo...">${(reporte.descripcion || "").replace(/&/g, "&amp;").replace(/</g, "&lt;")}</textarea>
     </div>
-    <label>Punto del hallazgo en el plano</label>
-    <div class="contenedor-plano" id="mod-contenedor-plano" style="margin-bottom:14px;"></div>
-    <label>Ubicación GPS (arrastre el marcador para corregirla; el pin del plano se recalcula solo)</label>
-    <div id="mod-mapa-gps"></div>
-    <div class="campo" style="margin-top:16px;">
-      <label>Turno</label>
-      <select id="mod-turno">
-        <option value="">Sin especificar</option>
-        ${NIVELES_TURNO_REPORTE.map((t) => `<option value="${t}" ${reporte.turno === t ? "selected" : ""}>${t}</option>`).join("")}
-      </select>
+
+    <div class="campos-grid-validacion">
+      <div class="campo">
+        <label>Turno</label>
+        <select id="mod-turno">
+          <option value="">Sin especificar</option>
+          ${NIVELES_TURNO_REPORTE.map((t) => `<option value="${t}" ${reporte.turno === t ? "selected" : ""}>${t}</option>`).join("")}
+        </select>
+      </div>
+      <div class="campo autocompletar">
+        <label>Zona</label>
+        <input type="text" id="mod-zona" value="${reporte.zona}" autocomplete="off">
+        <div class="lista-sugerencias" id="mod-lista-zona" style="display:none;"></div>
+      </div>
+      <div class="campo">
+        <label>Proceso</label>
+        <select id="mod-proceso"></select>
+      </div>
+      <div class="campo">
+        <label>Categoría</label>
+        <select id="mod-categoria"></select>
+        ${!reporte.categoria && reporte.puntoNormaTexto ? `<p class="ayuda">Punto de norma (histórico, ya no editable): ${reporte.puntoNormaTexto}${reporte.noAplicaNorma ? " — No aplica" : ""}</p>` : ""}
+      </div>
+      <div class="campo">
+        <label>Gravedad *</label>
+        <select id="mod-gravedad">
+          <option value="">-- Seleccione --</option>
+          ${NIVELES_GRAVEDAD.map((g) => `<option value="${g}" ${reporte.gravedad === g ? "selected" : ""}>${g}</option>`).join("")}
+        </select>
+      </div>
+      <div class="campo">
+        <label>Observaciones para el inspector (opcional)</label>
+        <textarea id="mod-observaciones-inspector" placeholder="Ej: se corrigió la zona porque no correspondía a esa área. Este mensaje se le mostrará al inspector como retroalimentación."></textarea>
+      </div>
     </div>
-    <div class="campo autocompletar">
-      <label>Zona</label>
-      <input type="text" id="mod-zona" value="${reporte.zona}" autocomplete="off">
-      <div class="lista-sugerencias" id="mod-lista-zona" style="display:none;"></div>
-    </div>
-    <div class="campo">
-      <label>Proceso</label>
-      <select id="mod-proceso"></select>
-    </div>
-    <div class="campo">
-      <label>Categoría</label>
-      <select id="mod-categoria"></select>
-      ${!reporte.categoria && reporte.puntoNormaTexto ? `<p class="ayuda">Punto de norma (histórico, ya no editable): ${reporte.puntoNormaTexto}${reporte.noAplicaNorma ? " — No aplica" : ""}</p>` : ""}
-    </div>
-    <div class="campo">
-      <label>Gravedad *</label>
-      <select id="mod-gravedad">
-        <option value="">-- Seleccione --</option>
-        ${NIVELES_GRAVEDAD.map((g) => `<option value="${g}" ${reporte.gravedad === g ? "selected" : ""}>${g}</option>`).join("")}
-      </select>
-    </div>
-    <div class="campo">
-      <label>Observaciones para el inspector (opcional)</label>
-      <textarea id="mod-observaciones-inspector" placeholder="Ej: se corrigió la zona porque no correspondía a esa área. Este mensaje se le mostrará al inspector como retroalimentación."></textarea>
-    </div>
+
     ${reporte.estado === "validado" ? `<p class="aviso aviso-exito">Validado por ${reporte.validadoPorNombre} el ${formatearFechaHora(reporte.fechaValidacion)}</p>` : ""}
 
-    <div id="zona-eliminar" style="margin-top:18px; padding-top:14px; border-top:1px solid var(--color-borde);">
+    <div id="zona-eliminar" style="margin-top:6px; padding-top:14px; border-top:1px solid var(--color-borde);">
       <button class="btn btn-peligro btn-pequeno" id="btn-eliminar-reporte">
         <svg class="icono icono-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
         Eliminar este reporte
@@ -220,6 +256,11 @@ function abrirModal(reporte) {
           <button class="btn btn-secundario" id="btn-cancelar-eliminar">Cancelar</button>
         </div>
       </div>
+    </div>
+
+    <div class="campo" style="margin-top:16px; margin-bottom:0;">
+      <label>Ubicación GPS (arrastre el marcador si necesita corregirla)</label>
+      <div id="mod-mapa-gps"></div>
     </div>
   `;
 
@@ -238,17 +279,13 @@ function abrirModal(reporte) {
   const marcadorMod = L.marker([gpsInicial.lat, gpsInicial.lng], { draggable: true }).addTo(mapaModalGPS);
   setTimeout(() => mapaModalGPS && mapaModalGPS.invalidateSize(), 100);
 
-  // Plano con el punto del hallazgo. Si el admin arrastra el marcador GPS,
-  // el pin del plano se recalcula con la misma calibración que usa el
-  // inspector, para que ambos queden siempre consistentes al guardar.
+  // El plano de distribución ya no se muestra en este modal (queda solo el
+  // mapa GPS, que es el que se corrige manualmente), pero el punto del plano
+  // se sigue calculando en segundo plano a partir del GPS —otras pantallas
+  // del sistema (mapa de calor, vista del plano) siguen dependiendo de él.
   let planoPuntoMod = reporte.planoPunto || null;
-  let marcoPlanoMod = null;
   let esquinasPlanoMod = null;
-  Promise.all([
-    cargarPlanoImagenReal(document.getElementById("mod-contenedor-plano")),
-    obtenerEsquinasPlanoGPS()
-  ]).then(([marco, esquinas]) => {
-    marcoPlanoMod = marco;
+  obtenerEsquinasPlanoGPS().then((esquinas) => {
     esquinasPlanoMod = esquinas;
     // Reportes antiguos guardaban el punto en coordenadas 0-1000 del plano
     // esquemático anterior; se descartan para recalcular desde el GPS.
@@ -256,18 +293,14 @@ function abrirModal(reporte) {
     if (!planoPuntoMod && esquinas && reporte.gps) {
       planoPuntoMod = gpsAPuntoPlano(reporte.gps, esquinas);
     }
-    if (planoPuntoMod) marcarPinEnPlano(marco, planoPuntoMod);
   });
 
   marcadorMod.on("dragend", () => {
     const pos = marcadorMod.getLatLng();
     gpsCorregidoMod = { lat: pos.lat, lng: pos.lng };
-    if (marcoPlanoMod && esquinasPlanoMod) {
+    if (esquinasPlanoMod) {
       const punto = gpsAPuntoPlano(gpsCorregidoMod, esquinasPlanoMod);
-      if (punto) {
-        planoPuntoMod = punto;
-        marcarPinEnPlano(marcoPlanoMod, punto);
-      }
+      if (punto) planoPuntoMod = punto;
     }
   });
 
