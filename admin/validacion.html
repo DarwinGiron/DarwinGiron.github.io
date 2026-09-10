@@ -42,6 +42,43 @@
     #modal-fondo .fotos-grid > * { width: 92px; flex: 0 0 auto; }
     #modal-fondo .campo { margin-bottom: 14px; }
   }
+
+  /* Las miniaturas del modal se pueden abrir a pantalla completa. */
+  #modal-fondo .foto-miniatura { cursor: zoom-in; }
+
+  #visor-foto-fondo {
+    position: fixed; inset: 0; z-index: 200; background: rgba(6, 6, 8, 0.94);
+    display: none; align-items: center; justify-content: center;
+  }
+  #visor-foto-fondo.show { display: flex; }
+  #visor-foto-fondo img {
+    max-width: min(94vw, 1400px); max-height: 90vh;
+    width: auto; height: auto; object-fit: contain;
+    display: block; margin: auto; border-radius: 6px;
+  }
+  #visor-foto-fondo .visor-cerrar {
+    position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1);
+    border: none; color: #fff; width: 42px; height: 42px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  #visor-foto-fondo .visor-cerrar:hover { background: rgba(255,255,255,0.2); }
+  #visor-foto-fondo .visor-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    background: rgba(255,255,255,0.1); border: none; color: #fff;
+    width: 48px; height: 48px; border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #visor-foto-fondo .visor-nav:hover { background: rgba(255,255,255,0.2); }
+  #visor-foto-fondo .visor-anterior { left: 16px; }
+  #visor-foto-fondo .visor-siguiente { right: 16px; }
+  #visor-foto-fondo .visor-contador {
+    position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 13px; background: rgba(255,255,255,0.12);
+    padding: 4px 14px; border-radius: 999px;
+  }
+  @media (max-width: 600px) {
+    #visor-foto-fondo .visor-nav { width: 40px; height: 40px; }
+  }
 </style>
 </head>
 <body class="tema-reportes">
@@ -98,6 +135,21 @@
     <div class="modal-cuerpo" id="modal-contenido"></div>
     <div class="modal-pie" id="modal-pie"></div>
   </div>
+</div>
+
+<!-- Visor de fotos a pantalla completa (se abre desde las miniaturas del modal) -->
+<div id="visor-foto-fondo">
+  <button class="visor-cerrar" id="visor-cerrar" aria-label="Cerrar">
+    <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+  <button class="visor-nav visor-anterior" id="visor-anterior" aria-label="Foto anterior">
+    <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+  </button>
+  <img id="visor-foto-img" src="" alt="Foto del hallazgo">
+  <button class="visor-nav visor-siguiente" id="visor-siguiente" aria-label="Foto siguiente">
+    <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>
+  <div class="visor-contador" id="visor-contador" style="display:none;"></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -249,7 +301,7 @@ function abrirModal(reporte) {
 
   contenido.innerHTML = `
     <div class="fotos-grid" style="margin-bottom:12px;">
-      ${reporte.fotos.map((f) => `<div class="foto-miniatura"><img src="${f}"></div>`).join("")}
+      ${reporte.fotos.map((f, i) => `<div class="foto-miniatura" data-idx="${i}"><img src="${f}"></div>`).join("")}
     </div>
     <div class="detalle-meta">
       <div class="detalle-meta-item"><span class="detalle-meta-etq">Inspector</span><span class="detalle-meta-val">${reporte.inspectorNombre}</span></div>
@@ -354,6 +406,11 @@ function abrirModal(reporte) {
     });
   });
 
+  // --- Fotos: abren a pantalla completa al tocarlas -----------------------
+  contenido.querySelectorAll(".foto-miniatura").forEach((el) => {
+    el.addEventListener("click", () => abrirVisorFoto(reporte.fotos, Number(el.dataset.idx)));
+  });
+
   crearAutocompletarConCreacion({
     inputEl: document.getElementById("mod-zona"),
     listaEl: document.getElementById("mod-lista-zona"),
@@ -454,6 +511,48 @@ function cerrarModal() {
 }
 document.getElementById("cerrar-modal").addEventListener("click", cerrarModal);
 document.getElementById("modal-fondo").addEventListener("click", (e) => { if (e.target.id === "modal-fondo") cerrarModal(); });
+
+// --- Visor de fotos a pantalla completa -------------------------------
+let visorFotos = [];
+let visorIndice = 0;
+const visorFondo = document.getElementById("visor-foto-fondo");
+const visorImg = document.getElementById("visor-foto-img");
+const visorContador = document.getElementById("visor-contador");
+
+function abrirVisorFoto(fotos, indice) {
+  visorFotos = fotos || [];
+  visorIndice = indice || 0;
+  mostrarFotoVisor();
+  visorFondo.classList.add("show");
+}
+
+function mostrarFotoVisor() {
+  visorImg.src = visorFotos[visorIndice];
+  const hayVarias = visorFotos.length > 1;
+  document.getElementById("visor-anterior").style.display = hayVarias ? "flex" : "none";
+  document.getElementById("visor-siguiente").style.display = hayVarias ? "flex" : "none";
+  visorContador.style.display = hayVarias ? "block" : "none";
+  visorContador.textContent = (visorIndice + 1) + " / " + visorFotos.length;
+}
+
+function cerrarVisorFoto() {
+  visorFondo.classList.remove("show");
+  visorImg.src = "";
+}
+
+function fotoAnterior() { visorIndice = (visorIndice - 1 + visorFotos.length) % visorFotos.length; mostrarFotoVisor(); }
+function fotoSiguiente() { visorIndice = (visorIndice + 1) % visorFotos.length; mostrarFotoVisor(); }
+
+document.getElementById("visor-cerrar").addEventListener("click", cerrarVisorFoto);
+document.getElementById("visor-anterior").addEventListener("click", fotoAnterior);
+document.getElementById("visor-siguiente").addEventListener("click", fotoSiguiente);
+visorFondo.addEventListener("click", (e) => { if (e.target === visorFondo) cerrarVisorFoto(); });
+document.addEventListener("keydown", (e) => {
+  if (!visorFondo.classList.contains("show")) return;
+  if (e.key === "Escape") cerrarVisorFoto();
+  else if (e.key === "ArrowLeft") fotoAnterior();
+  else if (e.key === "ArrowRight") fotoSiguiente();
+});
 </script>
 </body>
 </html>
