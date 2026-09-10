@@ -132,34 +132,70 @@ function rutaDeModulo(item) {
 const ICONO_CAMPANA = '<svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
 const ICONO_SALIR = '<svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
 
+const CLAVE_PERMISOS_NAV = "sgi_nav_permisos";
+
+/** Dibuja el menú una sola vez dentro de <nav data-nav-principal>. */
+function dibujarNavPrincipal() {
+  const nav = document.querySelector("nav[data-nav-principal]");
+  if (!nav || nav.dataset.dibujado) return;
+  nav.dataset.dibujado = "1";
+
+  const archivoActual = window.location.pathname.split("/").pop() || "index.html";
+  nav.innerHTML = MODULOS_NAV.map((item) => {
+    const activo = item.archivo === archivoActual ? ' class="activo"' : "";
+    const modulo = item.modulo ? ` data-modulo="${item.modulo}"` : "";
+    // Los módulos con permiso arrancan ocultos para que no parpadeen
+    // visibles ante quien no tiene acceso.
+    const oculto = item.modulo ? ' style="display:none;"' : "";
+    return `<a href="${rutaDeModulo(item)}"${activo}${modulo}${oculto}>${item.etiqueta}</a>`;
+  }).join("") + `
+    <div class="campana-contenedor">
+      <button class="btn-campana" id="btn-campana" type="button" aria-label="Notificaciones">
+        ${ICONO_CAMPANA}
+        <span class="campana-badge" id="campana-badge" style="display:none;">0</span>
+      </button>
+      <div class="campana-panel" id="campana-panel" style="display:none;"></div>
+    </div>
+    <button class="btn-salir" onclick="cerrarSesionYSalir()">${ICONO_SALIR} Salir</button>`;
+}
+
+/** Guarda qué módulos puede ver este usuario, solo para poder pintar el menú
+ *  completo en la siguiente visita sin esperar a la sesión. No es un control
+ *  de acceso: cada página valida su permiso y las reglas de Firestore mandan. */
+function recordarPermisosNav(perfil, permisos) {
+  try {
+    localStorage.setItem(CLAVE_PERMISOS_NAV, JSON.stringify({ rol: perfil.rol, permisos: permisos || null }));
+  } catch { /* modo privado o almacenamiento lleno: no pasa nada */ }
+}
+
+function olvidarPermisosNav() {
+  try { localStorage.removeItem(CLAVE_PERMISOS_NAV); } catch { /* nada */ }
+}
+
 /**
- * Dibuja el menú principal dentro de <nav data-nav-principal> y aplica la
- * visibilidad por permisos. Reemplaza a la llamada suelta de
- * aplicarVisibilidadNav en las páginas del sistema de Reportes.
+ * Dibuja el menú y aplica la visibilidad por permisos. Se llama desde las
+ * páginas cuando ya hay sesión; para entonces el menú normalmente ya está
+ * pintado (ver el arranque más abajo) y aquí solo se corrige quién ve qué.
  */
 function montarNavPrincipal(perfil, permisos) {
-  const nav = document.querySelector("nav[data-nav-principal]");
-  if (nav) {
-    const archivoActual = window.location.pathname.split("/").pop() || "index.html";
-    nav.innerHTML = MODULOS_NAV.map((item) => {
-      const activo = item.archivo === archivoActual ? ' class="activo"' : "";
-      const modulo = item.modulo ? ` data-modulo="${item.modulo}"` : "";
-      // Se ocultan de entrada los módulos con permiso: así no parpadean
-      // visibles mientras se resuelve la sesión.
-      const oculto = item.modulo ? ' style="display:none;"' : "";
-      return `<a href="${rutaDeModulo(item)}"${activo}${modulo}${oculto}>${item.etiqueta}</a>`;
-    }).join("") + `
-      <div class="campana-contenedor">
-        <button class="btn-campana" id="btn-campana" type="button" aria-label="Notificaciones">
-          ${ICONO_CAMPANA}
-          <span class="campana-badge" id="campana-badge" style="display:none;">0</span>
-        </button>
-        <div class="campana-panel" id="campana-panel" style="display:none;"></div>
-      </div>
-      <button class="btn-salir" onclick="cerrarSesionYSalir()">${ICONO_SALIR} Salir</button>`;
-  }
+  dibujarNavPrincipal();
+  recordarPermisosNav(perfil, permisos);
   aplicarVisibilidadNav(perfil, permisos);
 }
+
+// El menú se pinta apenas carga este archivo, sin esperar a Firebase: resolver
+// la sesión y bajar el perfil tarda un momento y, si se esperaba, la barra se
+// veía vacía "cargando" en cada pantalla. Los módulos con permiso se revelan
+// de una vez con lo recordado de la visita anterior y se corrigen al llegar
+// el perfil real.
+(function arrancarNavPrincipal() {
+  if (!document.querySelector("nav[data-nav-principal]")) return;
+  dibujarNavPrincipal();
+  try {
+    const recordado = JSON.parse(localStorage.getItem(CLAVE_PERMISOS_NAV) || "null");
+    if (recordado) aplicarVisibilidadNav({ rol: recordado.rol }, recordado.permisos);
+  } catch { /* dato viejo o corrupto: el menú se completa al cargar el perfil */ }
+})();
 
 function rutaRelativaIndex() {
   // Calcula ruta relativa al login de Reportes según profundidad de carpetas.
@@ -185,6 +221,9 @@ function mostrarErrorSesion(mensaje) {
 }
 
 function cerrarSesionYSalir() {
+  // Se olvidan los permisos recordados: si en este equipo entra otra persona,
+  // no debe ver por un instante el menú del usuario anterior.
+  olvidarPermisosNav();
   auth.signOut().finally(() => (window.location.href = rutaRelativaIndex()));
 }
 
@@ -192,6 +231,9 @@ function cerrarSesionYSalir() {
  * Inicia sesión con correo/contraseña. Usado desde login.html.
  */
 async function iniciarSesion(correo, contrasena) {
+  // Entra alguien (quizá otra persona en el mismo equipo): se descartan los
+  // permisos recordados para no pintarle el menú del usuario anterior.
+  olvidarPermisosNav();
   return auth.signInWithEmailAndPassword(correo, contrasena);
 }
 
