@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <script src="/js/tema-horario.js"></script>
+  <base href="/hub/verificacion-transporte/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Corregir registros · COGUSA</title>
+  <link rel="stylesheet" href="/css/estilos.css" />
+</head>
+<body class="tema-hub">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="historial.html" class="app-header__logo" style="text-decoration: none; color: inherit;">LIB</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Corregir registros mal calificados</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <div class="app-header__acciones">
+        <a href="historial.html" class="btn btn-texto btn-sm">← Volver al historial</a>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <section class="tarjeta mb-4">
+        <h2 class="tarjeta__titulo">¿Qué hace esta herramienta?</h2>
+        <p class="texto-sm">
+          Busca por placa los registros afectados por el bug de la pregunta invertida
+          ("Sin agujeros que permitan filtración de agua") en el checklist 3D, que marcaba
+          como <strong>Rechazado</strong> inspecciones que en realidad cumplían al 100%.
+          Te muestra cada punto marcado en <strong>No</strong> antes de cambiar nada — tú
+          decides, registro por registro, si corresponde corregirlo a Aprobado.
+        </p>
+        <div class="campo mb-0">
+          <label for="campo-placas">Placas a revisar (separadas por coma)</label>
+          <input type="text" id="campo-placas" value="865BRZ, C-293BPM" />
+        </div>
+        <div class="grupo-botones" style="margin-top: 12px;">
+          <button type="button" id="btn-buscar" class="btn btn-primario btn-sm btn-ancho-auto">Buscar registros</button>
+        </div>
+      </section>
+
+      <div id="resultados"></div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { protegerPagina, etiquetaRol, ROLES_GESTION } from "/hub/js/auth.js";
+    import { db } from "/hub/js/firebase-config.js";
+    import {
+      collection, query, where, getDocs, doc, updateDoc, serverTimestamp,
+    } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+    import { escaparHtml, mostrarToast, formatearFechaISOCorta } from "/hub/js/utils.js";
+
+    const COLEC = "verificaciones_transporte";
+    let usuarioActual = null;
+
+    protegerPagina({}, async ({ user, perfil }) => {
+      usuarioActual = user;
+      document.getElementById("texto-usuario").textContent = `${perfil.nombre || user.email} · ${etiquetaRol(perfil.rol)}`;
+      if (!ROLES_GESTION.includes(perfil.rol)) {
+        document.getElementById("resultados").innerHTML = `
+          <section class="tarjeta mb-4">
+            <p class="texto-sm" style="color: var(--estado-critico-ink, #b32626);">
+              ⚠️ Tu cuenta tiene rol "<strong>${escaparHtml(etiquetaRol(perfil.rol))}</strong>". La corrección
+              solo la puede GUARDAR un usuario admin o coordinador (lo exige la regla de seguridad de la base
+              de datos), pero igual puedes usar el buscador de abajo para revisar qué puntos están marcados
+              en "No" en cada registro.
+            </p>
+          </section>`;
+      }
+    });
+
+    document.getElementById("btn-buscar").addEventListener("click", buscar);
+
+    async function buscar() {
+      const placas = document.getElementById("campo-placas").value
+        .split(",").map((p) => p.trim().toUpperCase()).filter(Boolean);
+      const resultados = document.getElementById("resultados");
+      if (placas.length === 0) return;
+
+      resultados.innerHTML = `<p class="texto-suave texto-sm">Buscando…</p>`;
+
+      try {
+        // Firestore no permite "in" sobre un campo con mayúsculas/minúsculas mixtas
+        // garantizadas, así que se hace una consulta por placa (son pocas).
+        const encontrados = [];
+        for (const placa of placas) {
+          const q = query(collection(db, COLEC), where("placaCamion", "==", placa));
+          const snap = await getDocs(q);
+          snap.forEach((d) => encontrados.push({ id: d.id, ...d.data() }));
+        }
+
+        if (encontrados.length === 0) {
+          resultados.innerHTML = `<p class="estado-vacio">No se encontró ningún registro con esas placas.</p>`;
+          return;
+        }
+
+        resultados.innerHTML = "";
+        encontrados.forEach((registro) => resultados.appendChild(renderTarjeta(registro)));
+      } catch (err) {
+        console.error("Error al buscar registros:", err);
+        resultados.innerHTML = `<p class="estado-vacio">Error al buscar: ${escaparHtml(err.message || String(err))}</p>`;
+      }
+    }
+
+    function itemsConNo(registro) {
+      const items = [];
+      Object.entries(registro.respuestasPorZona || {}).forEach(([zonaId, z]) => {
+        ["externa", "interna"].forEach((modo) => {
+          (z[modo] || []).forEach((item, indice) => {
+            if (item.valor !== "si") items.push({ ruta: `respuestasPorZona.${zonaId}.${modo}[${indice}]`, texto: `${z.nombre} (${modo}): ${item.texto}`, valor: item.valor });
+          });
+        });
+      });
+      (registro.respuestasCabina || []).forEach((item, indice) => {
+        if (item.valor !== "si") items.push({ ruta: `respuestasCabina[${indice}]`, texto: `Cabina/Piloto: ${item.texto}`, valor: item.valor });
+      });
+      return items;
+    }
+
+    function renderTarjeta(registro) {
+      const div = document.createElement("section");
+      div.className = "tarjeta mb-4";
+      const fallas = itemsConNo(registro);
+      const aprobadoActual = registro.aprobado === true;
+
+      div.innerHTML = `
+        <div class="flex-entre mb-2">
+          <h3 class="tarjeta__titulo mb-0">Placa: ${escaparHtml(registro.placaCamion || "—")}</h3>
+          <span class="badge ${aprobadoActual ? "badge-exito" : "badge-error"}">
+            ${aprobadoActual ? "Aprobado" : "Rechazado"} · ${registro.cumplimientoPorcentaje ?? "?"}%
+          </span>
+        </div>
+        <p class="texto-suave texto-sm mb-2">
+          Piloto: ${escaparHtml(registro.nombrePiloto || "—")} · TC: ${escaparHtml(registro.tc || "—")} ·
+          Fecha: ${escaparHtml(formatearFechaISOCorta(registro.fecha))} · Inspector: ${escaparHtml(registro.inspectorNombre || "—")}
+        </p>
+        ${fallas.length === 0 ? `
+          <p class="texto-sm" style="color: var(--tinta-3);">No hay ningún punto marcado en "No" — este registro no parece afectado por el bug.</p>
+        ` : `
+          <p class="texto-sm mb-1"><strong>Puntos marcados en "No" (${fallas.length}):</strong></p>
+          <ul style="margin: 0 0 var(--e3); padding-left: 20px;">
+            ${fallas.map((f) => `<li class="texto-sm">${escaparHtml(f.texto)}</li>`).join("")}
+          </ul>
+        `}
+        <div class="grupo-botones" id="acciones-${registro.id}"></div>
+        <div id="estado-${registro.id}" class="texto-sm mt-2"></div>
+      `;
+
+      const acciones = div.querySelector(`#acciones-${registro.id}`);
+      if (!aprobadoActual) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-primario btn-sm btn-ancho-auto";
+        btn.textContent = fallas.length === 1
+          ? "Confirmar que sí cumplió y corregir a Aprobado"
+          : `Corregir de todas formas a Aprobado (revisa los ${fallas.length} puntos arriba)`;
+        btn.addEventListener("click", () => corregir(registro, btn));
+        acciones.appendChild(btn);
+      }
+
+      return div;
+    }
+
+    async function corregir(registro, boton) {
+      const confirmado = confirm(
+        `¿Confirmas que la liberación de la placa "${registro.placaCamion}" sí cumplió y debe quedar como APROBADO (100%)?\n\n` +
+        `Esto va a corregir todos los puntos marcados en "No" a "Sí" y recalcular la calificación. Esta acción queda registrada con tu usuario y no se puede deshacer con un clic.`
+      );
+      if (!confirmado) return;
+
+      boton.disabled = true;
+      boton.textContent = "Corrigiendo…";
+
+      try {
+        const respuestasPorZona = JSON.parse(JSON.stringify(registro.respuestasPorZona || {}));
+        Object.values(respuestasPorZona).forEach((z) => {
+          ["externa", "interna"].forEach((modo) => {
+            (z[modo] || []).forEach((item) => { item.valor = "si"; });
+          });
+        });
+        const respuestasCabina = (registro.respuestasCabina || []).map((item) => ({ ...item, valor: "si" }));
+
+        const total = registro.total || (
+          Object.values(respuestasPorZona).reduce((acc, z) => acc + (z.externa?.length || 0) + (z.interna?.length || 0), 0)
+          + respuestasCabina.length
+        );
+
+        await updateDoc(doc(db, COLEC, registro.id), {
+          respuestasPorZona,
+          respuestasCabina,
+          aprobado: true,
+          resultado: "aprobado",
+          estado: "Aprobado",
+          cumplimientoPorcentaje: 100,
+          calificacion: 100,
+          cumplidos: total,
+          total,
+          corregidoManualmente: true,
+          corregidoPor: usuarioActual.uid,
+          corregidoEn: serverTimestamp(),
+          notaCorreccion: "Corregido manualmente: bug de pregunta invertida en el checklist 3D marcaba un falso rechazo. Verificado que la inspección sí cumplió.",
+        });
+
+        document.getElementById(`estado-${registro.id}`).innerHTML =
+          `<span class="badge badge-exito">✓ Corregido a Aprobado</span>`;
+        boton.remove();
+        mostrarToast(`Registro de placa ${registro.placaCamion} corregido a Aprobado.`, "exito");
+      } catch (err) {
+        console.error("Error al corregir registro:", err);
+        mostrarToast(`No se pudo corregir: ${err.message || err}`, "error");
+        boton.disabled = false;
+        boton.textContent = "Reintentar corrección";
+      }
+    }
+  </script>
+</body>
+</html>
