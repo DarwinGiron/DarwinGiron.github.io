@@ -517,13 +517,24 @@ async function iniciarRecorrido(areaIdDestino = null) {
     .filter((a) => a.activa !== false)
     .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
 
-  estado.areas = activas
-    .map((a) => {
-      const estructura = filtrarEstructuraPorArea(estado.version.secciones, a.id);
-      const total = estructura.reduce((n, s) => n + s.aspectos.length, 0);
-      return { id: a.id, nombre: a.nombre, estructura, total };
-    })
-    .filter((a) => a.total > 0);
+  const evaluables = activas.map((a) => {
+    const estructura = filtrarEstructuraPorArea(estado.version.secciones, a.id);
+    const total = estructura.reduce((n, s) => n + s.aspectos.length, 0);
+    return { id: a.id, nombre: a.nombre, estructura, total };
+  });
+
+  estado.areas = evaluables.filter((a) => a.total > 0);
+
+  // Un proceso configurado al que todavía no se le asignó ninguna sección
+  // no genera una pestaña vacía, pero sí se avisa: si no, parecería que la
+  // configuración no se guardó.
+  const sinAspectos = evaluables.filter((a) => a.total === 0);
+  if (sinAspectos.length && estado.areas.length) {
+    mostrarToast(
+      `Sin aspectos asignados todavía: ${sinAspectos.map((a) => a.nombre).join(", ")}.`,
+      "alerta"
+    );
+  }
 
   if (estado.areas.length === 0) {
     zonaCargando.classList.add("oculto");

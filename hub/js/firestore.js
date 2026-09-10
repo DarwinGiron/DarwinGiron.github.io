@@ -163,7 +163,23 @@ export async function obtenerVersionVigente(checklistId) {
     );
   }
   const version = await obtenerVersionChecklist(checklistId, checklist.versionVigente);
-  return { numero: checklist.versionVigente, ...version };
+  if (!version) {
+    throw new Error(
+      "No se encontró la versión publicada del checklist. Contacta al administrador."
+    );
+  }
+
+  // Las secciones, aspectos y criterios quedan congelados en la versión
+  // publicada, pero la lista de PROCESOS (áreas) se lee siempre del
+  // documento maestro: es lo que el administrador acaba de dejar en
+  // Configuración, así que un proceso agregado, renombrado, reordenado,
+  // desactivado o eliminado se refleja de inmediato en el recorrido sin
+  // tener que publicar una versión nueva.
+  const areas = Array.isArray(checklist.areas) && checklist.areas.length
+    ? checklist.areas
+    : version.areas || [];
+
+  return { numero: checklist.versionVigente, ...version, areas };
 }
 
 /* ---------------------------------------------------------
