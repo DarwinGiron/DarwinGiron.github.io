@@ -109,6 +109,9 @@ const REPORTES_PROPIOS_POR_PAGINA = 5;
 let ultimoDocReportesPropios = null;
 let hayMasReportesPropios = true;
 let cargandoPaginaReportesPropios = false;
+// Lista completa de respaldo, solo si la consulta ordenada no se puede usar
+// en esta base (ver traerPaginaOrdenada).
+let respaldoReportesPropios = null;
 
 // Se permite cualquier rol (null): tanto inspectores como el admin pueden
 // ver la lista de sus propios reportes.
@@ -127,12 +130,10 @@ async function cargarPaginaReportesPropios() {
   cargandoPaginaReportesPropios = true;
   actualizarBotonCargarMasReportes();
   try {
-    let consulta = colReportes.where("inspectorUid", "==", usuarioActual.uid).orderBy("creadoEn", "desc").limit(REPORTES_PROPIOS_POR_PAGINA);
-    if (ultimoDocReportesPropios) consulta = consulta.startAfter(ultimoDocReportesPropios);
-    const snap = await consulta.get();
-    reportesCacheActual = reportesCacheActual.concat(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    ultimoDocReportesPropios = snap.docs.length ? snap.docs[snap.docs.length - 1] : ultimoDocReportesPropios;
-    hayMasReportesPropios = snap.docs.length === REPORTES_PROPIOS_POR_PAGINA;
+    if (!respaldoReportesPropios && !(await traerPaginaOrdenada())) {
+      await prepararRespaldoReportesPropios();
+    }
+    if (respaldoReportesPropios) tomarPaginaDelRespaldo();
     aplicarFiltrosReportes();
 
     // Si se llegó con reportes.html#reporte-<id> (ej. enlace directo desde la
@@ -156,6 +157,71 @@ async function cargarPaginaReportesPropios() {
     cargandoPaginaReportesPropios = false;
     actualizarBotonCargarMasReportes();
   }
+}
+
+/**
+ * Trae la siguiente página ordenada por "creadoEn" (lo barato: Firestore
+ * ordena y corta). Devuelve false si esa vía no sirve en esta base, sin
+ * romper la pantalla, para que el llamador use el respaldo.
+ */
+async function traerPaginaOrdenada() {
+  let snap;
+  try {
+    let consulta = colReportes.where("inspectorUid", "==", usuarioActual.uid)
+      .orderBy("creadoEn", "desc").limit(REPORTES_PROPIOS_POR_PAGINA);
+    if (ultimoDocReportesPropios) consulta = consulta.startAfter(ultimoDocReportesPropios);
+    snap = await consulta.get();
+  } catch (err) {
+    // Ordenar por un campo distinto al del filtro exige un índice compuesto
+    // (inspectorUid + creadoEn). Si no está creado en la base, Firestore
+    // rechaza la consulta e incluye en el error el enlace para crearlo.
+    console.warn("No se pudo ordenar por creadoEn; se listan sin ordenar en la página.", err);
+    return false;
+  }
+
+  // Primera página vacía: puede ser que de verdad no haya reportes, o que los
+  // que hay se hayan creado antes de que existiera el campo "creadoEn"
+  // —Firestore excluye del orden a los documentos que no lo tienen—. Se
+  // comprueba con una consulta simple antes de darlos por inexistentes.
+  if (!snap.docs.length && !ultimoDocReportesPropios) {
+    const prueba = await colReportes.where("inspectorUid", "==", usuarioActual.uid).limit(1).get();
+    if (prueba.docs.length) {
+      console.warn('Hay reportes sin "creadoEn": el orden por ese campo los dejaba fuera.');
+      return false;
+    }
+  }
+
+  reportesCacheActual = reportesCacheActual.concat(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  ultimoDocReportesPropios = snap.docs.length ? snap.docs[snap.docs.length - 1] : ultimoDocReportesPropios;
+  hayMasReportesPropios = snap.docs.length === REPORTES_PROPIOS_POR_PAGINA;
+  return true;
+}
+
+/**
+ * Respaldo: una sola consulta simple con los reportes propios (sin orden, así
+ * que no necesita índice y no deja fuera a los que no tienen "creadoEn"). Se
+ * ordenan aquí y se siguen entregando de 5 en 5.
+ */
+async function prepararRespaldoReportesPropios() {
+  const snap = await colReportes.where("inspectorUid", "==", usuarioActual.uid).get();
+  respaldoReportesPropios = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => milisegundosDeReporte(b) - milisegundosDeReporte(a));
+}
+
+function milisegundosDeReporte(r) {
+  const marca = r.creadoEn || r.fechaHora;
+  if (!marca) return 0;
+  const fecha = marca.toDate ? marca.toDate() : new Date(marca);
+  return isNaN(fecha) ? 0 : fecha.getTime();
+}
+
+function tomarPaginaDelRespaldo() {
+  const desde = reportesCacheActual.length;
+  reportesCacheActual = reportesCacheActual.concat(
+    respaldoReportesPropios.slice(desde, desde + REPORTES_PROPIOS_POR_PAGINA)
+  );
+  hayMasReportesPropios = reportesCacheActual.length < respaldoReportesPropios.length;
 }
 
 function actualizarBotonCargarMasReportes() {
