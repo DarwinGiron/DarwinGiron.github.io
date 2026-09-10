@@ -87,28 +87,6 @@
           <div style="padding: 0 var(--e4);">
             <div id="secciones-contenedor"></div>
 
-            <!-- Hisopado -->
-            <section class="tarjeta">
-              <div class="flex-entre mb-1">
-                <h2 class="tarjeta__titulo mb-0">Prueba de hisopado</h2>
-                <label class="check-linea">
-                  <input type="checkbox" id="chk-hisopado" />
-                  Se realizó
-                </label>
-              </div>
-              <p class="texto-suave texto-sm">
-                Sección eventual: actívala solo si se tomaron muestras durante este proceso.
-              </p>
-              <div id="hisopado-contenedor" class="oculto"></div>
-              <button
-                type="button"
-                id="btn-agregar-hisopado"
-                class="btn btn-secundario btn-sm btn-ancho-auto oculto"
-              >
-                + Agregar registro
-              </button>
-            </section>
-
             <!-- Comentarios -->
             <section class="tarjeta" style="margin-bottom: 140px;">
               <h2 class="tarjeta__titulo">Comentarios de este proceso</h2>
@@ -241,37 +219,6 @@
       </div>
     </div>
   </div>
-
-  <template id="plantilla-hisopado">
-    <div class="editor-item" style="margin-bottom: var(--e2);">
-      <div class="flex-entre mb-1">
-        <strong class="texto-sm">Registro de hisopado</strong>
-        <button type="button" class="btn btn-texto btn-sm btn-eliminar-hisopado" style="color: var(--estado-critico-ink);">
-          Eliminar
-        </button>
-      </div>
-      <div class="campo">
-        <label>Área o máquina</label>
-        <input type="text" data-campo="areaMaquina" />
-      </div>
-      <div class="campo">
-        <label>Superficie</label>
-        <input type="text" data-campo="superficie" />
-      </div>
-      <div class="campo">
-        <label>Supervisor</label>
-        <input type="text" data-campo="supervisor" />
-      </div>
-      <div class="campo">
-        <label>Límite</label>
-        <input type="text" data-campo="limite" />
-      </div>
-      <div class="campo">
-        <label>Resultado</label>
-        <input type="text" data-campo="resultado" />
-      </div>
-    </div>
-  </template>
 
   <script type="module" src="/hub/js/checklist.js"></script>
 </body>

@@ -35,7 +35,6 @@ import {
 import { CHECKLIST_ID } from "./firebase-config.js";
 import {
   fechaHoyISO,
-  generarId,
   calcularResultado,
   filtrarEstructuraPorArea,
   iniciales,
@@ -87,10 +86,6 @@ const btnTerminar = document.getElementById("btn-terminar");
 
 const seccionesContenedor = document.getElementById("secciones-contenedor");
 
-const chkHisopado = document.getElementById("chk-hisopado");
-const hisopadoContenedor = document.getElementById("hisopado-contenedor");
-const btnAgregarHisopado = document.getElementById("btn-agregar-hisopado");
-const plantillaHisopado = document.getElementById("plantilla-hisopado");
 
 const campoComentarios = document.getElementById("campo-comentarios");
 const statHallazgos = document.getElementById("stat-hallazgos");
@@ -123,7 +118,7 @@ const estado = {
   indiceActual: -1,
 
   respuestasPorArea: {}, // areaId -> { aspectoId -> { valor, observacion } }
-  datosPorArea: {}, // areaId -> { comentarios, hisopadoActivo, registros }
+  datosPorArea: {}, // areaId -> { comentarios }
 
   sinGuardar: false, // hay algo respondido en cualquier área que aún no se escribió
   guardando: false,
@@ -573,8 +568,6 @@ async function iniciarRecorrido(areaIdDestino = null) {
       estado.respuestasPorArea[area.id] = { ...(datosArea.respuestas || {}) };
       estado.datosPorArea[area.id] = {
         comentarios: datosArea.comentarios || "",
-        hisopadoActivo: Boolean(datosArea.hisopado?.registros?.length),
-        registros: datosArea.hisopado?.registros ? [...datosArea.hisopado.registros] : [],
       };
     }
     mostrarToast("Continuando tu recorrido donde lo dejaste.", "info");
@@ -675,10 +668,10 @@ function respuestasDe(areaId) {
   return estado.respuestasPorArea[areaId];
 }
 
-/** Comentarios/hisopado del área indicada, creándolos vacíos la primera vez. */
+/** Comentarios del área indicada, creándolos vacíos la primera vez. */
 function datosDe(areaId) {
   if (!estado.datosPorArea[areaId]) {
-    estado.datosPorArea[areaId] = { comentarios: "", hisopadoActivo: false, registros: [] };
+    estado.datosPorArea[areaId] = { comentarios: "" };
   }
   return estado.datosPorArea[areaId];
 }
@@ -850,19 +843,11 @@ function sincronizarRespuestasEnDOM(area) {
   });
 }
 
-/** Restaura comentarios e hisopado del proceso activo en los campos del formulario. */
+/** Restaura los comentarios del proceso activo en los campos del formulario. */
 function restaurarDatosArea(area) {
   const datos = datosDe(area.id);
 
   campoComentarios.value = datos.comentarios || "";
-  chkHisopado.checked = datos.hisopadoActivo;
-  hisopadoContenedor.innerHTML = "";
-  hisopadoContenedor.classList.toggle("oculto", !datos.hisopadoActivo);
-  btnAgregarHisopado.classList.toggle("oculto", !datos.hisopadoActivo);
-
-  for (const registro of datos.registros) {
-    hisopadoContenedor.appendChild(crearNodoHisopado(registro, area.id));
-  }
 }
 
 /* ---------------------------------------------------------
@@ -1200,75 +1185,6 @@ function actualizarPieYContadorGlobal() {
   tabsProgresoValor.style.width = `${porcentajeProcesos}%`;
 }
 
-/* ---------------------------------------------------------
-   Hisopado (sección eventual, por proceso)
-   --------------------------------------------------------- */
-
-chkHisopado.addEventListener("change", () => {
-  const area = estado.areas[estado.indiceActual];
-  const datos = datosDe(area.id);
-  const activo = chkHisopado.checked;
-
-  datos.hisopadoActivo = activo;
-  hisopadoContenedor.classList.toggle("oculto", !activo);
-  btnAgregarHisopado.classList.toggle("oculto", !activo);
-  estado.sinGuardar = true;
-
-  if (activo && datos.registros.length === 0) {
-    agregarRegistroHisopado();
-  }
-  if (!activo) {
-    datos.registros = [];
-    hisopadoContenedor.innerHTML = "";
-  }
-});
-
-btnAgregarHisopado.addEventListener("click", () => agregarRegistroHisopado());
-
-/** Agrega un registro de hisopado nuevo y vacío al proceso activo. */
-function agregarRegistroHisopado() {
-  const area = estado.areas[estado.indiceActual];
-  const datos = datosDe(area.id);
-  const registro = {
-    id: generarId("hiso"),
-    areaMaquina: "",
-    superficie: "",
-    supervisor: "",
-    limite: "",
-    resultado: "",
-  };
-  datos.registros.push(registro);
-  hisopadoContenedor.appendChild(crearNodoHisopado(registro, area.id));
-  estado.sinGuardar = true;
-}
-
-/** Construye el DOM de un registro de hisopado ya existente (nuevo o restaurado). */
-function crearNodoHisopado(registro, areaId) {
-  const nodo = plantillaHisopado.content.firstElementChild.cloneNode(true);
-  nodo.dataset.registroId = registro.id;
-
-  nodo.querySelectorAll("[data-campo]").forEach((input) => {
-    input.id = `${registro.id}-${input.dataset.campo}`;
-    input.previousElementSibling?.setAttribute("for", input.id);
-    input.value = registro[input.dataset.campo] || "";
-
-    input.addEventListener("input", () => {
-      const reg = datosDe(areaId).registros.find((r) => r.id === registro.id);
-      if (reg) reg[input.dataset.campo] = input.value;
-      estado.sinGuardar = true;
-    });
-  });
-
-  nodo.querySelector(".btn-eliminar-hisopado").addEventListener("click", () => {
-    const datos = datosDe(areaId);
-    datos.registros = datos.registros.filter((r) => r.id !== registro.id);
-    estado.sinGuardar = true;
-    nodo.remove();
-  });
-
-  return nodo;
-}
-
 campoComentarios.addEventListener("input", () => {
   const area = estado.areas[estado.indiceActual];
   datosDe(area.id).comentarios = campoComentarios.value;
@@ -1281,7 +1197,7 @@ campoComentarios.addEventListener("input", () => {
 
 /**
  * Arma el documento completo del recorrido: un mapa con TODAS las áreas
- * (cada una con sus respuestas, comentarios, hisopado y resultado propio)
+ * (cada una con sus respuestas, comentarios y resultado propio)
  * más un resultado global agregado. Es el único documento que se escribe
  * a Firestore, tanto al "Guardar" (borrador) como al "Terminar" (enviada).
  */
@@ -1300,7 +1216,6 @@ function construirDatosRecorrido() {
       areaNombre: area.nombre,
       respuestas,
       resultado,
-      hisopado: datos.hisopadoActivo ? { registros: datos.registros } : null,
       comentarios: (datos.comentarios || "").trim(),
     };
 

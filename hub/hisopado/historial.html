@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <script src="/js/tema-horario.js"></script>
+  <base href="/hub/hisopado/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Historial de Hisopado · SGI</title>
+  <link rel="stylesheet" href="/css/estilos.css" />
+</head>
+<body class="tema-hub">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="../index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">PPR</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Historial de Hisopado</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <div class="app-header__acciones">
+        <span class="avatar avatar--claro avatar--sm" id="avatar-usuario" aria-hidden="true">—</span>
+        <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <a href="../index.html" class="btn btn-secundario btn-sm btn-ancho-auto mb-2">
+        ← Volver al inicio
+      </a>
+
+      <div class="flex-entre mb-2">
+        <p class="texto-suave texto-sm mb-0">Tomas de hisopado registradas.</p>
+        <a href="index.html" class="btn btn-dorado btn-sm btn-ancho-auto">+ Nuevo registro</a>
+      </div>
+
+      <div class="campo mb-2">
+        <label for="filtro-busqueda">Buscar por proceso, supervisor o superficie</label>
+        <input type="search" id="filtro-busqueda" placeholder="Ej. Corrugación, banda…" />
+      </div>
+
+      <div id="lista-hisopados" class="editor-lista"></div>
+    </main>
+  </div>
+
+  <script type="module" src="/hub/js/hisopado-historial.js"></script>
+</body>
+</html>

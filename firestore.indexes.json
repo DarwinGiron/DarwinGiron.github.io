@@ -25,6 +25,14 @@
       ]
     },
     {
+      "collectionGroup": "hisopados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "inspectorUid", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "zonas",
       "queryScope": "COLLECTION",
       "fields": [

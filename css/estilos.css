@@ -1711,6 +1711,14 @@ body.tema-hub .tarjeta__titulo {
 
 body.tema-hub .tarjeta--plana { box-shadow: none; }
 
+/* Tarjeta que reclama atención: se usa en el registro de hisopado cuando
+   alguna muestra quedó fuera del límite y las correcciones inmediatas
+   dejan de ser opcionales. */
+body.tema-hub .tarjeta--alerta {
+  border-color: var(--estado-alerta-mark);
+  background: var(--estado-alerta-suave);
+}
+
 body.tema-hub .pantalla-acceso {
   min-height: 100svh;
   display: grid;

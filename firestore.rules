@@ -9,8 +9,8 @@ rules_version = '2';
 //      procesos, categorias, configuracion, puntosNorma.
 //   2. "hub" (repo sig-fo-115, copiado a hub/ dentro de este mismo sitio) —
 //      colecciones: usuarios (COMPARTIDA con Reportes), checklists,
-//      inspecciones (SIG-FO-115), liberaciones (SIG-FO-101), sigfo101Config,
-//      verificaciones_transporte.
+//      inspecciones (SIG-FO-115), hisopados, liberaciones (SIG-FO-101),
+//      sigfo101Config, verificaciones_transporte.
 // Un proyecto de Firebase publica un ÚNICO archivo de reglas para TODA la
 // base de datos, así que ESTE archivo es el único que existe y el único que
 // se publica. Antes había copias "de referencia" en hub/ y hub/sig-fo-101/;
@@ -300,6 +300,33 @@ service cloud.firestore {
     match /auditoriasBpm/{claveMes} {
       allow read: if esUsuarioActivo();
       allow create, update: if esUsuarioActivo();
+      allow delete: if esGestor();
+    }
+
+    // ---- hisopados (Registro de Hisopado) ----------------------
+    // Cada documento es UNA toma de muestras. Salió de ser una sección
+    // dentro de "inspecciones" para ser su propio formato, así que sigue
+    // el mismo criterio de alcance que un recorrido: el inspector solo ve
+    // y edita los suyos, un gestor ve todos.
+    match /hisopados/{hisopadoId} {
+      allow get: if autenticado()
+        && (esGestor() || resource.data.inspectorUid == request.auth.uid);
+
+      // Firestore evalúa "list" contra el resultado potencial: si el
+      // inspector no incluye where("inspectorUid","==", su uid), la
+      // consulta entera se rechaza (ver listarHisopados en firestore.js).
+      allow list: if esGestor()
+        || (esUsuarioActivo() && resource.data.inspectorUid == request.auth.uid);
+
+      allow create: if esUsuarioActivo()
+        && request.resource.data.inspectorUid == request.auth.uid;
+
+      // El autor corrige su propio registro; un gestor corrige cualquiera.
+      // Ninguno puede cambiarle el dueño.
+      allow update: if esUsuarioActivo()
+        && (resource.data.inspectorUid == request.auth.uid || esGestor())
+        && request.resource.data.inspectorUid == resource.data.inspectorUid;
+
       allow delete: if esGestor();
     }
 

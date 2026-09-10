@@ -9,9 +9,11 @@
 //   checklists/{checklistId}/versiones/{n}    (snapshots publicados e inmutables)
 //   inspecciones/{fecha_turno_uid}             (un recorrido completo por turno)
 //   auditoriasBpm/{aaaa-mm}                    (auditoría de BPM, SIG-FO-116)
+//   hisopados/{autoId}                         (registro de hisopado)
 // =========================================================
 
 import {
+  addDoc,
   doc,
   getDoc,
   getDocs,
@@ -329,4 +331,56 @@ export async function listarAuditoriasBpm(max = 24) {
   );
   const snap = await getDocs(consulta);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/* ---------------------------------------------------------
+   Registro de hisopado
+   Antes vivía como una sección eventual dentro de cada proceso del
+   recorrido SIG-FO-115. Se separó a su propio formato porque el
+   hisopado no sigue el ritmo del recorrido: se toma cuando toca
+   muestrear, lo firma un supervisor y el resultado del laboratorio
+   puede llegar después. Cada documento es UNA toma de muestras: la
+   fecha, quién la tomó, sus muestras y —si alguna se desvió del
+   límite— las correcciones inmediatas que se aplicaron.
+   --------------------------------------------------------- */
+
+/** Guarda un registro de hisopado nuevo. Devuelve el id generado. */
+export async function crearHisopado(datos) {
+  const referencia = await addDoc(collection(db, "hisopados"), {
+    ...datos,
+    creadoEn: serverTimestamp(),
+  });
+  return referencia.id;
+}
+
+/** Obtiene un registro de hisopado por id, o null si no existe. */
+export async function obtenerHisopado(id) {
+  const snap = await getDoc(doc(db, "hisopados", id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * Lista registros de hisopado, del más reciente al más antiguo.
+ * El inspector solo puede consultar los suyos (ver firestore.rules), así
+ * que en ese caso el filtro por inspectorUid no es opcional.
+ */
+export async function listarHisopados(filtros = {}) {
+  const condiciones = [];
+  if (filtros.inspectorUid) {
+    condiciones.push(where("inspectorUid", "==", filtros.inspectorUid));
+  }
+
+  const consulta = query(
+    collection(db, "hisopados"),
+    ...condiciones,
+    orderBy("fecha", "desc"),
+    limitarA(filtros.max || 200)
+  );
+  const snap = await getDocs(consulta);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** Elimina un registro de hisopado (solo gestión, ver firestore.rules). */
+export async function eliminarHisopado(id) {
+  await deleteDoc(doc(db, "hisopados", id));
 }
