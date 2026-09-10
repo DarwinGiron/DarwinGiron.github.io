@@ -60,15 +60,9 @@
   }
   .sesion-usuario button:hover{background:rgba(255,255,255,.2);}
 
-  /* Cabecera fija: agrupa header + tabs en un solo contenedor sticky para
-     que ambos queden fijos al hacer scroll, sin pisarse entre sí. */
-  .sticky-top{
-    position:sticky;
-    top:0;
-    z-index:30;
-  }
-
-  /* Header */
+  /* Header: no es sticky — en tablet se lleva demasiado espacio fijo.
+     Se ve completo solo arriba del todo (para registrar fecha/auditor/área)
+     y se va con el scroll; lo único que queda fijo son las pestañas. */
   header.top{
     background:linear-gradient(155deg,var(--navy) 0%,var(--navy-light) 100%);
     color:#fff;
@@ -121,15 +115,22 @@
     color:var(--navy);
   }
 
-  /* Tabs */
+  /* Tabs: es lo único que queda fijo arriba al hacer scroll — el header
+     grande (sesión, marca, metadatos) se va con el contenido. */
   nav.tabs{
+    position:sticky;top:0;z-index:20;
     background:var(--surface);
     border-bottom:1px solid var(--line);
     box-shadow:0 2px 6px rgba(15,42,74,.06);
+    display:flex;align-items:center;gap:6px;
+    padding:0 8px;
+  }
+  .tabset{
+    flex:1;min-width:0;
     display:flex;overflow-x:auto;
     scrollbar-width:none;
   }
-  nav.tabs::-webkit-scrollbar{display:none;}
+  .tabset::-webkit-scrollbar{display:none;}
   nav.tabs button{
     flex:0 0 auto;
     border:none;background:transparent;
@@ -148,6 +149,21 @@
   nav.tabs button.active{color:var(--navy);border-bottom-color:var(--gold);}
   nav.tabs button.active .badge{background:var(--navy-soft);color:var(--navy);}
   nav.tabs button.complete .badge{background:var(--ok-bg);color:var(--ok);}
+
+  /* Anillo de % compacto, vive junto a las pestañas para que el avance
+     siga visible aunque el header grande ya haya salido del viewport.
+     Sube gradualmente con globalScore() — nunca salta a un valor fijo. */
+  .tabs-ring{
+    flex:0 0 auto;
+    width:30px;height:30px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:9px;font-weight:800;
+    background:conic-gradient(var(--gold) calc(var(--pct,0)*1%), var(--bg) 0);
+  }
+  .tabs-ring span{
+    background:var(--surface);width:23px;height:23px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:8.5px;color:var(--navy);
+  }
 
   /* Main */
   main{max-width:900px;margin:0 auto;padding:16px 14px 30px;}
@@ -309,40 +325,41 @@
   </div>
 </div>
 
-<div class="sticky-top">
-  <header class="top">
-    <div class="top-row">
-      <div class="brand">
-        <span class="eyebrow">COGUSA · Empresas Galindo</span>
-        <h1>Auditoría de Buenas Prácticas de Manufactura</h1>
-        <span class="sub doc-code">SIG-FO-116 · Rev. 00 · Control mensual</span>
-      </div>
-      <div class="global-chip">
-        <div class="ring" id="globalRing" style="--pct:0"><span id="globalPct">0%</span></div>
-        <div>
-          <div class="label">Cumplimiento global</div>
-          <div class="qual" id="globalQual">Sin datos</div>
-        </div>
+<header class="top">
+  <div class="top-row">
+    <div class="brand">
+      <span class="eyebrow">COGUSA · Empresas Galindo</span>
+      <h1>Auditoría de Buenas Prácticas de Manufactura</h1>
+      <span class="sub doc-code">SIG-FO-116 · Rev. 00 · Control mensual</span>
+    </div>
+    <div class="global-chip">
+      <div class="ring" id="globalRing" style="--pct:0"><span id="globalPct">0%</span></div>
+      <div>
+        <div class="label">Cumplimiento global</div>
+        <div class="qual" id="globalQual">Sin datos</div>
       </div>
     </div>
-    <div class="meta-row">
-      <div class="meta-field">
-        <label>Fecha de auditoría</label>
-        <input type="date" id="fecha">
-      </div>
-      <div class="meta-field">
-        <label>Auditor</label>
-        <input type="text" id="auditor" placeholder="Nombre del auditor">
-      </div>
-      <div class="meta-field">
-        <label>Área / línea evaluada</label>
-        <input type="text" id="area" placeholder="Ej. Corrugado, Bodega...">
-      </div>
+  </div>
+  <div class="meta-row">
+    <div class="meta-field">
+      <label>Fecha de auditoría</label>
+      <input type="date" id="fecha">
     </div>
-  </header>
+    <div class="meta-field">
+      <label>Auditor</label>
+      <input type="text" id="auditor" placeholder="Nombre del auditor">
+    </div>
+    <div class="meta-field">
+      <label>Área / línea evaluada</label>
+      <input type="text" id="area" placeholder="Ej. Corrugado, Bodega...">
+    </div>
+  </div>
+</header>
 
-  <nav class="tabs" id="tabs"></nav>
-</div>
+<nav class="tabs">
+  <div class="tabset" id="tabs"></div>
+  <div class="tabs-ring" id="tabsRing" style="--pct:0"><span id="tabsPct">0%</span></div>
+</nav>
 
 <main id="main"></main>
 

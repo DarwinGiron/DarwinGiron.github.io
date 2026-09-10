@@ -406,6 +406,12 @@ function renderHeader() {
   document.getElementById("globalRing").style.setProperty("--pct", g.pct || 0);
   document.getElementById("globalQual").textContent = q.label;
   statusEl.innerHTML = `<b>${g.answered}/${g.total}</b> respondidas`;
+
+  // Avance real (respondidas/total, no si/no), para el anillo compacto junto
+  // a las pestañas: sube según se contesta, no depende del % de cumplimiento.
+  const avance = g.total > 0 ? Math.round((g.answered / g.total) * 100) : 0;
+  document.getElementById("tabsRing").style.setProperty("--pct", avance);
+  document.getElementById("tabsPct").textContent = avance + "%";
 }
 
 function renderAll() {
