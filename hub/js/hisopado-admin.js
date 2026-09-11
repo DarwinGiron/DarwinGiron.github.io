@@ -14,6 +14,7 @@ import { protegerPagina, cerrarSesion, ROLES_GESTION, etiquetaRol } from "./auth
 import { obtenerTablaHisopado, guardarTablaHisopado } from "./firestore.js";
 import { crearModalFormulario } from "./modal-formulario.js";
 import { MESES, TABLA_SEMILLA } from "./hisopado-datos.js";
+import { mostrarBloqueError } from "./aviso-carga.js";
 import { escaparHtml, generarId, iniciales, mostrarToast } from "./utils.js";
 
 const textoUsuario = document.getElementById("texto-usuario");
@@ -42,6 +43,15 @@ protegerPagina({ rolesPermitidos: ROLES_GESTION }, async ({ user, perfil }) => {
   textoUsuario.textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;
   avatarUsuario.textContent = iniciales(nombreVisible);
 
+  cargarTabla();
+});
+
+/**
+ * Si esto falla, la pantalla NO puede quedarse en blanco: el editor y el
+ * banner de la semilla arrancan ocultos, así que un error sin bloque
+ * visible deja una página vacía sin explicación.
+ */
+async function cargarTabla() {
   try {
     estado.tabla = await obtenerTablaHisopado();
     if (!estado.tabla) {
@@ -51,9 +61,9 @@ protegerPagina({ rolesPermitidos: ROLES_GESTION }, async ({ user, perfil }) => {
     mostrarEditor();
   } catch (error) {
     console.error("No se pudo cargar la tabla de muestreo:", error);
-    mostrarToast("No se pudo cargar la tabla de muestreo.", "error");
+    mostrarBloqueError(zonaSemilla, { error, alReintentar: cargarTabla });
   }
-});
+}
 
 btnSalir.addEventListener("click", () => cerrarSesion());
 

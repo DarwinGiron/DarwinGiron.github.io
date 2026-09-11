@@ -19,6 +19,7 @@ import { protegerPagina, cerrarSesion, ROLES_GESTION, etiquetaRol } from "./auth
 import { obtenerFormatoVidrio, guardarFormatoVidrio } from "./firestore.js";
 import { crearModalFormulario } from "./modal-formulario.js";
 import { ENCABEZADO_SEMILLA, PUNTOS_SEMILLA, RIESGOS_SEMILLA } from "./vidrio-datos.js";
+import { mostrarBloqueError } from "./aviso-carga.js";
 import { escaparHtml, generarId, iniciales, mostrarToast } from "./utils.js";
 
 const PUNTOS_POR_PAGINA = 40;
@@ -51,6 +52,12 @@ protegerPagina({ rolesPermitidos: ROLES_GESTION }, async ({ user, perfil }) => {
   textoUsuario.textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;
   avatarUsuario.textContent = iniciales(nombreVisible);
 
+  cargarFormato();
+});
+
+/** Mismo criterio que en la tabla de hisopados: un error se queda escrito
+ *  en la página, nunca deja la pantalla vacía. */
+async function cargarFormato() {
   try {
     estado.formato = await obtenerFormatoVidrio();
     if (!estado.formato) {
@@ -60,9 +67,9 @@ protegerPagina({ rolesPermitidos: ROLES_GESTION }, async ({ user, perfil }) => {
     mostrarEditor();
   } catch (error) {
     console.error("No se pudo cargar el formato SIG-FO-111:", error);
-    mostrarToast("No se pudo cargar el formato.", "error");
+    mostrarBloqueError(zonaSemilla, { error, alReintentar: cargarFormato });
   }
-});
+}
 
 btnSalir.addEventListener("click", () => cerrarSesion());
 
