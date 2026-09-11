@@ -3401,13 +3401,21 @@ body.tema-hub .pie-recorrido {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* Debajo de 640px, ".nav-inferior" también está fija al mismo borde
+     inferior (con más z-index) — pegar este pie a bottom:0 lo dejaba
+     tapado por completo detrás de esa barra, Guardar y Terminar incluidos.
+     64px cubre el alto fijo de ".nav-inferior" (icono + texto + su propio
+     padding, todo en unidades fijas); el env() de aquí es el que ella
+     misma le suma en un dispositivo con muesca o barra de gestos, así que
+     hay que sumarlo también para no volver a quedar corto ahí. A partir de
+     640px ".nav-inferior" se oculta y la regla de abajo con
+     "position: sticky" reemplaza este "bottom" por completo. */
+  bottom: calc(64px + env(safe-area-inset-bottom));
   z-index: 25;
   display: flex;
   align-items: center;
   gap: var(--e4);
   padding: var(--e3) var(--e4);
-  padding-bottom: calc(var(--e3) + env(safe-area-inset-bottom));
   background: linear-gradient(160deg, var(--marino-900), var(--marino-800));
   box-shadow: 0 -4px 20px rgba(10, 31, 56, 0.25);
 }
