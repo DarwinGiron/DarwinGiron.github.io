@@ -1152,24 +1152,34 @@ function actualizarProgreso() {
  * ahora (no solo del proceso visible), calculados proceso por proceso
  * (cada uno con su propio mapa de respuestas) y sumados — así un mismo
  * aspectoId compartido entre procesos nunca se cuenta cruzado.
+ *
+ * El % es el avance real sobre el TOTAL de aspectos del recorrido (ver
+ * calcularResultado en utils.js): responder 1 de 240 con "Cumple" da
+ * ~0.4%, no 100%. Antes este total se recalculaba aquí mismo solo sobre
+ * lo ya respondido (cumple/(cumple+noCumple)), que es lo que producía el
+ * 100% engañoso con una sola respuesta.
  */
 function calcularResultadoGlobal() {
   let cumple = 0;
   let noCumple = 0;
+  let pesoTotal = 0;
+  let pesoCumplido = 0;
   for (const area of estado.areas) {
     const r = calcularResultado(respuestasDe(area.id), area.estructura, estado.version.criterios);
     cumple += r.cumple;
     noCumple += r.noCumple;
+    pesoTotal += r.pesoTotal;
+    pesoCumplido += r.pesoCumplido;
   }
   const denominador = cumple + noCumple;
-  const porcentaje = denominador > 0 ? Math.round((cumple / denominador) * 1000) / 10 : 0;
-  return { cumple, noCumple, denominador, porcentajeCumplimiento: porcentaje };
+  const porcentaje = pesoTotal > 0 ? Math.round((pesoCumplido / pesoTotal) * 1000) / 10 : 0;
+  return { cumple, noCumple, denominador, pesoTotal, pesoCumplido, porcentajeCumplimiento: porcentaje };
 }
 
 function actualizarPieYContadorGlobal() {
   const g = calcularResultadoGlobal();
   statHallazgos.textContent = String(g.noCumple);
-  statCumplimiento.textContent = g.denominador === 0 ? "—" : `${g.porcentajeCumplimiento}%`;
+  statCumplimiento.textContent = g.pesoTotal === 0 ? "—" : `${g.porcentajeCumplimiento}%`;
 
   const totalGlobal = estado.areas.reduce((n, a) => n + a.total, 0);
   const respondidosGlobal = estado.areas.reduce(
@@ -1206,6 +1216,8 @@ function construirDatosRecorrido() {
   let cumpleGlobal = 0;
   let noCumpleGlobal = 0;
   let naGlobal = 0;
+  let pesoTotalGlobal = 0;
+  let pesoCumplidoGlobal = 0;
 
   for (const area of estado.areas) {
     const datos = datosDe(area.id);
@@ -1222,15 +1234,21 @@ function construirDatosRecorrido() {
     cumpleGlobal += resultado.cumple;
     noCumpleGlobal += resultado.noCumple;
     naGlobal += resultado.na;
+    pesoTotalGlobal += resultado.pesoTotal;
+    pesoCumplidoGlobal += resultado.pesoCumplido;
   }
 
+  // Mismo criterio que calcularResultado: el % es sobre TODO el checklist
+  // (incluidos los aspectos sin responder), no solo sobre lo evaluado. Con
+  // el recorrido completo (sin pendientes) da el mismo valor de siempre.
   const denomGlobal = cumpleGlobal + noCumpleGlobal;
   const resultadoGlobal = {
     cumple: cumpleGlobal,
     noCumple: noCumpleGlobal,
     na: naGlobal,
     totalEvaluados: denomGlobal,
-    porcentajeCumplimiento: denomGlobal > 0 ? Math.round((cumpleGlobal / denomGlobal) * 1000) / 10 : 0,
+    porcentajeCumplimiento:
+      pesoTotalGlobal > 0 ? Math.round((pesoCumplidoGlobal / pesoTotalGlobal) * 1000) / 10 : 0,
   };
 
   return {
@@ -1288,17 +1306,19 @@ btnGuardar.addEventListener("click", async () => {
 
 /**
  * "Terminar": envía el recorrido COMPLETO como un solo reporte final.
- * Se bloquea si algún proceso quedó sin evaluar ningún aspecto — el
- * reporte se puede dejar incompleto en detalle, pero no con procesos
- * enteros en blanco.
+ * Se bloquea si queda CUALQUIER aspecto sin responder en cualquier
+ * proceso (no solo procesos enteros en blanco): un reporte "enviada"
+ * queda inmutable, así que un hueco que se cuele aquí se queda para
+ * siempre — incluyendo, antes de esta validación, contar como si
+ * estuviera 100% cumplido en el % del recorrido.
  */
 btnTerminar.addEventListener("click", async () => {
   if (estado.guardando) return;
 
-  const areasSinEvaluar = estado.areas.filter((a) => !tieneAlgunaRespuesta(a));
-  if (areasSinEvaluar.length > 0) {
+  const areasIncompletas = estado.areas.filter((a) => !esProcesoCompleto(a));
+  if (areasIncompletas.length > 0) {
     mostrarToast(
-      `Faltan procesos por evaluar antes de terminar: ${areasSinEvaluar
+      `Faltan aspectos por responder antes de terminar: ${areasIncompletas
         .map((a) => a.nombre)
         .join(", ")}.`,
       "error"

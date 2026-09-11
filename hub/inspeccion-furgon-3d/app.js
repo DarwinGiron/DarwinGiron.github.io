@@ -22,73 +22,22 @@ import {
   registrarProveedorSiNoExiste,
   normalizarNombreProveedor,
 } from "../js/proveedores-transporte.js";
+import {
+  preguntasBase,
+  cargarPreguntasLiberacion,
+  seccionesDelFormulario,
+  preguntasEvaluadas,
+  construirRespuestasRegistro,
+} from "../js/liberacion-checklist.js";
 
 let currentUser = null;
 let currentPerfil = null;
 
-const PART_DEFS = {
-  cabina: { label: 'Cabina, Camión y Piloto', mode: 'exterior', items: [
-    { id: 'cabina_limpia', label: 'Cabina limpia' },
-    { id: 'quinta_rueda', label: 'Quinta rueda y acople en buen estado, sin fugas' },
-    { id: 'piloto_apto', label: 'Piloto en condiciones aptas (sobrio, uniforme, identificación, EPP)' },
-  ]},
-  ext_pared_izquierda: { label: 'Pared Izquierda (exterior)', mode: 'exterior', items: [
-    { id: 'limpia', label: 'Limpia' },
-    { id: 'agujeros', label: 'Sin agujeros' },
-    { id: 'abolladuras', label: 'Sin abolladuras mayores' },
-    { id: 'cinta', label: 'Cinta reflectiva en buen estado' },
-  ]},
-  ext_pared_derecha: { label: 'Pared Derecha (exterior)', mode: 'exterior', items: [
-    { id: 'limpia', label: 'Limpia' },
-    { id: 'agujeros', label: 'Sin agujeros' },
-    { id: 'abolladuras', label: 'Sin abolladuras mayores' },
-    { id: 'cinta', label: 'Cinta reflectiva en buen estado' },
-  ]},
-  ext_techo: { label: 'Techo (exterior)', mode: 'exterior', items: [
-    { id: 'limpio', label: 'Limpio' },
-    { id: 'abolladuras', label: 'Sin abolladuras' },
-    { id: 'filtraciones', label: 'Sin señales de filtración' },
-  ]},
-  ext_puertas: { label: 'Puertas (exterior)', mode: 'exterior', items: [
-    { id: 'empaques', label: 'Empaques en buen estado' },
-    { id: 'barras', label: 'Barras y manibelas de apertura/cierre funcionan' },
-    { id: 'hermeticidad', label: 'Hermeticidad al cerrar (sin paso de contaminantes)' },
-  ]},
-  generales: { label: 'Generales (chasis, llantas, seguros)', mode: 'exterior', items: [
-    { id: 'llantas', label: 'Llantas y rines limpios' },
-    { id: 'seguros', label: 'Seguros giratorios (twist locks) trabados correctamente' },
-    { id: 'conos', label: 'Conos de seguridad presentes' },
-    { id: 'alarma', label: 'Alarma de retroceso funcional' },
-    { id: 'fumigacion', label: 'Certificado de fumigación vigente (10 días)' },
-  ]},
-  int_pared_izquierda: { label: 'Pared Izquierda (interior)', mode: 'interior', items: [
-    { id: 'plywood', label: 'Plywood sin quebraduras' },
-    { id: 'limpia', label: 'Limpia, sin humedad' },
-  ]},
-  int_pared_derecha: { label: 'Pared Derecha (interior)', mode: 'interior', items: [
-    { id: 'plywood', label: 'Plywood sin quebraduras' },
-    { id: 'limpia', label: 'Limpia, sin humedad' },
-  ]},
-  int_techo: { label: 'Techo (interior)', mode: 'interior', items: [
-    { id: 'filtracion', label: 'Sin agujeros que permitan filtración de agua' },
-    { id: 'plywood', label: 'Plywood sin quebraduras' },
-  ]},
-  int_piso: { label: 'Piso', mode: 'interior', items: [
-    { id: 'deteriorado', label: 'Piso no deteriorado' },
-    { id: 'limpio', label: 'Limpio, sin agentes contaminantes' },
-    { id: 'insectos', label: 'Libre de insectos' },
-    { id: 'olor', label: 'Sin mal olor' },
-  ]},
-  int_puertas: { label: 'Puertas (interior)', mode: 'interior', items: [
-    { id: 'empaques', label: 'Empaques en buen estado' },
-    { id: 'hermeticidad', label: 'Hermeticidad al cerrar' },
-    { id: 'plywood', label: 'Plywood sin quebraduras' },
-  ]},
-  int_frente: { label: 'Pared Frontal (interior)', mode: 'interior', items: [
-    { id: 'plywood', label: 'Plywood sin quebraduras' },
-    { id: 'limpia', label: 'Limpia, sin humedad' },
-  ]},
-};
+// Las preguntas se editan desde verificacion-transporte/admin.html (ver
+// liberacion-checklist.js). Arranca con las originales y se reemplaza al
+// iniciar sesión: por las configuradas en una inspección nueva, o por las
+// que se evaluaron en su momento al abrir una ya guardada.
+let PART_DEFS = seccionesDelFormulario(preguntasBase());
 
 const STATUS_CSS = {
   pending: { color: '#8f887c', bg: '#e4ded2', label: 'Sin evaluar' },
@@ -114,6 +63,7 @@ const state = {
   savedAt: null,
   aprobado: null,
   resultado: null,
+  avisoPreguntas: '',
 };
 
 let THREE, model, camera, controls, stageEl;
@@ -621,6 +571,14 @@ function renderPanel() {
 function renderPartsInline() {
   const wrap = document.createElement('div');
 
+  if (state.avisoPreguntas) {
+    const aviso = document.createElement('div');
+    aviso.className = 'aviso-preguntas';
+    aviso.style.cssText = 'margin-bottom:10px; padding:8px 12px; border-radius:8px; background:#fef3c7; color:#92400e; font-size:12.5px; font-weight:600;';
+    aviso.textContent = state.avisoPreguntas;
+    wrap.appendChild(aviso);
+  }
+
   const isInterior = state.viewMode === 'interior';
   const heading = document.createElement('div');
   heading.className = 'list-heading';
@@ -783,88 +741,13 @@ async function confirmSave() {
     btnGuardar.textContent = 'Guardando...';
   }
 
-  // Estructurar respuestas por zona según el esquema oficial LOG-FO-101
-  const respuestasPorZona = {
-    'pared-izquierda': {
-      nombre: 'Pared Izquierda',
-      externa: [
-        { texto: 'Limpia', valor: state.answers['ext_pared_izquierda']?.limpia || 'si' },
-        { texto: 'Sin agujeros', valor: state.answers['ext_pared_izquierda']?.agujeros || 'si' },
-        { texto: 'Sin abolladuras mayores', valor: state.answers['ext_pared_izquierda']?.abolladuras || 'si' },
-        { texto: 'Cinta reflectiva en buen estado', valor: state.answers['ext_pared_izquierda']?.cinta || 'si' },
-      ],
-      interna: [
-        { texto: 'Plywood sin quebraduras', valor: state.answers['int_pared_izquierda']?.plywood || 'si' },
-        { texto: 'Limpia, sin humedad', valor: state.answers['int_pared_izquierda']?.limpia || 'si' },
-      ],
-    },
-    'pared-derecha': {
-      nombre: 'Pared Derecha',
-      externa: [
-        { texto: 'Limpia', valor: state.answers['ext_pared_derecha']?.limpia || 'si' },
-        { texto: 'Sin agujeros', valor: state.answers['ext_pared_derecha']?.agujeros || 'si' },
-        { texto: 'Sin abolladuras mayores', valor: state.answers['ext_pared_derecha']?.abolladuras || 'si' },
-        { texto: 'Cinta reflectiva en buen estado', valor: state.answers['ext_pared_derecha']?.cinta || 'si' },
-      ],
-      interna: [
-        { texto: 'Plywood sin quebraduras', valor: state.answers['int_pared_derecha']?.plywood || 'si' },
-        { texto: 'Limpia, sin humedad', valor: state.answers['int_pared_derecha']?.limpia || 'si' },
-      ],
-    },
-    'puertas': {
-      nombre: 'Puertas',
-      externa: [
-        { texto: 'Empaques en buen estado', valor: state.answers['ext_puertas']?.empaques || 'si' },
-        { texto: 'Funcionamiento de barras y manijas de apertura y cierre', valor: state.answers['ext_puertas']?.barras || 'si' },
-        { texto: 'Hermeticidad al cerrar (evita el ingreso de contaminantes)', valor: state.answers['ext_puertas']?.hermeticidad || 'si' },
-      ],
-      interna: [
-        { texto: 'Empaques en buen estado', valor: state.answers['int_puertas']?.empaques || 'si' },
-        { texto: 'Hermeticidad al cerrar', valor: state.answers['int_puertas']?.hermeticidad || 'si' },
-        { texto: 'Plywood sin quebraduras', valor: state.answers['int_puertas']?.plywood || 'si' },
-      ],
-    },
-    'techo': {
-      nombre: 'Techo',
-      externa: [
-        { texto: 'Limpio', valor: state.answers['ext_techo']?.limpio || 'si' },
-        { texto: 'Sin abolladuras', valor: state.answers['ext_techo']?.abolladuras || 'si' },
-        { texto: 'Sin señales de filtración', valor: state.answers['ext_techo']?.filtraciones || 'si' },
-      ],
-      interna: [
-        { texto: 'Sin agujeros que permitan filtración de agua', valor: state.answers['int_techo']?.filtracion || 'si' },
-        { texto: 'Plywood sin quebraduras', valor: state.answers['int_techo']?.plywood || 'si' },
-      ],
-    },
-    'generales': {
-      nombre: 'Generales / Piso',
-      externa: [
-        { texto: 'Llantas y rines limpios', valor: state.answers['generales']?.llantas || 'si' },
-        { texto: 'Seguros giratorios (twist locks) trabados correctamente', valor: state.answers['generales']?.seguros || 'si' },
-        { texto: 'Conos de seguridad presentes', valor: state.answers['generales']?.conos || 'si' },
-        { texto: 'Alarma de retroceso funcional', valor: state.answers['generales']?.alarma || 'si' },
-        { texto: 'Certificado de fumigación vigente (10 días)', valor: state.answers['generales']?.fumigacion || 'si' },
-      ],
-      interna: [
-        { texto: 'Piso no deteriorado', valor: state.answers['int_piso']?.deteriorado || 'si' },
-        { texto: 'Limpio, sin agentes contaminantes', valor: state.answers['int_piso']?.limpio || 'si' },
-        { texto: 'Libre de insectos', valor: state.answers['int_piso']?.insectos || 'si' },
-        { texto: 'Sin mal olor', valor: state.answers['int_piso']?.olor || 'si' },
-      ],
-    },
-  };
-
-  const respuestasCabinaFinal = [
-    { texto: 'Cabina limpia', valor: state.answers['cabina']?.cabina_limpia || 'si' },
-    { texto: 'Quinta rueda y acople en buen estado, sin fugas', valor: state.answers['cabina']?.quinta_rueda || 'si' },
-    { texto: 'Piloto en condiciones aptas (sobrio, uniforme, identificación, EPP)', valor: state.answers['cabina']?.piloto_apto || 'si' },
-    // Pared Frontal (interior) — antes se perdía por completo al guardar:
-    // se evaluaba en el visor 3D (int_frente) pero nunca se incluía en el
-    // registro, así que una falla ahí no bajaba la calificación ni el
-    // resultado Aprobado/Rechazado.
-    { texto: 'Pared frontal: plywood sin quebraduras', valor: state.answers['int_frente']?.plywood || 'si' },
-    { texto: 'Pared frontal: limpia, sin humedad', valor: state.answers['int_frente']?.limpia || 'si' },
-  ];
+  // Estructurar respuestas por zona según el esquema oficial LOG-FO-101,
+  // con las preguntas que se evaluaron en ESTA inspección (ver
+  // liberacion-checklist.js). La Pared Frontal (interior) va dentro de
+  // respuestasCabina: antes se perdía al guardar y una falla ahí no
+  // bajaba la calificación.
+  const { respuestasPorZona, respuestasCabina: respuestasCabinaFinal } =
+    construirRespuestasRegistro(PART_DEFS, state.answers);
 
   let totalPuntos = 0, puntosCumplidos = 0;
   Object.values(respuestasPorZona).forEach((z) => {
@@ -920,6 +803,9 @@ async function confirmSave() {
     respuestasPorZona,
     respuestasCabina: respuestasCabinaFinal,
     answers: state.answers,
+    // Copia de las preguntas tal como estaban al inspeccionar: si luego se
+    // editan desde el admin, este registro se sigue abriendo con las suyas.
+    preguntasEvaluadas: preguntasEvaluadas(PART_DEFS),
     statuses: Object.fromEntries(allIds.map((p) => [p, partStatus(p)])),
     // Las fotos NO se guardan en Firestore: van como data URL en base64
     // (varios cientos de KB a varios MB cada una) y un documento de
@@ -1049,6 +935,11 @@ async function cargarInspeccionExistente(docId) {
       if (d.answers && typeof d.answers === 'object') {
         state.answers = d.answers;
       }
+      // Los registros anteriores a las preguntas editables no traen copia:
+      // se evaluaron con las originales, que son las del arranque.
+      if (d.preguntasEvaluadas && typeof d.preguntasEvaluadas === 'object') {
+        PART_DEFS = seccionesDelFormulario(d.preguntasEvaluadas);
+      }
 
       state.saved = true;
       state.savedAt = d.fechaCreacion?.toDate?.() || (d.fecha ? new Date(d.fecha + 'T12:00:00') : new Date());
@@ -1096,6 +987,23 @@ protegerPagina({}, async ({ user, perfil }) => {
   if (idVer) {
     await cargarInspeccionExistente(idVer);
   } else {
+    await cargarPreguntasConfiguradas();
     renderAll();
   }
 });
+
+/**
+ * Trae las preguntas vigentes. Si la lectura falla (sin señal, por
+ * ejemplo) no se bloquea la inspección: sigue con las originales, pero
+ * lo avisa arriba del listado para que no pase desapercibido.
+ */
+async function cargarPreguntasConfiguradas() {
+  try {
+    const { preguntas } = await cargarPreguntasLiberacion();
+    PART_DEFS = seccionesDelFormulario(preguntas);
+    state.avisoPreguntas = '';
+  } catch (err) {
+    console.error('No se pudieron cargar las preguntas configuradas:', err);
+    state.avisoPreguntas = 'No se pudieron cargar las preguntas actualizadas; se muestran las originales del formato. Recarga la página cuando tengas conexión.';
+  }
+}

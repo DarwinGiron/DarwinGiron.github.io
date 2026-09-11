@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <script src="/js/tema-horario.js"></script>
+  <base href="/hub/sig-fo-116/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Configurar SIG-FO-116 · SGI</title>
+  <link rel="stylesheet" href="/css/estilos.css" />
+  <style>
+    /* Cada sección es un <details> plegable — con 119 preguntas en 6
+       secciones, mostrarlas todas abiertas de una vez sería muy largo
+       para desplazarse en tablet. */
+    .bpm-seccion { margin-bottom: var(--e3); }
+    .bpm-seccion > summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--e3);
+      padding: var(--e3) var(--e4);
+    }
+    .bpm-seccion > summary::-webkit-details-marker { display: none; }
+    .bpm-seccion > summary::before {
+      content: "▸";
+      display: inline-block;
+      margin-right: var(--e2);
+      transition: transform .15s ease;
+      color: var(--tinta-3);
+    }
+    .bpm-seccion[open] > summary::before { transform: rotate(90deg); }
+    .bpm-grupo-titulo {
+      font-weight: 800;
+      font-size: var(--txt-sm);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--tinta-3);
+      margin: var(--e4) var(--e4) var(--e2);
+    }
+    .bpm-grupo-titulo:first-of-type { margin-top: 0; }
+  </style>
+</head>
+<body class="tema-hub">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="../index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">PPR</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Configurar SIG-FO-116</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <div class="app-header__acciones">
+        <span class="avatar avatar--claro avatar--sm" id="avatar-usuario" aria-hidden="true">—</span>
+        <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <a href="../configuraciones.html" class="btn btn-secundario btn-sm btn-ancho-auto mb-2">
+        ← Volver a Configuraciones
+      </a>
+
+      <div class="flex-entre mb-2">
+        <div>
+          <h1 style="font-size: var(--txt-xl); font-weight: 800; color: var(--tinta);">Preguntas de Auditoría de BPM</h1>
+          <p class="texto-suave texto-sm mb-0">Agrega, edita, ordena o desactiva las preguntas de cada sección del SIG-FO-116.</p>
+        </div>
+        <button type="button" id="btn-restaurar" class="btn btn-secundario btn-sm btn-ancho-auto oculto">
+          Restaurar originales
+        </button>
+      </div>
+
+      <section id="zona-error" class="oculto"></section>
+
+      <section class="tarjeta mb-2">
+        <h2 class="tarjeta__titulo">Cómo se responde</h2>
+        <p class="texto-sm mb-0">
+          Cada pregunta se contesta <strong>Sí</strong>, <strong>No</strong> o <strong>N/A</strong> (no aplica).
+          El % de cada sección es <em>Sí / (Sí + No)</em> — un "N/A" ni suma ni resta. Las secciones y sus grupos
+          (Personal, Instalaciones, Baños…) son fijos; lo que se edita aquí son las preguntas dentro de cada uno.
+        </p>
+      </section>
+
+      <div id="lista-preguntas-admin">
+        <section class="tarjeta">
+          <div class="esqueleto esqueleto-fila"></div>
+          <div class="esqueleto esqueleto-fila"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="modal-fondo" class="modal-fondo oculto">
+    <div class="modal-caja">
+      <div class="modal-caja__cabecera">
+        <h3 id="modal-titulo" style="margin:0;">Pregunta de auditoría</h3>
+        <button type="button" id="btn-cerrar-modal" class="btn btn-icono btn-secundario">✕</button>
+      </div>
+      <form id="form-modal"></form>
+    </div>
+  </div>
+
+  <script type="module" src="/hub/js/bpm-admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <script src="/js/tema-horario.js"></script>
+  <base href="/hub/hisopado/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Resultados de Hisopado · SGI</title>
+  <link rel="stylesheet" href="/css/estilos.css" />
+</head>
+<body class="tema-hub">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="../index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">PPR</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Resultados de Hisopado</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <div class="app-header__acciones">
+        <a href="historial.html" class="btn btn-texto btn-sm">Historial</a>
+        <span class="avatar avatar--claro avatar--sm" id="avatar-usuario" aria-hidden="true">—</span>
+        <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <a href="../index.html" class="btn btn-secundario btn-sm btn-ancho-auto mb-2">
+        ← Volver al inicio
+      </a>
+
+      <div class="flex-entre mb-2" style="flex-wrap: wrap; gap: var(--e2);">
+        <div>
+          <h1 style="font-size: var(--txt-xl); font-weight: 800; color: var(--tinta); margin: 0;">Tabla de Resultados</h1>
+          <p class="texto-suave texto-sm mb-0">Cada superficie contra el límite de su tipo, mes a mes.</p>
+        </div>
+        <div class="campo mb-0" style="min-width: 140px;">
+          <label for="campo-anio">Año</label>
+          <select id="campo-anio"></select>
+        </div>
+      </div>
+
+      <div class="flex-entre mb-2" style="flex-wrap: wrap; gap: var(--e3); font-size: var(--txt-xs);">
+        <span><span class="valor-resultado valor-resultado--conforme">RLU</span> Conforme</span>
+        <span><span class="valor-resultado valor-resultado--fuera">RLU</span> Fuera del límite</span>
+        <span><span class="valor-resultado valor-resultado--pendiente">·</span> Programada, sin registrar</span>
+        <span><span class="valor-resultado valor-resultado--vacio">—</span> No programada ese mes</span>
+      </div>
+
+      <section id="zona-mensaje" class="tarjeta oculto"></section>
+
+      <div id="zona-tabla" class="tabla-scroll oculto">
+        <table class="tabla-muestreo" id="tabla-resultados"></table>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="/hub/js/hisopado-resultados.js"></script>
+</body>
+</html>

@@ -114,11 +114,22 @@ export function filtrarEstructuraPorArea(secciones, areaId) {
  * Calcula el resultado de una inspección a partir de las respuestas dadas
  * y la estructura de secciones/aspectos de la versión del checklist usada.
  *
+ * El % de cumplimiento es el avance REAL sobre TODO lo que se le muestra al
+ * inspector, no solo sobre lo que ya respondió: un aspecto sin responder
+ * cuenta en el total pero no en lo cumplido (no se da por cumplido hasta
+ * que se marca "Cumple"), y uno marcado "No cumple" nunca suma. Así,
+ * responder 1 de 240 aspectos con "Cumple" da ~0.4%, no 100%. Un aspecto
+ * marcado "No aplica" se excluye por completo (ni resta ni suma), como es
+ * costumbre en auditorías. Cuando ya no queda ningún pendiente, este %
+ * coincide exactamente con el que se calculaba antes (solo sobre lo
+ * evaluado) — un recorrido ya completado no cambia de valor.
+ *
  * @param {Object} respuestas - mapa aspectoId -> { valor: 'cumple'|'no_cumple'|'na', observacion }
  * @param {Array} secciones - secciones[].aspectos[] de la versión del checklist
  * @param {Array} criterios - criterios[] con { valor, puntua }
  * @returns {{ totalEvaluados:number, cumple:number, noCumple:number, na:number,
- *             puntajePonderado:number, porcentajeCumplimiento:number, pendientes:number }}
+ *             pendientes:number, pesoTotal:number, pesoCumplido:number,
+ *             puntajePonderado:number, porcentajeCumplimiento:number }}
  */
 export function calcularResultado(respuestas, secciones, criterios) {
   const puntuables = new Set(
@@ -129,7 +140,7 @@ export function calcularResultado(respuestas, secciones, criterios) {
   let noCumple = 0;
   let na = 0;
   let pendientes = 0;
-  let pesoEvaluado = 0;
+  let pesoTotal = 0; // todo lo puntuable del checklist visible, salvo lo marcado "No aplica"
   let pesoCumplido = 0;
 
   for (const seccion of secciones) {
@@ -138,7 +149,10 @@ export function calcularResultado(respuestas, secciones, criterios) {
       const peso = typeof aspecto.peso === "number" ? aspecto.peso : 1;
 
       if (!respuesta || !respuesta.valor) {
+        // Sin responder todavía: cuenta en el total (pendiente de cumplir),
+        // no en lo cumplido. No se sabe aún si terminará en "No aplica".
         pendientes += 1;
+        pesoTotal += peso;
         continue;
       }
       if (respuesta.valor === "na") {
@@ -152,7 +166,7 @@ export function calcularResultado(respuestas, secciones, criterios) {
       }
 
       if (puntuables.has(respuesta.valor)) {
-        pesoEvaluado += peso;
+        pesoTotal += peso;
         if (respuesta.valor === "cumple") {
           pesoCumplido += peso;
         }
@@ -162,7 +176,7 @@ export function calcularResultado(respuestas, secciones, criterios) {
 
   const totalEvaluados = cumple + noCumple;
   const porcentajeCumplimiento =
-    pesoEvaluado > 0 ? Math.round((pesoCumplido / pesoEvaluado) * 1000) / 10 : 0;
+    pesoTotal > 0 ? Math.round((pesoCumplido / pesoTotal) * 1000) / 10 : 0;
 
   return {
     totalEvaluados,
@@ -170,6 +184,8 @@ export function calcularResultado(respuestas, secciones, criterios) {
     noCumple,
     na,
     pendientes,
+    pesoTotal,
+    pesoCumplido,
     puntajePonderado: porcentajeCumplimiento,
     porcentajeCumplimiento,
   };

@@ -20,6 +20,7 @@
         </div>
       </div>
       <div class="app-header__acciones">
+        <a href="resultados.html" class="btn btn-texto btn-sm">Resultados</a>
         <a href="historial.html" class="btn btn-texto btn-sm">Historial</a>
         <span class="avatar avatar--claro avatar--sm" id="avatar-usuario" aria-hidden="true">—</span>
         <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
@@ -32,8 +33,7 @@
       </a>
 
       <section class="tarjeta">
-        <h2 class="tarjeta__titulo">Datos de la toma</h2>
-        <div class="campos-fila">
+        <div class="campos-fila mb-2">
           <div class="campo">
             <label for="campo-fecha">Fecha</label>
             <input type="date" id="campo-fecha" />
@@ -47,46 +47,52 @@
             </select>
           </div>
         </div>
-      </section>
 
-      <section class="tarjeta">
-        <h2 class="tarjeta__titulo">Análisis</h2>
-        <p class="texto-suave texto-sm">
-          Un registro por análisis. Elige la superficie y el límite se aplica
-          solo, según la tabla de muestreo SIG-TA-102.
-        </p>
-        <div class="campo">
-          <label for="campo-superficie">Superficie</label>
-          <select id="campo-superficie"></select>
+        <div class="campo campo--autocompletar mb-2">
+          <div class="campo__cabecera">
+            <label for="campo-area-maquina">Área o máquina</label>
+            <span id="badge-area-maquina" class="badge oculto"></span>
+          </div>
+          <input type="text" id="campo-area-maquina" autocomplete="off" placeholder="Ej. JS15, CORRUGACIÓN, BOTTOM PADS, LOGISTICA" />
+          <div id="sugerencias-area-maquina" class="sugerencias-dropdown oculto" role="listbox"></div>
         </div>
-        <div class="campo">
-          <label for="campo-supervisor">Supervisor</label>
-          <input
-            type="text"
-            id="campo-supervisor"
-            list="lista-supervisores"
-            autocomplete="off"
-            placeholder="Escribe o elige de la lista"
-          />
+
+        <div class="campos-fila mb-2">
+          <div class="campo">
+            <label for="campo-superficie">Superficie</label>
+            <select id="campo-superficie"></select>
+          </div>
+          <div class="campo">
+            <label for="campo-resultado">Resultado (RLU)</label>
+            <input type="number" inputmode="decimal" id="campo-resultado" placeholder="Ej. 220" />
+          </div>
         </div>
-        <div class="campo">
-          <label for="campo-resultado">Resultado (RLU)</label>
-          <input type="number" inputmode="decimal" id="campo-resultado" placeholder="Ej. 220" />
+
+        <div class="campo campo--autocompletar mb-2">
+          <div class="campo__cabecera">
+            <label for="campo-supervisor">Supervisor</label>
+            <span id="badge-supervisor" class="badge oculto"></span>
+          </div>
+          <input type="text" id="campo-supervisor" autocomplete="off" placeholder="Escribe el nombre del supervisor" />
+          <div id="sugerencias-supervisor" class="sugerencias-dropdown oculto" role="listbox"></div>
         </div>
+
         <p class="texto-suave texto-sm mb-0" id="veredicto">Elige una superficie para ver su límite.</p>
       </section>
 
       <section class="tarjeta" id="tarjeta-observaciones">
-        <h2 class="tarjeta__titulo">Observaciones</h2>
+        <div class="flex-entre mb-1">
+          <h2 class="tarjeta__titulo mb-0">Observaciones</h2>
+        </div>
         <p class="texto-suave texto-sm" id="ayuda-observaciones">
           Qué acciones inmediatas se realizaron y cualquier otra nota de la toma.
         </p>
-        <div class="campo">
-          <label for="campo-observaciones">Acciones inmediatas realizadas y observaciones</label>
+        <div class="campo mb-0">
           <textarea
             id="campo-observaciones"
-            rows="4"
-            placeholder="Ej. Se relavó la banda con solución clorada y se volvió a hisopar."
+            rows="3"
+            aria-label="Acciones inmediatas realizadas y observaciones"
+            placeholder="Ej. Se mandó a lavar las manos al personal, se volvío a lavar el rodillo, etc..."
           ></textarea>
         </div>
       </section>
@@ -96,8 +102,6 @@
       </button>
     </main>
   </div>
-
-  <datalist id="lista-supervisores"></datalist>
 
   <script type="module" src="/hub/js/hisopado.js"></script>
 </body>

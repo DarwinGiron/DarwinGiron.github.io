@@ -54,8 +54,8 @@ filtroBusqueda.addEventListener("input", renderizar);
 /** Texto donde busca el filtro: todo lo que el usuario podría teclear de memoria. */
 function textoBuscable(registro) {
   return `${registro.zonaNombre || ""} ${registro.tipoNombre || ""} ${
-    registro.supervisor || ""
-  } ${registro.inspectorNombre || ""} ${registro.resultado}`.toLowerCase();
+    registro.areaMaquina || ""
+  } ${registro.supervisor || ""} ${registro.inspectorNombre || ""} ${registro.resultado}`.toLowerCase();
 }
 
 function renderizar() {
@@ -112,6 +112,11 @@ function tarjetaDe(registro) {
         ${escaparHtml(registro.inspectorNombre || "—")}
       </p>
       <div class="texto-suave texto-sm">Tipo: ${escaparHtml(registro.tipoNombre || "—")}</div>
+      ${
+        registro.areaMaquina
+          ? `<div class="texto-suave texto-sm">Área/Máquina: ${escaparHtml(registro.areaMaquina)}</div>`
+          : ""
+      }
       <div class="texto-suave texto-sm">Supervisor: ${escaparHtml(registro.supervisor || "—")}</div>
       <div class="texto-suave texto-sm">Límite: ${escaparHtml(textoLimiteRegistro(registro))}</div>
       <div class="texto-suave texto-sm">Resultado: ${escaparHtml(

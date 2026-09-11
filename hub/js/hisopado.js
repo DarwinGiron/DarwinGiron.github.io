@@ -7,17 +7,21 @@
 // ritmo del recorrido: se hisopa cuando toca muestrear, lo acompaña un
 // supervisor y el resultado del laboratorio puede llegar después.
 //
-// Se captura lo mismo que la fila del formato en papel: SUPERFICIE,
-// SUPERVISOR, LÍMITE y RESULTADO. De esos cuatro solo dos se escriben —
-// el límite sale de la tabla de muestreo SIG-TA-102 al elegir la
-// superficie (ver hisopado/admin.html), y la desviación se calcula
+// Se captura lo mismo que la fila del formato en papel: ÁREA/MÁQUINA,
+// SUPERFICIE, SUPERVISOR, LÍMITE y RESULTADO. De esos cinco solo tres se
+// escriben — el límite sale de la tabla de muestreo SIG-TA-102 al elegir
+// la superficie (ver hisopado/admin.html), y la desviación se calcula
 // comparando el resultado en RLU contra ese rango, así que nadie puede
 // guardar un valor fuera de rango como si fuera conforme.
 //
-// El supervisor es un campo de texto con búsqueda sobre los ya
-// registrados (mismo trato que el proveedor en la verificación de
-// transporte): se escribe, se autocompleta, y si es nuevo se da de alta
-// solo al guardar.
+// Área/Máquina y Supervisor son campos de texto con búsqueda sobre lo ya
+// registrado (mismo widget que el proveedor en Liberación de
+// Contenedores, ver autocompletado.js): se escribe, aparece el
+// desplegable con las coincidencias y un badge que dice si ya está
+// registrado o si es nuevo, y si es nuevo se da de alta solo al guardar.
+// "Área/Máquina" es el contexto más amplio de dónde se hisopó (ej. "Línea
+// 3"); "Superficie" es el punto puntual de la tabla de muestreo (ej.
+// "Manos Alimentadores") — son cosas distintas, así que van por separado.
 //
 // Un documento = UN análisis: una superficie, en un turno, en una fecha.
 // Esa combinación es el id del documento, así que el mismo turno no puede
@@ -28,11 +32,17 @@ import { protegerPagina, cerrarSesion, etiquetaRol } from "./auth.js";
 import { crearHisopado, obtenerTablaHisopado } from "./firestore.js";
 import { evaluarResultado, textoLimite, zonasConLimite } from "./hisopado-datos.js";
 import {
-  llenarDatalistSupervisores,
+  configurarAutocompletadoSupervisor,
   normalizarNombreSupervisor,
   obtenerCatalogoSupervisores,
   registrarSupervisorSiNoExiste,
 } from "./supervisores.js";
+import {
+  configurarAutocompletadoAreaMaquina,
+  normalizarNombreAreaMaquina,
+  obtenerCatalogoAreasMaquina,
+  registrarAreaMaquinaSiNoExiste,
+} from "./areas-maquina.js";
 import { escaparHtml, fechaHoyISO, iniciales, mostrarToast } from "./utils.js";
 
 const textoUsuario = document.getElementById("texto-usuario");
@@ -41,6 +51,7 @@ const btnSalir = document.getElementById("btn-salir");
 
 const campoFecha = document.getElementById("campo-fecha");
 const campoTurno = document.getElementById("campo-turno");
+const campoAreaMaquina = document.getElementById("campo-area-maquina");
 const campoSuperficie = document.getElementById("campo-superficie");
 const campoSupervisor = document.getElementById("campo-supervisor");
 const campoResultado = document.getElementById("campo-resultado");
@@ -49,14 +60,16 @@ const campoObservaciones = document.getElementById("campo-observaciones");
 const veredicto = document.getElementById("veredicto");
 const tarjetaObservaciones = document.getElementById("tarjeta-observaciones");
 const ayudaObservaciones = document.getElementById("ayuda-observaciones");
-const datalistSupervisores = document.getElementById("lista-supervisores");
+const badgeAreaMaquina = document.getElementById("badge-area-maquina");
+const sugerenciasAreaMaquina = document.getElementById("sugerencias-area-maquina");
+const badgeSupervisor = document.getElementById("badge-supervisor");
+const sugerenciasSupervisor = document.getElementById("sugerencias-supervisor");
 const btnGuardar = document.getElementById("btn-guardar");
 
 const estado = {
   usuario: null,
   perfil: null,
   zonas: [],
-  catalogoSupervisores: null,
 };
 
 protegerPagina({}, async ({ user, perfil }) => {
@@ -77,13 +90,16 @@ protegerPagina({}, async ({ user, perfil }) => {
   }
 
   llenarSuperficies();
-
-  try {
-    estado.catalogoSupervisores = await obtenerCatalogoSupervisores();
-    llenarDatalistSupervisores(datalistSupervisores, estado.catalogoSupervisores);
-  } catch (error) {
-    console.warn("Sin catálogo de supervisores:", error);
-  }
+  configurarAutocompletadoAreaMaquina({
+    inputEl: campoAreaMaquina,
+    dropdownEl: sugerenciasAreaMaquina,
+    badgeEl: badgeAreaMaquina,
+  });
+  configurarAutocompletadoSupervisor({
+    inputEl: campoSupervisor,
+    dropdownEl: sugerenciasSupervisor,
+    badgeEl: badgeSupervisor,
+  });
 
   pintarVeredicto();
 });
@@ -153,15 +169,6 @@ function actualizarObservaciones(fueraDelLimite) {
 campoSuperficie.addEventListener("change", pintarVeredicto);
 campoResultado.addEventListener("input", pintarVeredicto);
 
-// Al salir del campo se deja el nombre tal como ya está registrado, para no
-// acabar con tres variantes del mismo supervisor.
-campoSupervisor.addEventListener("blur", () => {
-  campoSupervisor.value = normalizarNombreSupervisor(
-    campoSupervisor.value,
-    estado.catalogoSupervisores
-  );
-});
-
 /* ---------------------------------------------------------
    Guardado
    --------------------------------------------------------- */
@@ -171,13 +178,27 @@ btnGuardar.addEventListener("click", async () => {
   const turno = Number(campoTurno.value);
   const zona = zonaElegida();
   const observaciones = campoObservaciones.value.trim();
+  // El widget de autocompletado ya normaliza al salir del campo (ver
+  // autocompletado.js), pero se vuelve a normalizar aquí por si se guarda
+  // sin haber salido del campo (p. ej. con el teclado numérico abierto en
+  // otro campo, sin foco perdido) — el catálogo ya está en caché, así que
+  // no cuesta una lectura nueva a Firestore.
+  const areaMaquina = normalizarNombreAreaMaquina(
+    campoAreaMaquina.value,
+    await obtenerCatalogoAreasMaquina()
+  );
   const supervisor = normalizarNombreSupervisor(
     campoSupervisor.value,
-    estado.catalogoSupervisores
+    await obtenerCatalogoSupervisores()
   );
 
   if (!fecha) {
     mostrarToast("Indica la fecha de la toma.", "alerta");
+    return;
+  }
+  if (!areaMaquina) {
+    mostrarToast("Indica el área o máquina donde se tomó la muestra.", "alerta");
+    campoAreaMaquina.focus();
     return;
   }
   if (!zona) {
@@ -209,8 +230,9 @@ btnGuardar.addEventListener("click", async () => {
   btnGuardar.textContent = "Guardando…";
 
   try {
-    // Los supervisores nuevos se dan de alta aquí, no en una pantalla
-    // aparte: la lista crece con el uso.
+    // Las áreas/máquinas y los supervisores nuevos se dan de alta aquí, no
+    // en una pantalla aparte: la lista crece con el uso.
+    await registrarAreaMaquinaSiNoExiste(areaMaquina, estado.usuario.uid);
     await registrarSupervisorSiNoExiste(supervisor, estado.usuario.uid);
 
     // El límite se congela en el registro: si mañana cambia la tabla, el
@@ -218,6 +240,7 @@ btnGuardar.addEventListener("click", async () => {
     await crearHisopado({
       fecha,
       turno,
+      areaMaquina,
       zonaId: zona.id,
       zonaNombre: zona.nombre,
       tipoNombre: zona.tipoNombre,

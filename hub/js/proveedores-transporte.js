@@ -2,6 +2,11 @@
 // proveedores-transporte.js
 // Catálogo, normalización de mayúsculas/minúsculas y buscador/autocompletado
 // en tiempo real para proveedores y empresas de transporte (LOG-FO-101).
+//
+// El desplegable de sugerencias + badge "Registrado"/"Nuevo" es genérico
+// (ver autocompletado.js) — el mismo widget lo usa supervisores.js para
+// los supervisores de hisopado. Aquí solo se le pasan las funciones de
+// este catálogo en particular.
 // =========================================================
 
 import { db } from "./firebase-config.js";
@@ -11,6 +16,7 @@ import {
   addDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { configurarAutocompletado } from "./autocompletado.js";
 
 export const COLEC_PROVEEDORES = "proveedores_transporte";
 
@@ -156,175 +162,23 @@ export async function registrarProveedorSiNoExiste(nombreRaw, usuarioUid = "") {
 /**
  * Configura el buscador con autocompletado en tiempo real en el input de Empresa/Transporte.
  */
-export function configurarAutocompletadoProveedor({
-  inputEl,
-  dropdownEl,
-  badgeEl,
-  onSeleccion,
-}) {
-  if (!inputEl || !dropdownEl) return;
-
-  let catalogo = { mapa: new Map(), lista: [...PROVEEDORES_INICIALES] };
-  let itemActivoIndex = -1;
-
-  // Cargar catálogo asíncrono
-  obtenerCatalogoProveedores().then((cat) => {
-    catalogo = cat;
-    if (inputEl.value) {
-      inputEl.value = normalizarNombreProveedor(inputEl.value, catalogo);
-      actualizarBadge();
-    }
+export function configurarAutocompletadoProveedor({ inputEl, dropdownEl, badgeEl, onSeleccion }) {
+  configurarAutocompletado({
+    inputEl,
+    dropdownEl,
+    badgeEl,
+    onSeleccion,
+    obtenerCatalogo: obtenerCatalogoProveedores,
+    normalizarClave: normalizarClaveProveedor,
+    normalizarNombre: normalizarNombreProveedor,
+    nombreEntidad: "proveedor",
+    etiquetaRegistrado: (nombre) => `Registrado: ${nombre}`,
+    etiquetaNuevo: "Nuevo proveedor",
+    catalogoInicial: { mapa: new Map(), lista: [...PROVEEDORES_INICIALES] },
+    // Este formulario (inspeccion-furgon-3d/index.html) no usa el tema-hub
+    // compartido: trae su propio CSS local con estas clases exactas.
+    claseBadgeBase: "badge-proveedor",
+    claseBadgeRegistrado: "badge-proveedor badge-proveedor--existente",
+    claseBadgeNuevo: "badge-proveedor badge-proveedor--nuevo",
   });
-
-  function actualizarBadge() {
-    if (!badgeEl) return;
-    const val = inputEl.value.trim();
-    if (!val) {
-      badgeEl.className = "badge-proveedor oculto";
-      badgeEl.textContent = "";
-      return;
-    }
-
-    const clave = normalizarClaveProveedor(val);
-    if (catalogo.mapa.has(clave)) {
-      const canonico = catalogo.mapa.get(clave);
-      badgeEl.className = "badge-proveedor badge-proveedor--existente";
-      badgeEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;"><path d="M20 6 9 17l-5-5"/></svg> Registrado: ${canonico}`;
-    } else {
-      badgeEl.className = "badge-proveedor badge-proveedor--nuevo";
-      badgeEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nuevo proveedor`;
-    }
-  }
-
-  function renderSugerencias(filtro = "") {
-    const terminoClave = normalizarClaveProveedor(filtro);
-    const coincidencias = catalogo.lista.filter((p) => {
-      if (!terminoClave) return true;
-      return normalizarClaveProveedor(p).includes(terminoClave);
-    });
-
-    dropdownEl.innerHTML = "";
-    itemActivoIndex = -1;
-
-    if (coincidencias.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "sugerencia-item sugerencia-item--aviso";
-      empty.innerHTML = `<span>No existe aún <strong>"${filtro.toUpperCase()}"</strong> · Se registrará como nuevo proveedor</span>`;
-      dropdownEl.appendChild(empty);
-      dropdownEl.classList.remove("oculto");
-      return;
-    }
-
-    const header = document.createElement("div");
-    header.className = "sugerencias-header";
-    header.textContent = `Proveedores registrados (${coincidencias.length})`;
-    dropdownEl.appendChild(header);
-
-    coincidencias.forEach((p, idx) => {
-      const row = document.createElement("div");
-      row.className = "sugerencia-item";
-      row.setAttribute("role", "option");
-      row.dataset.index = idx;
-      row.dataset.value = p;
-
-      if (terminoClave) {
-        const regex = new RegExp(`(${terminoClave.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
-        const html = p.replace(regex, "<mark class='mark-resaltado'>$1</mark>");
-        row.innerHTML = `<span class="sugerencia-nombre">${html}</span><span class="sugerencia-icono">↵</span>`;
-      } else {
-        row.innerHTML = `<span class="sugerencia-nombre">${p}</span>`;
-      }
-
-      row.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        seleccionarProveedor(p);
-      });
-
-      dropdownEl.appendChild(row);
-    });
-
-    dropdownEl.classList.remove("oculto");
-  }
-
-  function seleccionarProveedor(nombre) {
-    const canonico = normalizarNombreProveedor(nombre, catalogo);
-    inputEl.value = canonico;
-    cerrarDropdown();
-    actualizarBadge();
-    if (typeof onSeleccion === "function") {
-      onSeleccion(canonico);
-    }
-  }
-
-  function cerrarDropdown() {
-    dropdownEl.classList.add("oculto");
-    dropdownEl.innerHTML = "";
-    itemActivoIndex = -1;
-  }
-
-  inputEl.addEventListener("input", (e) => {
-    const val = e.target.value;
-    actualizarBadge();
-    renderSugerencias(val);
-  });
-
-  inputEl.addEventListener("focus", () => {
-    renderSugerencias(inputEl.value);
-  });
-
-  inputEl.addEventListener("blur", () => {
-    setTimeout(() => {
-      cerrarDropdown();
-      if (inputEl.value.trim()) {
-        const canonico = normalizarNombreProveedor(inputEl.value, catalogo);
-        inputEl.value = canonico;
-        actualizarBadge();
-        if (typeof onSeleccion === "function") {
-          onSeleccion(canonico);
-        }
-      } else {
-        actualizarBadge();
-      }
-    }, 150);
-  });
-
-  inputEl.addEventListener("keydown", (e) => {
-    const items = dropdownEl.querySelectorAll(".sugerencia-item:not(.sugerencia-item--aviso)");
-    if (!items.length || dropdownEl.classList.contains("oculto")) {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        inputEl.blur();
-      }
-      return;
-    }
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      itemActivoIndex = (itemActivoIndex + 1) % items.length;
-      resaltarItem(items);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      itemActivoIndex = (itemActivoIndex - 1 + items.length) % items.length;
-      resaltarItem(items);
-    } else if (e.key === "Enter" || e.key === "Tab") {
-      if (itemActivoIndex >= 0 && items[itemActivoIndex]) {
-        e.preventDefault();
-        seleccionarProveedor(items[itemActivoIndex].dataset.value);
-      } else if (items.length > 0) {
-        e.preventDefault();
-        seleccionarProveedor(items[0].dataset.value);
-      }
-    } else if (e.key === "Escape") {
-      cerrarDropdown();
-    }
-  });
-
-  function resaltarItem(items) {
-    items.forEach((it, idx) => {
-      it.classList.toggle("sugerencia-item--seleccionado", idx === itemActivoIndex);
-      if (idx === itemActivoIndex) {
-        it.scrollIntoView({ block: "nearest" });
-      }
-    });
-  }
 }

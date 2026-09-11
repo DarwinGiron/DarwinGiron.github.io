@@ -13,70 +13,12 @@
 // =========================================================
 
 import { buildTruck, DIMS } from '../inspeccion-furgon-3d/FurgonModel.js';
+import { SECCIONES_BASE } from './liberacion-checklist.js';
 
-export const PART_DEFS = {
-  cabina: { label: 'Cabina, Camión y Piloto', mode: 'exterior', items: [
-    { id: 'cabina_limpia', label: 'Cabina limpia' },
-    { id: 'quinta_rueda', label: 'Quinta rueda y acople en buen estado' },
-    { id: 'piloto_apto', label: 'Piloto en condiciones aptas (uniforme, EPP)' },
-  ]},
-  ext_pared_izquierda: { label: 'Pared Izquierda (exterior)', mode: 'exterior', items: [
-    { id: 'limpia', label: 'Limpia' },
-    { id: 'agujeros', label: 'Sin agujeros' },
-    { id: 'abolladuras', label: 'Sin abolladuras mayores' },
-    { id: 'cinta', label: 'Cinta reflectiva en buen estado' },
-  ]},
-  ext_pared_derecha: { label: 'Pared Derecha (exterior)', mode: 'exterior', items: [
-    { id: 'limpia', label: 'Limpia' },
-    { id: 'agujeros', label: 'Sin agujeros' },
-    { id: 'abolladuras', label: 'Sin abolladuras mayores' },
-    { id: 'cinta', label: 'Cinta reflectiva en buen estado' },
-  ]},
-  ext_techo: { label: 'Techo (exterior)', mode: 'exterior', items: [
-    { id: 'limpio', label: 'Limpio' },
-    { id: 'abolladuras', label: 'Sin abolladuras' },
-    { id: 'filtraciones', label: 'Sin señales de filtración' },
-  ]},
-  ext_puertas: { label: 'Puertas (exterior)', mode: 'exterior', items: [
-    { id: 'empaques', label: 'Empaques en buen estado' },
-    { id: 'barras', label: 'Barras y manibelas de apertura/cierre' },
-    { id: 'hermeticidad', label: 'Hermeticidad al cerrar' },
-  ]},
-  generales: { label: 'Generales (chasis, llantas, seguros)', mode: 'exterior', items: [
-    { id: 'llantas', label: 'Llantas y rines limpios' },
-    { id: 'seguros', label: 'Seguros giratorios (twist locks)' },
-    { id: 'conos', label: 'Conos de seguridad presentes' },
-    { id: 'alarma', label: 'Alarma de retroceso funcional' },
-    { id: 'fumigacion', label: 'Certificado de fumigación vigente' },
-  ]},
-  int_pared_izquierda: { label: 'Pared Izquierda (interior)', mode: 'interior', items: [
-    { id: 'plywood', label: 'Plywood sin quebraduras' },
-    { id: 'limpia', label: 'Limpia, sin humedad' },
-  ]},
-  int_pared_derecha: { label: 'Pared Derecha (interior)', mode: 'interior', items: [
-    { id: 'plywood', label: 'Plywood sin quebraduras' },
-    { id: 'limpia', label: 'Limpia, sin humedad' },
-  ]},
-  int_techo: { label: 'Techo (interior)', mode: 'interior', items: [
-    { id: 'filtracion', label: 'Sin filtraciones de agua' },
-    { id: 'plywood', label: 'Plywood sin quebraduras' },
-  ]},
-  int_piso: { label: 'Piso', mode: 'interior', items: [
-    { id: 'deteriorado', label: 'Piso no deteriorado' },
-    { id: 'limpio', label: 'Limpio, sin agentes contaminantes' },
-    { id: 'insectos', label: 'Libre de insectos' },
-    { id: 'olor', label: 'Sin mal olor' },
-  ]},
-  int_puertas: { label: 'Puertas (interior)', mode: 'interior', items: [
-    { id: 'empaques', label: 'Empaques en buen estado' },
-    { id: 'hermeticidad', label: 'Hermeticidad al cerrar' },
-    { id: 'plywood', label: 'Plywood sin quebraduras' },
-  ]},
-  int_frente: { label: 'Pared Frontal (interior)', mode: 'interior', items: [
-    { id: 'plywood', label: 'Plywood sin quebraduras' },
-    { id: 'limpia', label: 'Limpia, sin humedad' },
-  ]},
-};
+// Las secciones (y su lado, exterior/interior) son fijas; los textos de
+// las preguntas de cada registro salen de su propia copia
+// (preguntasEvaluadas) cuando la trae, porque pudieron editarse después.
+export const PART_DEFS = SECCIONES_BASE;
 
 /**
  * Extrae las desviaciones de cualquier registro (sea 3D nuevo o formato previo).
@@ -94,9 +36,10 @@ export function obtenerDesviaciones(data) {
       const def = PART_DEFS[partId];
       if (!def) return;
       const itemsMalos = [];
+      const preguntas = data.preguntasEvaluadas?.[partId] || def.items;
       Object.entries(itemsObj).forEach(([itemId, val]) => {
         if (val === 'no') {
-          const itDef = def.items.find((i) => i.id === itemId);
+          const itDef = preguntas.find((i) => i.id === itemId);
           itemsMalos.push(itDef ? itDef.label : itemId);
         }
       });

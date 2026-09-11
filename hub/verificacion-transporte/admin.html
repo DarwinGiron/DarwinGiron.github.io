@@ -38,20 +38,22 @@
 
       <div class="flex-entre mb-2">
         <div>
-          <h1 style="font-size: var(--txt-xl); font-weight: 800; color: var(--tinta);">Preguntas de Verificación de Unidad</h1>
-          <p class="texto-suave texto-sm mb-0">Agrega, edita o desactiva las preguntas que se evalúan en cada inspección de transporte.</p>
+          <h1 style="font-size: var(--txt-xl); font-weight: 800; color: var(--tinta);">Preguntas de Liberación de Contenedores</h1>
+          <p class="texto-suave texto-sm mb-0">Agrega, edita, ordena o desactiva las preguntas de cada sección del LOG-FO-101.</p>
         </div>
-        <button type="button" id="btn-nueva-pregunta" class="btn btn-dorado btn-sm btn-ancho-auto">
-          + Agregar Pregunta
+        <button type="button" id="btn-restaurar" class="btn btn-secundario btn-sm btn-ancho-auto oculto">
+          Restaurar originales
         </button>
       </div>
 
-      <section class="tarjeta">
-        <div id="lista-preguntas-admin" class="editor-lista">
+      <section id="zona-error" class="oculto"></section>
+
+      <div id="lista-preguntas-admin">
+        <section class="tarjeta">
           <div class="esqueleto esqueleto-fila"></div>
           <div class="esqueleto esqueleto-fila"></div>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
 
     <nav class="nav-inferior">
@@ -69,13 +71,13 @@
   <div id="modal-fondo" class="modal-fondo oculto">
     <div class="modal-caja">
       <div class="modal-caja__cabecera">
-        <h3 id="modal-titulo" style="margin:0;">Pregunta de Verificación</h3>
+        <h3 id="modal-titulo" style="margin:0;">Pregunta de liberación</h3>
         <button type="button" id="btn-cerrar-modal" class="btn btn-icono btn-secundario">✕</button>
       </div>
       <form id="form-modal"></form>
     </div>
   </div>
 
-  <script type="module" src="/hub/js/transporte-admin.js"></script>
+  <script type="module" src="/hub/js/transporte-admin.js?v=20260911_01"></script>
 </body>
 </html>

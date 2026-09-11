@@ -35,7 +35,7 @@ import {
   iniciales,
 } from "./utils.js";
 import { ZONAS, ZONA_CABINA, idItem } from "./transporte-datos.js";
-import { montarVisor3DDetalle, limpiarVisor3DDetalle } from "./furgon-visor-detalle.js?v=20260909_02";
+import { montarVisor3DDetalle, limpiarVisor3DDetalle } from "./furgon-visor-detalle.js?v=20260911_01";
 import { normalizarNombreProveedor, obtenerCatalogoProveedores } from "./proveedores-transporte.js";
 
 const COLEC_REGISTROS = "verificaciones_transporte";

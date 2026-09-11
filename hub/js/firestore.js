@@ -385,14 +385,27 @@ export async function obtenerHisopado(id) {
 }
 
 /**
- * Lista registros de hisopado, del más reciente al más antiguo.
- * El inspector solo puede consultar los suyos (ver firestore.rules), así
- * que en ese caso el filtro por inspectorUid no es opcional.
+ * Lista registros de hisopado, del más reciente al más antiguo. Cualquier
+ * usuario activo puede consultar los de todos (ver firestore.rules): es
+ * un panel de cumplimiento compartido, no una bitácora personal.
+ *
+ * @param {Object} [filtros]
+ * @param {string} [filtros.inspectorUid] - opcional, para "mis registros".
+ * @param {string} [filtros.desde] - fecha ISO mínima (inclusive), para la
+ *   tabla de resultados por año (ver hisopado-resultados.js).
+ * @param {string} [filtros.hasta] - fecha ISO máxima (inclusive).
+ * @param {number} [filtros.max]
  */
 export async function listarHisopados(filtros = {}) {
   const condiciones = [];
   if (filtros.inspectorUid) {
     condiciones.push(where("inspectorUid", "==", filtros.inspectorUid));
+  }
+  if (filtros.desde) {
+    condiciones.push(where("fecha", ">=", filtros.desde));
+  }
+  if (filtros.hasta) {
+    condiciones.push(where("fecha", "<=", filtros.hasta));
   }
 
   const consulta = query(

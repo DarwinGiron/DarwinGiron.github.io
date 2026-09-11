@@ -1788,6 +1788,90 @@ body.tema-hub .campos-fila {
 
 body.tema-hub .campos-fila .campo { margin-bottom: 0; }
 
+/* ---------------------------------------------------------
+   Autocompletado de catálogo (proveedor de transporte, supervisor de
+   hisopado...): desplegable de sugerencias + resaltado del texto buscado.
+   Ver autocompletado.js — el widget es el mismo en cada catálogo, solo
+   cambian las funciones que le pasa cada uno.
+   --------------------------------------------------------- */
+body.tema-hub .campo--autocompletar { position: relative; }
+
+body.tema-hub .campo--autocompletar .campo__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e2);
+  margin-bottom: 2px;
+}
+
+body.tema-hub .campo--autocompletar .campo__cabecera label { margin-bottom: 0; }
+
+body.tema-hub .sugerencias-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--superficie-elevada);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-md);
+  box-shadow: var(--sombra-2);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+body.tema-hub .sugerencias-header {
+  font-size: var(--txt-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--tinta-3);
+  background: var(--superficie-hundida);
+  padding: var(--e2) var(--e3);
+  border-bottom: 1px solid var(--borde);
+}
+
+body.tema-hub .sugerencia-item {
+  padding: var(--e2) var(--e3);
+  font-size: var(--txt-sm);
+  font-weight: 600;
+  color: var(--tinta);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--e2);
+  border-bottom: 1px solid var(--borde);
+}
+
+body.tema-hub .sugerencia-item:last-child { border-bottom: none; }
+
+body.tema-hub .sugerencia-item:hover,
+body.tema-hub .sugerencia-item--seleccionado {
+  background: var(--superficie-hundida);
+}
+
+body.tema-hub .sugerencia-item--aviso {
+  color: var(--tinta-3);
+  font-size: var(--txt-xs);
+  cursor: default;
+}
+
+body.tema-hub .sugerencia-icono {
+  font-size: var(--txt-2xs);
+  color: var(--tinta-3);
+  opacity: 0.7;
+  flex: none;
+}
+
+body.tema-hub .mark-resaltado {
+  background: var(--dorado-100, #fef08a);
+  color: var(--tinta);
+  font-weight: 800;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+
 /* Veredicto en línea de una muestra de hisopado: conforme o fuera del rango. */
 body.tema-hub .texto-alerta { color: var(--estado-critico-ink); font-weight: 700; }
 body.tema-hub .texto-exito { color: var(--estado-bien-ink); font-weight: 650; }
@@ -2645,6 +2729,43 @@ body.tema-hub .tabla-muestreo thead th {
 }
 
 body.tema-hub .tabla-muestreo tbody tr:last-child td { border-bottom: none; }
+
+/* Tabla de resultados de hisopado (superficie × mes, ver
+   hisopado-resultados.js): cada celda es el resultado de esa superficie
+   en ese mes contra su límite — verde conforme, rojo fuera de límite. */
+body.tema-hub .tabla-muestreo td.celda-resultado { text-align: center; padding: 6px var(--e2); }
+
+body.tema-hub .valor-resultado {
+  display: inline-block;
+  min-width: 34px;
+  padding: 2px 6px;
+  border-radius: var(--r-full);
+  font-size: var(--txt-2xs);
+  font-weight: 800;
+}
+
+body.tema-hub .valor-resultado + .valor-resultado { margin-left: 3px; }
+
+body.tema-hub .valor-resultado--conforme {
+  background: var(--estado-bien-suave);
+  color: var(--estado-bien-ink);
+}
+
+body.tema-hub .valor-resultado--fuera {
+  background: var(--estado-critico-suave);
+  color: var(--estado-critico-ink);
+}
+
+body.tema-hub .valor-resultado--vacio {
+  color: var(--tinta-3);
+  font-weight: 400;
+}
+
+body.tema-hub .valor-resultado--pendiente {
+  background: var(--estado-alerta-suave);
+  color: var(--estado-alerta-ink);
+  border: 1px dashed var(--estado-alerta-mark);
+}
 
 body.tema-hub .pestana { display: none; }
 

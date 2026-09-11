@@ -10,7 +10,7 @@ rules_version = '2';
 //   2. "hub" (repo sig-fo-115, copiado a hub/ dentro de este mismo sitio) —
 //      colecciones: usuarios (COMPARTIDA con Reportes), checklists,
 //      inspecciones (SIG-FO-115), hisopados, hisopadoConfig,
-//      supervisores_hisopado, registrosVidrio (SIG-FO-111),
+//      supervisores_hisopado, areas_maquina_hisopado, registrosVidrio (SIG-FO-111),
 //      sigfo111Config, liberaciones
 //      (SIG-FO-101), sigfo101Config, verificaciones_transporte.
 // Un proyecto de Firebase publica un ÚNICO archivo de reglas para TODA la
@@ -311,14 +311,14 @@ service cloud.firestore {
     // el mismo criterio de alcance que un recorrido: el inspector solo ve
     // y edita los suyos, un gestor ve todos.
     match /hisopados/{hisopadoId} {
-      allow get: if autenticado()
-        && (esGestor() || resource.data.inspectorUid == request.auth.uid);
-
-      // Firestore evalúa "list" contra el resultado potencial: si el
-      // inspector no incluye where("inspectorUid","==", su uid), la
-      // consulta entera se rechaza (ver listarHisopados en firestore.js).
-      allow list: if esGestor()
-        || (esUsuarioActivo() && resource.data.inspectorUid == request.auth.uid);
+      // A diferencia de "inspecciones" o "liberaciones" (bitácora propia de
+      // cada inspector), la tabla de resultados de hisopado (superficie x
+      // mes, ver hisopado/resultados.html) es un panel de cumplimiento
+      // compartido: cualquier usuario activo necesita ver TODOS los
+      // análisis, no solo los suyos, para saber si una superficie quedó
+      // sin muestrear ese mes. Editar sigue siendo solo del autor o un
+      // gestor (ver create/update/delete abajo).
+      allow get, list: if esUsuarioActivo();
 
       allow create: if esUsuarioActivo()
         && request.resource.data.inspectorUid == request.auth.uid;
@@ -352,6 +352,18 @@ service cloud.firestore {
     // una toma. No se edita ni se borra desde la app — un nombre viejo
     // sigue siendo válido en los registros que lo usaron.
     match /supervisores_hisopado/{supervisorId} {
+      allow read: if esUsuarioActivo();
+      allow create: if esUsuarioActivo();
+      allow update: if esGestor();
+      allow delete: if false;
+    }
+
+    // ---- areas_maquina_hisopado (catálogo que se llena solo) ------
+    // Mismo trato que supervisores_hisopado: el área o máquina donde se
+    // tomó la muestra (distinta de la superficie puntual, que sale de la
+    // tabla de muestreo SIG-TA-102), buscable y dada de alta sola al
+    // guardar una toma nueva.
+    match /areas_maquina_hisopado/{areaId} {
       allow read: if esUsuarioActivo();
       allow create: if esUsuarioActivo();
       allow update: if esGestor();
