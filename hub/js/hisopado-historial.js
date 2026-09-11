@@ -101,27 +101,29 @@ function tarjetaDe(registro) {
   return `
     <section class="tarjeta">
       <div class="flex-entre mb-1">
-        <h2 class="tarjeta__titulo mb-0">${escaparHtml(registro.zonaNombre || "—")}</h2>
-        <span class="badge ${fuera ? "badge-dorado" : "badge-exito"}">
+        <div>
+          <h2 class="tarjeta__titulo mb-0">${escaparHtml(registro.zonaNombre || "—")}</h2>
+          <p class="texto-suave texto-sm mb-0">
+            ${formatearFechaISOCorta(registro.fecha)}
+            ${registro.turno ? ` · Turno ${escaparHtml(String(registro.turno))}` : ""}
+            · ${escaparHtml(registro.inspectorNombre || "—")}
+          </p>
+        </div>
+        <span class="badge ${fuera ? "badge-error" : "badge-exito"}">
           ${fuera ? "Fuera del límite" : "Conforme"}
         </span>
       </div>
-      <p class="texto-suave texto-sm">
-        ${formatearFechaISOCorta(registro.fecha)} ·
-        ${registro.turno ? `Turno ${escaparHtml(String(registro.turno))} · ` : ""}
-        ${escaparHtml(registro.inspectorNombre || "—")}
-      </p>
-      <div class="texto-suave texto-sm">Tipo: ${escaparHtml(registro.tipoNombre || "—")}</div>
-      ${
-        registro.areaMaquina
-          ? `<div class="texto-suave texto-sm">Área/Máquina: ${escaparHtml(registro.areaMaquina)}</div>`
-          : ""
-      }
-      <div class="texto-suave texto-sm">Supervisor: ${escaparHtml(registro.supervisor || "—")}</div>
-      <div class="texto-suave texto-sm">Límite: ${escaparHtml(textoLimiteRegistro(registro))}</div>
-      <div class="texto-suave texto-sm">Resultado: ${escaparHtml(
-        `${registro.resultado ?? "—"} ${registro.unidad || ""}`.trim()
-      )}</div>
+
+      <div class="fichas" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin-top: var(--e3);">
+        <div class="ficha ${fuera ? "ficha--critico" : "ficha--exito"}">
+          <div class="ficha__etiqueta">Resultado · límite ${escaparHtml(textoLimiteRegistro(registro))}</div>
+          <div class="ficha__valor">${escaparHtml(`${registro.resultado ?? "—"} ${registro.unidad || ""}`.trim())}</div>
+        </div>
+        ${fichaHtml("Tipo", registro.tipoNombre)}
+        ${registro.areaMaquina ? fichaHtml("Área/Máquina", registro.areaMaquina) : ""}
+        ${fichaHtml("Supervisor", registro.supervisor)}
+      </div>
+
       ${
         notas
           ? `<div class="alerta alerta-info" style="margin-top: var(--e2);">
@@ -132,6 +134,15 @@ function tarjetaDe(registro) {
       ${botonEliminarDe(registro)}
     </section>
   `;
+}
+
+/** Una celda de la cuadrícula de fichas (etiqueta + valor grande), mismo orden que usan transporte.js y SIG-FO-101. */
+function fichaHtml(etiqueta, valor) {
+  return `
+    <div class="ficha">
+      <div class="ficha__etiqueta">${escaparHtml(etiqueta)}</div>
+      <div class="ficha__valor" style="font-size: var(--txt-md);">${escaparHtml(valor || "—")}</div>
+    </div>`;
 }
 
 /** Formato anterior: un documento con varias muestras adentro. */
@@ -146,17 +157,15 @@ function tarjetaAgrupadaDe(registro) {
         <div class="editor-item" style="margin-bottom: var(--e2);">
           <div class="flex-entre mb-1">
             <strong class="texto-sm">${escaparHtml(m.zonaNombre || m.areaMaquina || "—")}</strong>
-            <span class="badge ${m.desviacion ? "badge-dorado" : "badge-exito"}">
+            <span class="badge ${m.desviacion ? "badge-error" : "badge-exito"}">
               ${m.desviacion ? "Fuera del límite" : "Conforme"}
             </span>
           </div>
-          <div class="texto-suave texto-sm">Supervisor: ${escaparHtml(
-            m.supervisor || registro.supervisor || "—"
-          )}</div>
-          <div class="texto-suave texto-sm">Límite: ${escaparHtml(textoLimiteRegistro(m) )}</div>
-          <div class="texto-suave texto-sm">Resultado: ${escaparHtml(
-            `${m.resultado ?? "—"} ${m.unidad || ""}`.trim()
-          )}</div>
+          <div class="fichas" style="grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));">
+            ${fichaHtml("Resultado", `${m.resultado ?? "—"} ${m.unidad || ""}`.trim())}
+            ${fichaHtml("Límite", textoLimiteRegistro(m))}
+            ${fichaHtml("Supervisor", m.supervisor || registro.supervisor)}
+          </div>
         </div>
       `
     )
@@ -166,7 +175,7 @@ function tarjetaAgrupadaDe(registro) {
     <section class="tarjeta">
       <div class="flex-entre mb-1">
         <h2 class="tarjeta__titulo mb-0">${formatearFechaISOCorta(registro.fecha)}</h2>
-        <span class="badge ${desviaciones ? "badge-dorado" : "badge-exito"}">
+        <span class="badge ${desviaciones ? "badge-error" : "badge-exito"}">
           ${desviaciones ? `${desviaciones} desviación(es)` : "Sin desviaciones"}
         </span>
       </div>
@@ -189,9 +198,12 @@ function tarjetaAgrupadaDe(registro) {
 
 function botonEliminarDe(registro) {
   if (!estado.puedeEliminar) return "";
-  return `<button type="button" class="btn btn-peligro btn-sm btn-ancho-auto" data-eliminar="${escaparHtml(
-    registro.id
-  )}">Eliminar</button>`;
+  return `
+    <div class="flex-fin" style="margin-top: var(--e2);">
+      <button type="button" class="btn btn-peligro btn-sm btn-ancho-auto" data-eliminar="${escaparHtml(
+        registro.id
+      )}">Eliminar</button>
+    </div>`;
 }
 
 lista.addEventListener("click", async (evento) => {

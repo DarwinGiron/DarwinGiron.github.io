@@ -336,6 +336,11 @@ export async function listarAuditoriasBpm(max = 24) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+/** Elimina la auditoría de BPM de un mes (solo gestión, ver firestore.rules). */
+export async function eliminarAuditoriaBpm(claveMes) {
+  await deleteDoc(doc(db, "auditoriasBpm", claveMes));
+}
+
 /* ---------------------------------------------------------
    Registro de hisopado
    Antes vivía como una sección eventual dentro de cada proceso del

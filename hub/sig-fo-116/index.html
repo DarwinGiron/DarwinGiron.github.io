@@ -263,8 +263,9 @@
   }
   footer.bar .status{flex:1;font-size:12px;color:var(--text-soft);}
   footer.bar .status b{color:var(--navy);}
-  footer.bar button{
+  footer.bar button, footer.bar a{
     border:none;border-radius:9px;padding:11px 16px;font-size:13.5px;font-weight:700;cursor:pointer;
+    text-decoration:none;display:inline-flex;align-items:center;justify-content:center;
   }
   .btn-secondary{background:var(--navy-soft);color:var(--navy);}
   .btn-primary{background:var(--navy);color:#fff;}
@@ -365,18 +366,9 @@
 
 <footer class="bar">
   <div class="status" id="status">0 / 0 respondidas</div>
-  <button class="btn-secondary" id="btnHistorial">Historial</button>
+  <a class="btn-secondary" href="historial.html">Historial</a>
   <button class="btn-primary" id="btnGuardar">Guardar</button>
 </footer>
-
-<div class="overlay" id="overlay">
-  <div class="sheet">
-    <button class="close" id="closeSheet">Cerrar</button>
-    <h3>Auditorías guardadas</h3>
-    <p style="color:var(--text-soft);font-size:12.5px;margin-top:0;">Se guarda una auditoría por mes. Toca una fecha para cargarla.</p>
-    <div id="histList"></div>
-  </div>
-</div>
 
 <div class="toast" id="toast">Guardado</div>
 

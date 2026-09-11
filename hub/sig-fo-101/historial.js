@@ -291,10 +291,10 @@ function abrirDetalle(id) {
 
   detalleContenido.innerHTML = `
     <div class="flex-entre mb-2">
-      <h2 class="tarjeta__titulo mb-0">${escaparHtml(registro.maquina)} ${badgeCorregido(registro)}</h2>
+      <h2 class="tarjeta__titulo mb-0" style="font-size: var(--txt-xl);">${escaparHtml(registro.maquina)} ${badgeCorregido(registro)}</h2>
       ${badgeLimpieza(registro)}
     </div>
-    <div class="fichas mb-3">
+    <div class="fichas mb-3" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
       ${fichaHtml("Fecha", formatearFechaCorta(registro.fecha))}
       ${fichaHtml("Turno", String(registro.turno))}
       ${fichaHtml("Orden", registro.ordenNo)}
@@ -302,10 +302,10 @@ function abrirDetalle(id) {
       ${fichaHtml("Inspector", registro.inspectorNombre)}
     </div>
     ${(registro.respuestas || []).length ? `
-      <h3 class="tarjeta__titulo" style="font-size: var(--txt-md);">Limpieza y Sanitización</h3>
+      <h3 class="tarjeta__titulo" style="font-size: var(--txt-md); margin-top: var(--e5, 20px);">Limpieza y Sanitización</h3>
       <div class="editor-lista mb-3">
         ${registro.respuestas.map((r) => `
-          <div class="editor-item">
+          <div class="editor-item" style="border-left: 3px solid ${r.valor ? "var(--bien)" : "var(--mal)"}; border-radius: 0 var(--r-md) var(--r-md) 0;">
             <div class="flex-entre">
               <div>${escaparHtml(r.texto)}</div>
               <span class="badge ${r.valor ? "badge-si" : "badge-no"}">${r.valor ? "SÍ" : "NO"}</span>
@@ -313,7 +313,7 @@ function abrirDetalle(id) {
           </div>`).join("")}
       </div>` : ""}
     ${registro.observaciones ? `
-      <h3 class="tarjeta__titulo" style="font-size: var(--txt-md);">Observaciones</h3>
+      <h3 class="tarjeta__titulo" style="font-size: var(--txt-md); margin-top: var(--e5, 20px);">Observaciones</h3>
       <p class="mb-0">${escaparHtml(registro.observaciones)}</p>` : ""}
   `;
 

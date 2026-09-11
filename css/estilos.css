@@ -2325,6 +2325,25 @@ body.tema-sig-fo-101 .ficha__etiqueta {
   color: var(--tinta-3);
 }
 
+/* Variantes de color para la ficha que lleva el dato más importante de la
+   tarjeta (ej. el resultado de un análisis contra su límite): el mismo
+   marco de .ficha, con el tinte de estado en vez del borde neutro. */
+body.tema-hub .ficha--exito,
+body.tema-sig-fo-101 .ficha--exito {
+  background: var(--estado-bien-suave);
+  border-color: var(--estado-bien-mark);
+}
+body.tema-hub .ficha--exito .ficha__valor,
+body.tema-sig-fo-101 .ficha--exito .ficha__valor { color: var(--estado-bien-ink); }
+
+body.tema-hub .ficha--critico,
+body.tema-sig-fo-101 .ficha--critico {
+  background: var(--estado-critico-suave);
+  border-color: var(--estado-critico-mark);
+}
+body.tema-hub .ficha--critico .ficha__valor,
+body.tema-sig-fo-101 .ficha--critico .ficha__valor { color: var(--estado-critico-ink); }
+
 body.tema-hub .cifra-hero {
   font-size: var(--txt-hero);
   font-weight: 750;

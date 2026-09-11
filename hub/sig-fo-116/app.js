@@ -18,7 +18,7 @@
 // =========================================================
 
 import { protegerPagina, cerrarSesion, etiquetaRol } from "../js/auth.js";
-import { obtenerAuditoriaBpm, guardarAuditoriaBpm, listarAuditoriasBpm } from "../js/firestore.js";
+import { obtenerAuditoriaBpm, guardarAuditoriaBpm } from "../js/firestore.js";
 import { iniciales, escaparHtml, mostrarToast } from "../js/utils.js";
 import { preguntasBase, cargarPreguntasBpm, estructuraActiva } from "../js/bpm-checklist.js";
 
@@ -287,58 +287,9 @@ areaInput.oninput = () => { meta.area = areaInput.value; saveCurrent(false); };
 
 /* ============ ACCIONES DEL PIE ============ */
 document.getElementById("btnGuardar").onclick = () => saveCurrent(true);
-
-const overlay = document.getElementById("overlay");
-document.getElementById("btnHistorial").onclick = async () => {
-  const list = document.getElementById("histList");
-  list.innerHTML = '<p style="color:var(--text-soft);font-size:13px;">Cargando…</p>';
-  overlay.classList.add("show");
-
-  let auditorias = [];
-  try {
-    auditorias = await listarAuditoriasBpm();
-  } catch (e) {
-    console.error("No se pudieron listar las auditorías de BPM:", e);
-    list.innerHTML = '<p style="color:var(--bad);font-size:13px;">No se pudo cargar el historial.</p>';
-    return;
-  }
-
-  list.innerHTML = "";
-  if (auditorias.length === 0) {
-    list.innerHTML = '<p style="color:var(--text-soft);font-size:13px;">Aún no hay auditorías guardadas.</p>';
-    return;
-  }
-  auditorias.forEach((data) => {
-    const item = document.createElement("div");
-    item.className = "hist-item";
-    const g = computeFromResponses(data.responses);
-    item.innerHTML = `
-      <div class="l">${escaparHtml(data.id)}<small>${data.meta && data.meta.auditor ? "Auditor: " + escaparHtml(data.meta.auditor) : "Sin auditor registrado"}${g.pct !== null ? " · " + g.pct + "%" : ""}</small></div>
-      <button data-key="${escaparHtml(data.id)}">Abrir</button>`;
-    item.querySelector("button").onclick = async () => {
-      meta = data.meta || { fecha: "", auditor: "", area: "" };
-      responses = data.responses || {};
-      fechaInput.value = meta.fecha || "";
-      auditorInput.value = meta.auditor || "";
-      areaInput.value = meta.area || "";
-      renderAll();
-      overlay.classList.remove("show");
-    };
-    list.appendChild(item);
-  });
-};
-document.getElementById("closeSheet").onclick = () => overlay.classList.remove("show");
-overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove("show"); };
-
-function computeFromResponses(resp) {
-  let si = 0, no = 0;
-  Object.values(resp || {}).forEach((r) => {
-    if (r.value === "SI") si++;
-    else if (r.value === "NO") no++;
-  });
-  const denom = si + no;
-  return { pct: denom > 0 ? Math.round((si / denom) * 1000) / 10 : null };
-}
+// El listado de auditorías guardadas y el botón "Historial" viven en su
+// propia página (historial.html, ver bpm-historial.js) — igual que en el
+// resto del hub — en vez de la hoja emergente que había antes aquí.
 
 function showToastMsg(msg) {
   const t = document.getElementById("toast");
@@ -360,7 +311,11 @@ protegerPagina({}, async ({ user, perfil }) => {
 
   await cargarPreguntasConfiguradas();
 
-  meta.fecha = todayStr();
+  // "Abrir" desde el Historial trae el mes elegido en la URL
+  // (?mes=aaaa-mm, ver bpm-historial.js); sin ese parámetro arranca en el
+  // mes actual, como "+ Nuevo registro".
+  const mesPedido = new URLSearchParams(window.location.search).get("mes");
+  meta.fecha = mesPedido ? `${mesPedido}-01` : todayStr();
   fechaInput.value = meta.fecha;
 
   const existing = await loadMonth(monthKey(meta.fecha));
@@ -370,6 +325,11 @@ protegerPagina({}, async ({ user, perfil }) => {
     fechaInput.value = meta.fecha || todayStr();
     auditorInput.value = meta.auditor || "";
     areaInput.value = meta.area || "";
+  } else if (mesPedido) {
+    // El Historial solo enlaza meses que ya existen; si de todos modos no
+    // se encontró (se borró entre que se listó y se abrió), se avisa en
+    // vez de dejar la auditoría de ese mes en blanco sin explicación.
+    showToastMsg("No se encontró esa auditoría; se muestra un mes nuevo.");
   }
   renderAll();
 });
