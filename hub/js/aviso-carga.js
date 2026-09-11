@@ -25,7 +25,18 @@ function motivoDe(error) {
         "Es la causa más común cuando la colección es nueva: faltan publicar las reglas de Firestore (firebase deploy --only firestore:rules). También puede ser que tu cuenta ya no tenga rol de administrador o coordinador.",
     };
   }
-  if (error?.code === "unavailable" || error?.code === "failed-precondition") {
+  // "failed-precondition" en una consulta de Firestore casi siempre es un
+  // índice que falta, no un problema de red: el mensaje del error trae el
+  // enlace de la consola para crearlo, así que se muestra tal cual.
+  if (error?.code === "failed-precondition") {
+    return {
+      titulo: "Falta un índice en Firestore",
+      detalle:
+        "Publica los índices del repositorio (firebase deploy --only firestore:indexes) o abre el enlace que trae este error: " +
+        (error.message || ""),
+    };
+  }
+  if (error?.code === "unavailable") {
     return {
       titulo: "No se pudo conectar con la base de datos",
       detalle: "Revisa tu conexión e inténtalo de nuevo.",
