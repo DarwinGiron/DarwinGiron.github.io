@@ -9,7 +9,7 @@
 //   checklists/{checklistId}/versiones/{n}    (snapshots publicados e inmutables)
 //   inspecciones/{fecha_turno_uid}             (un recorrido completo por turno)
 //   auditoriasBpm/{aaaa-mm}                    (auditoría de BPM, SIG-FO-116)
-//   hisopados/{autoId}                         (registro de hisopado)
+//   hisopados/{fecha_turno_zona}               (registro de hisopado)
 //   hisopadoConfig/tabla                       (tabla de muestreo SIG-TA-102)
 //   sigfo111Config/formato                     (puntos y riesgos del SIG-FO-111)
 //   registrosVidrio/{autoId}                   (registro SIG-FO-111)
@@ -347,13 +347,35 @@ export async function listarAuditoriasBpm(max = 24) {
    límite— las correcciones inmediatas que se aplicaron.
    --------------------------------------------------------- */
 
-/** Guarda un registro de hisopado nuevo. Devuelve el id generado. */
+/**
+ * Id determinístico de un análisis: una misma superficie no se muestrea
+ * dos veces en el mismo turno del mismo día, así que esa combinación ES
+ * la identidad del documento. Con esto el duplicado no depende de que el
+ * cliente se acuerde de revisar: la segunda toma caería en el mismo id.
+ */
+export function idHisopado(fecha, turno, zonaId) {
+  return `${fecha}_T${turno}_${zonaId}`;
+}
+
+/**
+ * Guarda un análisis de hisopado. Falla si ese turno ya registró esa
+ * superficie ese día — la comprobación se hace aquí y no en la pantalla
+ * para que valga desde cualquier punto de entrada.
+ */
 export async function crearHisopado(datos) {
-  const referencia = await addDoc(collection(db, "hisopados"), {
-    ...datos,
-    creadoEn: serverTimestamp(),
-  });
-  return referencia.id;
+  const id = idHisopado(datos.fecha, datos.turno, datos.zonaId);
+  const referencia = doc(db, "hisopados", id);
+
+  const existente = await getDoc(referencia);
+  if (existente.exists()) {
+    const error = new Error("DUPLICADO");
+    error.codigo = "duplicado";
+    error.registro = { id: existente.id, ...existente.data() };
+    throw error;
+  }
+
+  await setDoc(referencia, { ...datos, creadoEn: serverTimestamp() });
+  return id;
 }
 
 /** Obtiene un registro de hisopado por id, o null si no existe. */

@@ -1774,6 +1774,20 @@ body.tema-hub .riesgo-opcion.riesgo-3.activo {
   color: var(--estado-critico-ink);
 }
 
+/* Dos campos cortos lado a lado (fecha + turno). Se apilan en pantallas
+   angostas para no dejar controles de menos de 140px. */
+body.tema-hub .campos-fila {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--e3);
+}
+
+@media (min-width: 420px) {
+  body.tema-hub .campos-fila { grid-template-columns: 1fr 1fr; }
+}
+
+body.tema-hub .campos-fila .campo { margin-bottom: 0; }
+
 /* Veredicto en línea de una muestra de hisopado: conforme o fuera del rango. */
 body.tema-hub .texto-alerta { color: var(--estado-critico-ink); font-weight: 700; }
 body.tema-hub .texto-exito { color: var(--estado-bien-ink); font-weight: 650; }

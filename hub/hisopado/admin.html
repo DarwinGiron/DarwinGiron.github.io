@@ -53,9 +53,14 @@
 
         <!-- TABLA ANUAL -->
         <section class="pestana" data-pestana="tabla">
-          <p class="texto-suave texto-sm mb-2">
-            Marca en qué meses toca muestrear cada zona. Es la cuadrícula del formato SIG-TA-102.
-          </p>
+          <div class="flex-entre mb-2">
+            <p class="texto-suave texto-sm mb-0">
+              Marca en qué meses toca muestrear cada zona. Es la cuadrícula del formato SIG-TA-102.
+            </p>
+            <button type="button" id="btn-descargar-tabla" class="btn btn-secundario btn-sm btn-ancho-auto">
+              Descargar en Excel
+            </button>
+          </div>
           <div class="tabla-scroll">
             <table class="tabla-muestreo" id="tabla-muestreo"></table>
           </div>
@@ -74,6 +79,8 @@
     </div>
   </div>
 
+  <!-- SheetJS: mismo CDN y versión que ya usan los informes de Reportes. -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script type="module" src="/hub/js/hisopado-admin.js"></script>
 </body>
 </html>

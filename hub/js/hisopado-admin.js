@@ -25,6 +25,7 @@ const zonaEditor = document.getElementById("zona-editor");
 const listaTipos = document.getElementById("lista-tipos");
 const tablaMuestreo = document.getElementById("tabla-muestreo");
 const btnNuevoTipo = document.getElementById("btn-nuevo-tipo");
+const btnDescargarTabla = document.getElementById("btn-descargar-tabla");
 
 const { abrirModal } = crearModalFormulario({
   modalFondo: document.getElementById("modal-fondo"),
@@ -358,4 +359,70 @@ tablaMuestreo.addEventListener("change", async (evento) => {
     mostrarToast("No se pudo guardar el cambio.", "error");
     caja.checked = !caja.checked;
   }
+});
+
+/* ---------------------------------------------------------
+   Descarga de la tabla en el formato del SIG-TA-102
+   Reproduce la hoja del Excel original: una fila por zona, la cantidad
+   a la izquierda, el tipo de muestra con su rango en una celda combinada
+   que abarca todas sus zonas, y los doce meses con una "X" donde está
+   programado el muestreo.
+   --------------------------------------------------------- */
+
+btnDescargarTabla?.addEventListener("click", () => {
+  if (typeof XLSX === "undefined") {
+    mostrarToast("No se pudo cargar el generador de Excel. Revisa tu conexión.", "error");
+    return;
+  }
+
+  const unidad = estado.tabla.unidad || "RLU";
+  const filas = [
+    [estado.tabla.codigo || "SIG-TA-102"],
+    [estado.tabla.revision || "Rev. 00"],
+    ["TABLA DE MUESTREO DE HISOPADOS"],
+    ["Cantidad", "Tipo de muestra", "Descripción del análisis", "Meses"],
+    ["", "", "", ...MESES],
+  ];
+
+  // Las celdas combinadas se acumulan mientras se arman las filas: cada
+  // tipo ocupa una sola celda vertical sobre todas sus zonas, igual que
+  // en el formato en papel.
+  const combinadas = [
+    { s: { r: 3, c: 3 }, e: { r: 3, c: 14 } }, // "Meses" sobre los 12 meses
+  ];
+
+  for (const tipo of tiposOrdenados()) {
+    const zonas = tipo.zonas || [];
+    if (zonas.length === 0) continue;
+
+    const primeraFila = filas.length;
+    zonas.forEach((zona, indice) => {
+      filas.push([
+        zona.cantidad,
+        indice === 0 ? `${tipo.nombre.toUpperCase()}\nRANGOS = ${tipo.limiteMin} a ${tipo.limiteMax} ${unidad}` : "",
+        zona.nombre,
+        ...MESES.map((_, mes) => ((zona.meses || []).includes(mes) ? "X" : "")),
+      ]);
+    });
+
+    if (zonas.length > 1) {
+      combinadas.push({
+        s: { r: primeraFila, c: 1 },
+        e: { r: primeraFila + zonas.length - 1, c: 1 },
+      });
+    }
+  }
+
+  const hoja = XLSX.utils.aoa_to_sheet(filas);
+  hoja["!merges"] = combinadas;
+  hoja["!cols"] = [
+    { wch: 9 },  // Cantidad
+    { wch: 30 }, // Tipo de muestra
+    { wch: 28 }, // Descripción
+    ...MESES.map(() => ({ wch: 5 })),
+  ];
+
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, "hisopado");
+  XLSX.writeFile(libro, `${estado.tabla.codigo || "SIG-TA-102"}_Tabla_de_Muestreo.xlsx`);
 });

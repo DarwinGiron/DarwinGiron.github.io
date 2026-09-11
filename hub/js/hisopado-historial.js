@@ -53,10 +53,9 @@ filtroBusqueda.addEventListener("input", renderizar);
 
 /** Texto donde busca el filtro: todo lo que el usuario podría teclear de memoria. */
 function textoBuscable(registro) {
-  const muestras = (registro.muestras || [])
-    .map((m) => `${m.zonaNombre || ""} ${m.tipoNombre || ""} ${m.supervisor || ""} ${m.resultado}`)
-    .join(" ");
-  return `${registro.proceso || ""} ${registro.inspectorNombre || ""} ${muestras}`.toLowerCase();
+  return `${registro.zonaNombre || ""} ${registro.tipoNombre || ""} ${
+    registro.supervisor || ""
+  } ${registro.inspectorNombre || ""} ${registro.resultado}`.toLowerCase();
 }
 
 function renderizar() {
@@ -69,7 +68,7 @@ function renderizar() {
     lista.innerHTML = `
       <div class="tarjeta">
         <p class="texto-suave texto-sm mb-0">
-          ${termino ? "Ningún registro coincide con la búsqueda." : "Todavía no hay tomas de hisopado registradas."}
+          ${termino ? "Ningún análisis coincide con la búsqueda." : "Todavía no hay análisis de hisopado registrados."}
         </p>
       </div>
     `;
@@ -80,20 +79,61 @@ function renderizar() {
 }
 
 /**
- * El límite de una muestra. Los registros viejos lo traían como texto
- * libre ("< 10 UFC/cm²"); los nuevos lo guardan como rango numérico
- * heredado de la tabla de muestreo, así que se soportan los dos.
+ * El límite de un análisis. Los registros viejos lo traían como texto
+ * libre dentro de una lista de muestras; los nuevos son un análisis plano
+ * con el rango numérico heredado de la tabla, así que se soportan ambos.
  */
-function textoLimiteMuestra(m) {
-  if (m.limiteMin !== undefined && m.limiteMin !== null) {
-    return `${m.limiteMin} a ${m.limiteMax} ${m.unidad || "RLU"}`;
+function textoLimiteRegistro(r) {
+  if (r.limiteMin !== undefined && r.limiteMin !== null) {
+    return `${r.limiteMin} a ${r.limiteMax} ${r.unidad || "RLU"}`;
   }
-  return m.limite || "—";
+  return "—";
 }
 
 function tarjetaDe(registro) {
+  // Los registros anteriores agrupaban varias muestras en un documento; se
+  // muestran expandidos para que el historial no pierda nada.
+  if (Array.isArray(registro.muestras)) return tarjetaAgrupadaDe(registro);
+
+  const fuera = Boolean(registro.desviacion);
+  const notas = [registro.correcciones, registro.observaciones].filter(Boolean).join(" · ");
+
+  return `
+    <section class="tarjeta">
+      <div class="flex-entre mb-1">
+        <h2 class="tarjeta__titulo mb-0">${escaparHtml(registro.zonaNombre || "—")}</h2>
+        <span class="badge ${fuera ? "badge-dorado" : "badge-exito"}">
+          ${fuera ? "Fuera del límite" : "Conforme"}
+        </span>
+      </div>
+      <p class="texto-suave texto-sm">
+        ${formatearFechaISOCorta(registro.fecha)} ·
+        ${registro.turno ? `Turno ${escaparHtml(String(registro.turno))} · ` : ""}
+        ${escaparHtml(registro.inspectorNombre || "—")}
+      </p>
+      <div class="texto-suave texto-sm">Tipo: ${escaparHtml(registro.tipoNombre || "—")}</div>
+      <div class="texto-suave texto-sm">Supervisor: ${escaparHtml(registro.supervisor || "—")}</div>
+      <div class="texto-suave texto-sm">Límite: ${escaparHtml(textoLimiteRegistro(registro))}</div>
+      <div class="texto-suave texto-sm">Resultado: ${escaparHtml(
+        `${registro.resultado ?? "—"} ${registro.unidad || ""}`.trim()
+      )}</div>
+      ${
+        notas
+          ? `<div class="alerta alerta-info" style="margin-top: var(--e2);">
+               <strong>Acciones inmediatas y observaciones:</strong> ${escaparHtml(notas)}
+             </div>`
+          : ""
+      }
+      ${botonEliminarDe(registro)}
+    </section>
+  `;
+}
+
+/** Formato anterior: un documento con varias muestras adentro. */
+function tarjetaAgrupadaDe(registro) {
   const muestras = registro.muestras || [];
   const desviaciones = muestras.filter((m) => m.desviacion).length;
+  const notas = [registro.correcciones, registro.observaciones].filter(Boolean).join(" · ");
 
   const filas = muestras
     .map(
@@ -105,33 +145,17 @@ function tarjetaDe(registro) {
               ${m.desviacion ? "Fuera del límite" : "Conforme"}
             </span>
           </div>
-          <div class="texto-suave texto-sm">Tipo: ${escaparHtml(m.tipoNombre || "—")}</div>
-          <div class="texto-suave texto-sm">Supervisor: ${escaparHtml(m.supervisor || "—")}</div>
-          <div class="texto-suave texto-sm">Límite: ${escaparHtml(textoLimiteMuestra(m))}</div>
+          <div class="texto-suave texto-sm">Supervisor: ${escaparHtml(
+            m.supervisor || registro.supervisor || "—"
+          )}</div>
+          <div class="texto-suave texto-sm">Límite: ${escaparHtml(textoLimiteRegistro(m) )}</div>
           <div class="texto-suave texto-sm">Resultado: ${escaparHtml(
-            m.resultado === undefined || m.resultado === "" ? "—" : `${m.resultado} ${m.unidad || ""}`.trim()
+            `${m.resultado ?? "—"} ${m.unidad || ""}`.trim()
           )}</div>
         </div>
       `
     )
     .join("");
-
-  // Los registros viejos guardaban las correcciones aparte de las
-  // observaciones; ahora es un solo campo, así que se muestran juntos.
-  const notas = [registro.correcciones, registro.observaciones].filter(Boolean).join(" · ");
-  const observaciones = notas
-    ? `
-      <div class="alerta alerta-info" style="margin-top: var(--e2);">
-        <strong>Acciones inmediatas y observaciones:</strong> ${escaparHtml(notas)}
-      </div>
-    `
-    : "";
-
-  const botonEliminar = estado.puedeEliminar
-    ? `<button type="button" class="btn btn-peligro btn-sm btn-ancho-auto" data-eliminar="${escaparHtml(
-        registro.id
-      )}">Eliminar</button>`
-    : "";
 
   return `
     <section class="tarjeta">
@@ -146,10 +170,23 @@ function tarjetaDe(registro) {
         ${escaparHtml(registro.inspectorNombre || "—")}
       </p>
       ${filas}
-      ${observaciones}
-      ${botonEliminar}
+      ${
+        notas
+          ? `<div class="alerta alerta-info" style="margin-top: var(--e2);">
+               <strong>Acciones inmediatas y observaciones:</strong> ${escaparHtml(notas)}
+             </div>`
+          : ""
+      }
+      ${botonEliminarDe(registro)}
     </section>
   `;
+}
+
+function botonEliminarDe(registro) {
+  if (!estado.puedeEliminar) return "";
+  return `<button type="button" class="btn btn-peligro btn-sm btn-ancho-auto" data-eliminar="${escaparHtml(
+    registro.id
+  )}">Eliminar</button>`;
 }
 
 lista.addEventListener("click", async (evento) => {

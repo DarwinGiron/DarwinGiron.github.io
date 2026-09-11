@@ -33,46 +33,47 @@
 
       <section class="tarjeta">
         <h2 class="tarjeta__titulo">Datos de la toma</h2>
-        <div class="campo">
-          <label for="campo-fecha">Fecha</label>
-          <input type="date" id="campo-fecha" />
-        </div>
-        <div class="campo">
-          <label for="campo-turno">Turno</label>
-          <select id="campo-turno">
-            <option value="1">Turno 1</option>
-            <option value="2">Turno 2</option>
-            <option value="3">Turno 3</option>
-          </select>
-        </div>
-      </section>
-
-      <section class="tarjeta">
-        <div class="flex-entre mb-1">
-          <h2 class="tarjeta__titulo mb-0">Tabla de muestreo</h2>
-          <span class="badge badge-neutro" id="etiqueta-mes">—</span>
-        </div>
-        <p class="texto-suave texto-sm" id="ayuda-tabla">
-          Rangos por tipo de muestra y programación anual (SIG-TA-102).
-        </p>
-        <div class="tabla-scroll">
-          <table class="tabla-muestreo" id="tabla-referencia"></table>
+        <div class="campos-fila">
+          <div class="campo">
+            <label for="campo-fecha">Fecha</label>
+            <input type="date" id="campo-fecha" />
+          </div>
+          <div class="campo">
+            <label for="campo-turno">Turno</label>
+            <select id="campo-turno">
+              <option value="1">Turno 1</option>
+              <option value="2">Turno 2</option>
+              <option value="3">Turno 3</option>
+            </select>
+          </div>
         </div>
       </section>
 
       <section class="tarjeta">
-        <div class="flex-entre mb-1">
-          <h2 class="tarjeta__titulo mb-0">Muestras</h2>
-          <span class="badge badge-neutro" id="contador-muestras">0</span>
-        </div>
+        <h2 class="tarjeta__titulo">Análisis</h2>
         <p class="texto-suave texto-sm">
-          Elige la superficie y el límite se aplica solo, según la tabla de
-          muestreo SIG-TA-102. Solo se captura el resultado en RLU.
+          Un registro por análisis. Elige la superficie y el límite se aplica
+          solo, según la tabla de muestreo SIG-TA-102.
         </p>
-        <div id="muestras-contenedor"></div>
-        <button type="button" id="btn-agregar-muestra" class="btn btn-secundario btn-sm btn-ancho-auto">
-          + Agregar muestra
-        </button>
+        <div class="campo">
+          <label for="campo-superficie">Superficie</label>
+          <select id="campo-superficie"></select>
+        </div>
+        <div class="campo">
+          <label for="campo-supervisor">Supervisor</label>
+          <input
+            type="text"
+            id="campo-supervisor"
+            list="lista-supervisores"
+            autocomplete="off"
+            placeholder="Escribe o elige de la lista"
+          />
+        </div>
+        <div class="campo">
+          <label for="campo-resultado">Resultado (RLU)</label>
+          <input type="number" inputmode="decimal" id="campo-resultado" placeholder="Ej. 220" />
+        </div>
+        <p class="texto-suave texto-sm mb-0" id="veredicto">Elige una superficie para ver su límite.</p>
       </section>
 
       <section class="tarjeta" id="tarjeta-observaciones">
@@ -95,30 +96,6 @@
       </button>
     </main>
   </div>
-
-  <template id="plantilla-muestra">
-    <div class="editor-item" style="margin-bottom: var(--e2);">
-      <div class="flex-entre mb-1">
-        <strong class="texto-sm muestra-titulo">Muestra</strong>
-        <button type="button" class="btn btn-texto btn-sm btn-eliminar-muestra" style="color: var(--estado-critico-ink);">
-          Eliminar
-        </button>
-      </div>
-      <div class="campo">
-        <label>Superficie</label>
-        <select data-campo="zonaId"></select>
-      </div>
-      <div class="campo">
-        <label>Supervisor</label>
-        <input type="text" data-campo="supervisor" list="lista-supervisores" autocomplete="off" placeholder="Escribe o elige de la lista" />
-      </div>
-      <div class="campo">
-        <label>Resultado (RLU)</label>
-        <input type="number" inputmode="decimal" data-campo="resultado" placeholder="Ej. 220" />
-      </div>
-      <p class="texto-suave texto-sm mb-0 muestra-veredicto">Elige una superficie para ver su límite.</p>
-    </div>
-  </template>
 
   <datalist id="lista-supervisores"></datalist>
 
