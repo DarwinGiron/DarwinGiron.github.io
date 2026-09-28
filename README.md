@@ -58,14 +58,19 @@ en el navegador por [`js/indicadores.js`](js/indicadores.js) para el rango Desde
 | Pestaña | Colección | Indicador |
 |---|---|---|
 | Resumen | todas | KPIs de cada módulo + tabla por mes + reportes por mes |
-| PPRs SIG-FO-115 | `inspecciones` | % por cuestión, por proceso y final, con el mismo cálculo del consolidado en Excel (hoja "Resultado", límite 95%) |
+| PPRs SIG-FO-115 | `inspecciones` | % por cuestión, por proceso y final, con el mismo cálculo del consolidado en Excel (hoja "Resultado") |
 | Contenedores | `verificaciones_transporte` | % de contenedores aprobados, por empresa, puntos que más fallan |
 | Imprentas SIG-FO-101 | `liberaciones` | % de liberaciones conformes (todo en SI), por máquina y turno |
 | BPM SIG-FO-116 | `auditoriasBpm` | % por sección y total por mes, preguntas en NO |
 | Vidrio y plástico | `registrosVidrio` | puntos por nivel de riesgo, puntos de acción urgente |
 | Hisopado | `hisopados` | % de análisis dentro del límite, desviaciones |
 
-Las metas están en la constante `METAS_INDICADORES` al inicio de `js/indicadores.js`.
+Todos los indicadores se calculan con los registros reales de Firestore; no hay
+valores fijos en el código. Las metas todavía no están definidas: en
+`METAS_INDICADORES`, al inicio de `js/indicadores.js`, cada una vale `null` y
+el indicador se muestra sin comparación. Al poner un número (p. ej. `ppr: 95`)
+se activan el color cumple/bajo meta, la línea de meta en las gráficas y la
+etiqueta de estado.
 Por defecto SIG-FO-115 solo cuenta recorridos terminados; la casilla "Incluir
 recorridos en borrador" agrega los que siguen en curso. Si un usuario no tiene
 permiso para una colección, solo esa pestaña muestra el aviso.

@@ -23,15 +23,17 @@
 // aviso y las demás siguen funcionando.
 // ============================================================================
 
-// Meta de cumplimiento de cada indicador en %. La de PPRs (95%) es la
-// columna "Límite" del SIG-FO-115; las demás usan el mismo criterio mientras
-// no se defina otra.
+// Meta de cumplimiento de cada indicador en %, pendientes de definir.
+// Mientras una meta sea null, su indicador se muestra sin comparación: sin
+// color de cumple/no cumple, sin línea de meta en la gráfica y sin la
+// etiqueta "Cumple / Bajo meta". Para activarla basta poner el número,
+// p. ej. ppr: 95 (el "Límite" del consolidado SIG-FO-115 en Excel).
 const METAS_INDICADORES = {
-  ppr: 95,
-  contenedores: 95,
-  imprentas: 95,
-  bpm: 95,
-  hisopado: 95,
+  ppr: null,
+  contenedores: null,
+  imprentas: null,
+  bpm: null,
+  hisopado: null,
 };
 
 const COLOR_CUMPLE = "#008A05";
@@ -99,8 +101,18 @@ function textoPct(valor) {
   return valor === null || valor === undefined ? "–" : `${(Math.round(valor * 10) / 10).toFixed(1)}%`;
 }
 
+function hayMeta(meta) {
+  return typeof meta === "number";
+}
+
+/** "Meta 95%" o nada, si la meta todavía no se definió. */
+function textoMeta(meta) {
+  return hayMeta(meta) ? textoMeta(meta) : "";
+}
+
 /** Etiqueta de estado contra la meta: nunca solo color, siempre con texto. */
 function etiquetaEstado(valor, meta) {
+  if (!hayMeta(meta)) return "";
   if (valor === null || valor === undefined) return `<span class="ind-estado sin">Sin datos</span>`;
   return valor >= meta
     ? `<span class="ind-estado ok">✔ Cumple</span>`
@@ -108,7 +120,7 @@ function etiquetaEstado(valor, meta) {
 }
 
 function claseValor(valor, meta) {
-  if (valor === null || valor === undefined) return "";
+  if (!hayMeta(meta) || valor === null || valor === undefined) return "";
   return valor >= meta ? "ind-ok" : "ind-bajo";
 }
 
@@ -457,26 +469,25 @@ function graficaPorcentajeConMeta(idCanvas, etiquetas, valores, meta, etiquetaSe
   if (chartsActivos[idCanvas]) chartsActivos[idCanvas].destroy();
   const canvas = document.getElementById(idCanvas);
   if (!canvas) return;
+  const conMeta = hayMeta(meta);
+  const datasets = [{
+    type: "bar", label: etiquetaSerie, data: valores,
+    backgroundColor: valores.map((v) => (v === null ? "transparent" : !conMeta ? COLOR_SERIE : v >= meta ? COLOR_CUMPLE : COLOR_NO_CUMPLE)),
+    borderRadius: 6, maxBarThickness: 40,
+  }];
+  if (conMeta) {
+    datasets.push({
+      type: "line", label: textoMeta(meta), data: etiquetas.map(() => meta),
+      borderColor: COLOR_META, borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0, fill: false,
+    });
+  }
   chartsActivos[idCanvas] = new Chart(canvas.getContext("2d"), {
-    data: {
-      labels: etiquetas,
-      datasets: [
-        {
-          type: "bar", label: etiquetaSerie, data: valores,
-          backgroundColor: valores.map((v) => (v === null ? "transparent" : v >= meta ? COLOR_CUMPLE : COLOR_NO_CUMPLE)),
-          borderRadius: 6, maxBarThickness: 40,
-        },
-        {
-          type: "line", label: `Meta ${meta}%`, data: etiquetas.map(() => meta),
-          borderColor: COLOR_META, borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0, fill: false,
-        },
-      ],
-    },
+    data: { labels: etiquetas, datasets },
     options: {
       responsive: true,
       interaction: { mode: "index", intersect: false },
       plugins: {
-        legend: { display: true, position: "bottom" },
+        legend: { display: conMeta, position: "bottom" },
         tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${textoPct(ctx.parsed.y)}` } },
       },
       scales: { y: { min: 0, max: 100, ticks: { callback: (v) => v + "%" } } },
@@ -511,10 +522,13 @@ function kpiHtml(valor, etiqueta, detalle = "", clase = "", medidor = null) {
     medidor ? medidorHtml(medidor.pct, medidor.meta) : ""}${detalle ? `<div class="ayuda">${detalle}</div>` : ""}</div>`;
 }
 
-/** Barra de avance contra la meta (la marca vertical es la meta). */
+/** Barra de avance de 0 a 100%; con meta definida, la marca vertical es la meta. */
 function medidorHtml(pct, meta) {
   if (pct === null || pct === undefined) return "";
   const ancho = Math.max(0, Math.min(100, pct));
+  if (!hayMeta(meta)) {
+    return `<div class="ind-medidor" role="img" aria-label="${textoPct(pct)}"><span style="width:${ancho}%"></span></div>`;
+  }
   return `<div class="ind-medidor ${pct >= meta ? "ok" : "bajo"}" role="img" aria-label="${textoPct(pct)} de meta ${meta}%">
     <span style="width:${ancho}%"></span><i style="left:${meta}%"></i></div>`;
 }
@@ -561,7 +575,7 @@ function renderPPR(datos, meses) {
 
   document.getElementById("panel-ppr").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.final), "Cumplimiento final PPRs", `Meta ${meta}%`, claseValor(r.final, meta), { pct: r.final, meta })}
+      ${kpiHtml(textoPct(r.final), "Cumplimiento final PPRs", textoMeta(meta), claseValor(r.final, meta), { pct: r.final, meta })}
       ${kpiHtml(datos.recorridos.length, "Recorridos considerados", datos.excluidos ? `${datos.excluidos} borrador(es) excluido(s)` : "")}
       ${kpiHtml(r.totalEvaluados, "Aspectos evaluados", `${r.totalSi} ✔ · ${r.totalEvaluados - r.totalSi} ✘`)}
       ${turnos.map((t) => kpiHtml(textoPct(porcentaje(r.porTurno[t].si, r.porTurno[t].total)), `Turno #${escHtml(t)}`, "✔ / evaluados")).join("")}
@@ -569,7 +583,7 @@ function renderPPR(datos, meses) {
     <div class="tarjeta">
       <h3>Resultado por proceso (SIG-FO-115)</h3>
       <p class="ayuda">Igual que la hoja "Resultado" del consolidado: % por aspecto = ✔ / evaluados en el período;
-      cada cuestión promedia sus aspectos, cada proceso promedia sus cuestiones y el cumplimiento final promedia los procesos. Límite ${meta}%.</p>
+      cada cuestión promedia sus aspectos, cada proceso promedia sus cuestiones y el cumplimiento final promedia los procesos.${hayMeta(meta) ? ` Límite ${meta}%.` : ""}</p>
       ${tablaHtml(["Proceso", "Cuestión", "Resultado individual", "Total del proceso"], filas, "Sin recorridos en el período seleccionado.")}
     </div>
     <div class="tarjeta">
@@ -601,7 +615,7 @@ function renderContenedores(registros, meses) {
 
   document.getElementById("panel-contenedores").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.porcentaje), "Contenedores liberados", `Meta ${meta}%`, claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
+      ${kpiHtml(textoPct(r.porcentaje), "Contenedores liberados", textoMeta(meta), claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
       ${kpiHtml(r.total, "Verificaciones")}
       ${kpiHtml(r.aprobados, "Aprobados")}
       ${kpiHtml(r.rechazados, "Rechazados")}
@@ -644,7 +658,7 @@ function renderImprentas(registros, meses) {
 
   document.getElementById("panel-imprentas").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.porcentaje), "Liberaciones conformes", `Meta ${meta}%`, claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
+      ${kpiHtml(textoPct(r.porcentaje), "Liberaciones conformes", textoMeta(meta), claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
       ${kpiHtml(r.total, "Liberaciones registradas")}
       ${kpiHtml(r.conformes, "Conformes (todo en SI)")}
       ${kpiHtml(r.noConformes, "Con algún NO")}
@@ -698,7 +712,7 @@ function renderBpm(datos, meses) {
 
   document.getElementById("panel-bpm").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.porcentaje), "Cumplimiento BPM del período", `${calificacionBpm(r.porcentaje)} · Meta ${meta}%`, claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
+      ${kpiHtml(textoPct(r.porcentaje), "Cumplimiento BPM del período", [calificacionBpm(r.porcentaje), textoMeta(meta)].filter(Boolean).join(" · "), claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
       ${kpiHtml(r.porMes.length, "Auditorías (meses)")}
       ${kpiHtml(r.noCumple.length, "Preguntas en NO")}
     </div>
@@ -774,7 +788,7 @@ function renderHisopado(registros, meses) {
 
   document.getElementById("panel-hisopado").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.porcentaje), "Análisis dentro del límite", `Meta ${meta}%`, claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
+      ${kpiHtml(textoPct(r.porcentaje), "Análisis dentro del límite", textoMeta(meta), claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
       ${kpiHtml(r.total, "Análisis realizados")}
       ${kpiHtml(r.desviaciones.length, "Desviaciones")}
     </div>
@@ -814,21 +828,25 @@ function renderReportesPorMes(todosReportes, meses) {
 }
 
 function renderResumen(res, meses) {
-  const celda = (valor, meta) => (meta ? `<td class="${claseValor(valor, meta)}">${textoPct(valor)}</td>` : `<td>${valor ?? "–"}</td>`);
-  const kpi = (clave, titulo, valorFn, meta) => {
+  // esPct distingue los indicadores en % (con medidor y meta opcional) de
+  // los conteos (puntos urgentes, reportes).
+  const celda = (valor, esPct, meta) => (esPct ? `<td class="${claseValor(valor, meta)}">${textoPct(valor)}</td>` : `<td>${valor ?? "–"}</td>`);
+  const kpi = (clave, titulo, valorFn, esPct, meta) => {
     const r = res[clave];
     if (!r) return kpiHtml("–", titulo, "Sin acceso");
     const v = valorFn(r);
-    return kpiHtml(meta ? textoPct(v) : (v ?? "–"), titulo, meta ? `Meta ${meta}%` : "", meta ? claseValor(v, meta) : "", meta ? { pct: v, meta } : null);
+    return esPct
+      ? kpiHtml(textoPct(v), titulo, textoMeta(meta), claseValor(v, meta), { pct: v, meta })
+      : kpiHtml(v ?? "–", titulo);
   };
   const porMes = (clave, mes) => (res[clave] ? res[clave].porMes[mes] ?? null : null);
 
   document.getElementById("resumen-kpis").innerHTML = [
-    kpi("ppr", "PPRs · SIG-FO-115", (r) => r.final, METAS_INDICADORES.ppr),
-    kpi("contenedores", "Contenedores liberados", (r) => r.final, METAS_INDICADORES.contenedores),
-    kpi("imprentas", "Imprentas · SIG-FO-101", (r) => r.final, METAS_INDICADORES.imprentas),
-    kpi("bpm", "BPM · SIG-FO-116", (r) => r.final, METAS_INDICADORES.bpm),
-    kpi("hisopado", "Hisopados en límite", (r) => r.final, METAS_INDICADORES.hisopado),
+    kpi("ppr", "PPRs · SIG-FO-115", (r) => r.final, true, METAS_INDICADORES.ppr),
+    kpi("contenedores", "Contenedores liberados", (r) => r.final, true, METAS_INDICADORES.contenedores),
+    kpi("imprentas", "Imprentas · SIG-FO-101", (r) => r.final, true, METAS_INDICADORES.imprentas),
+    kpi("bpm", "BPM · SIG-FO-116", (r) => r.final, true, METAS_INDICADORES.bpm),
+    kpi("hisopado", "Hisopados en límite", (r) => r.final, true, METAS_INDICADORES.hisopado),
     kpi("vidrio", "Vidrio: puntos urgentes", (r) => r.urgentes),
     kpi("reportes", "Reportes de hallazgos", (r) => r.total),
   ].join("");
@@ -836,11 +854,11 @@ function renderResumen(res, meses) {
   document.getElementById("resumen-tabla-mes").innerHTML = tablaHtml(
     ["Mes", "PPRs", "Contenedores", "Imprentas", "BPM", "Hisopado", "Vidrio urgentes", "Reportes"],
     meses.map((m) => `<tr><td><strong>${etiquetaMes(m)}</strong></td>
-      ${celda(porMes("ppr", m), METAS_INDICADORES.ppr)}
-      ${celda(porMes("contenedores", m), METAS_INDICADORES.contenedores)}
-      ${celda(porMes("imprentas", m), METAS_INDICADORES.imprentas)}
-      ${celda(porMes("bpm", m), METAS_INDICADORES.bpm)}
-      ${celda(porMes("hisopado", m), METAS_INDICADORES.hisopado)}
+      ${celda(porMes("ppr", m), true, METAS_INDICADORES.ppr)}
+      ${celda(porMes("contenedores", m), true, METAS_INDICADORES.contenedores)}
+      ${celda(porMes("imprentas", m), true, METAS_INDICADORES.imprentas)}
+      ${celda(porMes("bpm", m), true, METAS_INDICADORES.bpm)}
+      ${celda(porMes("hisopado", m), true, METAS_INDICADORES.hisopado)}
       ${celda(porMes("vidrio", m))}
       ${celda(porMes("reportes", m))}</tr>`)
   );
