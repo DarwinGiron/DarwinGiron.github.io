@@ -34,10 +34,12 @@ const METAS_INDICADORES = {
   hisopado: 95,
 };
 
-const COLOR_CUMPLE = "#2e8b57";
-const COLOR_NO_CUMPLE = "#c0392b";
-const COLOR_SERIE = "#1e4c80";
-const COLOR_META = "#c9a227";
+const COLOR_CUMPLE = "#008A05";
+const COLOR_NO_CUMPLE = "#C13515";
+const COLOR_SERIE = "#222222";
+const COLOR_ACENTO = "#FF385C";
+const COLOR_MEDIO = "#E07912";
+const COLOR_META = "#222222";
 
 const NOMBRES_MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
@@ -462,11 +464,11 @@ function graficaPorcentajeConMeta(idCanvas, etiquetas, valores, meta, etiquetaSe
         {
           type: "bar", label: etiquetaSerie, data: valores,
           backgroundColor: valores.map((v) => (v === null ? "transparent" : v >= meta ? COLOR_CUMPLE : COLOR_NO_CUMPLE)),
-          borderRadius: 4, maxBarThickness: 36,
+          borderRadius: 6, maxBarThickness: 40,
         },
         {
           type: "line", label: `Meta ${meta}%`, data: etiquetas.map(() => meta),
-          borderColor: COLOR_META, borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: false,
+          borderColor: COLOR_META, borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0, fill: false,
         },
       ],
     },
@@ -490,7 +492,7 @@ function graficaApilada(idCanvas, etiquetas, series) {
     type: "bar",
     data: {
       labels: etiquetas,
-      datasets: series.map((s) => ({ label: s.etiqueta, data: s.datos, backgroundColor: s.color, borderRadius: 4, maxBarThickness: 36 })),
+      datasets: series.map((s) => ({ label: s.etiqueta, data: s.datos, backgroundColor: s.color, borderRadius: 6, maxBarThickness: 40, borderSkipped: "bottom" })),
     },
     options: {
       responsive: true,
@@ -504,8 +506,17 @@ function graficaApilada(idCanvas, etiquetas, series) {
 // ---------------------------------------------------------------------------
 // RENDER
 // ---------------------------------------------------------------------------
-function kpiHtml(valor, etiqueta, detalle = "", clase = "") {
-  return `<div class="kpi"><div class="valor ${clase}">${valor}</div><div class="etiqueta">${etiqueta}</div>${detalle ? `<div class="ayuda" style="margin-top:2px;">${detalle}</div>` : ""}</div>`;
+function kpiHtml(valor, etiqueta, detalle = "", clase = "", medidor = null) {
+  return `<div class="kpi"><div class="etiqueta">${etiqueta}</div><div class="valor ${clase}">${valor}</div>${
+    medidor ? medidorHtml(medidor.pct, medidor.meta) : ""}${detalle ? `<div class="ayuda">${detalle}</div>` : ""}</div>`;
+}
+
+/** Barra de avance contra la meta (la marca vertical es la meta). */
+function medidorHtml(pct, meta) {
+  if (pct === null || pct === undefined) return "";
+  const ancho = Math.max(0, Math.min(100, pct));
+  return `<div class="ind-medidor ${pct >= meta ? "ok" : "bajo"}" role="img" aria-label="${textoPct(pct)} de meta ${meta}%">
+    <span style="width:${ancho}%"></span><i style="left:${meta}%"></i></div>`;
 }
 
 function tablaHtml(encabezados, filas, vacio = "Sin datos en el período seleccionado.") {
@@ -550,7 +561,7 @@ function renderPPR(datos, meses) {
 
   document.getElementById("panel-ppr").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.final), "Cumplimiento final PPRs", `Meta ${meta}%`, claseValor(r.final, meta))}
+      ${kpiHtml(textoPct(r.final), "Cumplimiento final PPRs", `Meta ${meta}%`, claseValor(r.final, meta), { pct: r.final, meta })}
       ${kpiHtml(datos.recorridos.length, "Recorridos considerados", datos.excluidos ? `${datos.excluidos} borrador(es) excluido(s)` : "")}
       ${kpiHtml(r.totalEvaluados, "Aspectos evaluados", `${r.totalSi} ✔ · ${r.totalEvaluados - r.totalSi} ✘`)}
       ${turnos.map((t) => kpiHtml(textoPct(porcentaje(r.porTurno[t].si, r.porTurno[t].total)), `Turno #${escHtml(t)}`, "✔ / evaluados")).join("")}
@@ -590,7 +601,7 @@ function renderContenedores(registros, meses) {
 
   document.getElementById("panel-contenedores").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.porcentaje), "Contenedores liberados", `Meta ${meta}%`, claseValor(r.porcentaje, meta))}
+      ${kpiHtml(textoPct(r.porcentaje), "Contenedores liberados", `Meta ${meta}%`, claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
       ${kpiHtml(r.total, "Verificaciones")}
       ${kpiHtml(r.aprobados, "Aprobados")}
       ${kpiHtml(r.rechazados, "Rechazados")}
@@ -633,7 +644,7 @@ function renderImprentas(registros, meses) {
 
   document.getElementById("panel-imprentas").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.porcentaje), "Liberaciones conformes", `Meta ${meta}%`, claseValor(r.porcentaje, meta))}
+      ${kpiHtml(textoPct(r.porcentaje), "Liberaciones conformes", `Meta ${meta}%`, claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
       ${kpiHtml(r.total, "Liberaciones registradas")}
       ${kpiHtml(r.conformes, "Conformes (todo en SI)")}
       ${kpiHtml(r.noConformes, "Con algún NO")}
@@ -687,7 +698,7 @@ function renderBpm(datos, meses) {
 
   document.getElementById("panel-bpm").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.porcentaje), "Cumplimiento BPM del período", `${calificacionBpm(r.porcentaje)} · Meta ${meta}%`, claseValor(r.porcentaje, meta))}
+      ${kpiHtml(textoPct(r.porcentaje), "Cumplimiento BPM del período", `${calificacionBpm(r.porcentaje)} · Meta ${meta}%`, claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
       ${kpiHtml(r.porMes.length, "Auditorías (meses)")}
       ${kpiHtml(r.noCumple.length, "Preguntas en NO")}
     </div>
@@ -745,7 +756,7 @@ function renderVidrio(registros, meses) {
 
   graficaApilada("grafica-vidrio-mes", meses.map(etiquetaMes), [
     { etiqueta: "Ligero (1)", datos: serieNivel(1), color: COLOR_CUMPLE },
-    { etiqueta: "Medio (2)", datos: serieNivel(2), color: COLOR_META },
+    { etiqueta: "Medio (2)", datos: serieNivel(2), color: COLOR_MEDIO },
     { etiqueta: "Urgente (3)", datos: serieNivel(3), color: COLOR_NO_CUMPLE },
   ]);
   const urgentesMes = serieNivel(3);
@@ -763,7 +774,7 @@ function renderHisopado(registros, meses) {
 
   document.getElementById("panel-hisopado").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.porcentaje), "Análisis dentro del límite", `Meta ${meta}%`, claseValor(r.porcentaje, meta))}
+      ${kpiHtml(textoPct(r.porcentaje), "Análisis dentro del límite", `Meta ${meta}%`, claseValor(r.porcentaje, meta), { pct: r.porcentaje, meta })}
       ${kpiHtml(r.total, "Análisis realizados")}
       ${kpiHtml(r.desviaciones.length, "Desviaciones")}
     </div>
@@ -797,7 +808,7 @@ function renderReportesPorMes(todosReportes, meses) {
   const pendientes = meses.map((m, i) => (porMes[m] || []).length - validados[i]);
   graficaApilada("grafica-reportes-mes", meses.map(etiquetaMes), [
     { etiqueta: "Validados", datos: validados, color: COLOR_SERIE },
-    { etiqueta: "Pendientes", datos: pendientes, color: COLOR_META },
+    { etiqueta: "Pendientes", datos: pendientes, color: COLOR_ACENTO },
   ]);
   return { total: todosReportes.length, porMes: Object.fromEntries(meses.map((m, i) => [m, validados[i] + pendientes[i]])) };
 }
@@ -808,17 +819,17 @@ function renderResumen(res, meses) {
     const r = res[clave];
     if (!r) return kpiHtml("–", titulo, "Sin acceso");
     const v = valorFn(r);
-    return kpiHtml(meta ? textoPct(v) : (v ?? "–"), titulo, meta ? `Meta ${meta}%` : "", meta ? claseValor(v, meta) : "");
+    return kpiHtml(meta ? textoPct(v) : (v ?? "–"), titulo, meta ? `Meta ${meta}%` : "", meta ? claseValor(v, meta) : "", meta ? { pct: v, meta } : null);
   };
   const porMes = (clave, mes) => (res[clave] ? res[clave].porMes[mes] ?? null : null);
 
   document.getElementById("resumen-kpis").innerHTML = [
-    kpi("ppr", "Cumplimiento PPRs (SIG-FO-115)", (r) => r.final, METAS_INDICADORES.ppr),
-    kpi("contenedores", "Liberación de contenedores", (r) => r.final, METAS_INDICADORES.contenedores),
-    kpi("imprentas", "Liberación de imprentas (SIG-FO-101)", (r) => r.final, METAS_INDICADORES.imprentas),
-    kpi("bpm", "Auditoría BPM (SIG-FO-116)", (r) => r.final, METAS_INDICADORES.bpm),
-    kpi("hisopado", "Hisopados dentro del límite", (r) => r.final, METAS_INDICADORES.hisopado),
-    kpi("vidrio", "Vidrio/plástico: puntos urgentes", (r) => r.urgentes),
+    kpi("ppr", "PPRs · SIG-FO-115", (r) => r.final, METAS_INDICADORES.ppr),
+    kpi("contenedores", "Contenedores liberados", (r) => r.final, METAS_INDICADORES.contenedores),
+    kpi("imprentas", "Imprentas · SIG-FO-101", (r) => r.final, METAS_INDICADORES.imprentas),
+    kpi("bpm", "BPM · SIG-FO-116", (r) => r.final, METAS_INDICADORES.bpm),
+    kpi("hisopado", "Hisopados en límite", (r) => r.final, METAS_INDICADORES.hisopado),
+    kpi("vidrio", "Vidrio: puntos urgentes", (r) => r.urgentes),
     kpi("reportes", "Reportes de hallazgos", (r) => r.total),
   ].join("");
 
