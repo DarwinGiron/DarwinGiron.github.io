@@ -49,6 +49,27 @@ ISO 22000:2018 e ISO/TS 22002-4.
 Las reglas completas están en [`firestore.rules`](firestore.rules) y los
 índices compuestos requeridos en [`firestore.indexes.json`](firestore.indexes.json).
 
+## Indicadores del Dashboard (todos los módulos)
+
+`admin/dashboard.html` tiene pestañas con los indicadores de cada formato, calculados
+en el navegador por [`js/indicadores.js`](js/indicadores.js) para el rango Desde/Hasta
+(con atajos: este mes, mes anterior, últimos 3/6 meses, este año):
+
+| Pestaña | Colección | Indicador |
+|---|---|---|
+| Resumen | todas | KPIs de cada módulo + tabla por mes + reportes por mes |
+| PPRs SIG-FO-115 | `inspecciones` | % por cuestión, por proceso y final, con el mismo cálculo del consolidado en Excel (hoja "Resultado", límite 95%) |
+| Contenedores | `verificaciones_transporte` | % de contenedores aprobados, por empresa, puntos que más fallan |
+| Imprentas SIG-FO-101 | `liberaciones` | % de liberaciones conformes (todo en SI), por máquina y turno |
+| BPM SIG-FO-116 | `auditoriasBpm` | % por sección y total por mes, preguntas en NO |
+| Vidrio y plástico | `registrosVidrio` | puntos por nivel de riesgo, puntos de acción urgente |
+| Hisopado | `hisopados` | % de análisis dentro del límite, desviaciones |
+
+Las metas están en la constante `METAS_INDICADORES` al inicio de `js/indicadores.js`.
+Por defecto SIG-FO-115 solo cuenta recorridos terminados; la casilla "Incluir
+recorridos en borrador" agrega los que siguen en curso. Si un usuario no tiene
+permiso para una colección, solo esa pestaña muestra el aviso.
+
 ## Plano real usado para marcar el hallazgo (Nuevo reporte)
 
 El archivo [`assets/plano-planta-real.png`](assets/plano-planta-real.png) (el

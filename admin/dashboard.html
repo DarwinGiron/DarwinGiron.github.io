@@ -35,8 +35,48 @@
         </div>
         <button class="btn btn-primario" id="btn-filtrar">Aplicar filtro</button>
       </div>
+      <div class="ind-atajos">
+        <button type="button" class="btn btn-secundario btn-pequeno" data-atajo="mes">Este mes</button>
+        <button type="button" class="btn btn-secundario btn-pequeno" data-atajo="mes-anterior">Mes anterior</button>
+        <button type="button" class="btn btn-secundario btn-pequeno" data-atajo="3-meses">Últimos 3 meses</button>
+        <button type="button" class="btn btn-secundario btn-pequeno" data-atajo="6-meses">Últimos 6 meses</button>
+        <button type="button" class="btn btn-secundario btn-pequeno" data-atajo="anio">Este año</button>
+      </div>
+      <label class="ind-check"><input type="checkbox" id="incluir-borradores"> Incluir recorridos SIG-FO-115 en borrador (no terminados)</label>
       <p class="ayuda">Para generar el informe oficial en PDF o Word por semana, vaya a <a href="informes.html">Informes</a>.</p>
     </div>
+
+    <div class="tabs" id="tabs-indicadores">
+      <button class="tab" data-panel="resumen">Resumen</button>
+      <button class="tab" data-panel="ppr">PPRs SIG-FO-115</button>
+      <button class="tab" data-panel="contenedores">Contenedores</button>
+      <button class="tab" data-panel="imprentas">Imprentas SIG-FO-101</button>
+      <button class="tab" data-panel="bpm">BPM SIG-FO-116</button>
+      <button class="tab" data-panel="vidrio">Vidrio y plástico</button>
+      <button class="tab" data-panel="hisopado">Hisopado</button>
+      <button class="tab" data-panel="reportes">Reportes de hallazgos</button>
+    </div>
+
+    <section class="ind-panel" data-panel="resumen">
+      <div class="kpis" id="resumen-kpis"></div>
+      <div class="tarjeta">
+        <h3>Indicadores por mes</h3>
+        <p class="ayuda">Verde: cumple la meta · Rojo: bajo la meta. "–" significa que no hubo registros ese mes.</p>
+        <div id="resumen-tabla-mes"></div>
+      </div>
+      <div class="tarjeta">
+        <h3>Cantidad de reportes de hallazgos por mes</h3>
+        <canvas id="grafica-reportes-mes"></canvas>
+      </div>
+    </section>
+    <section class="ind-panel" data-panel="ppr" id="panel-ppr"></section>
+    <section class="ind-panel" data-panel="contenedores" id="panel-contenedores"></section>
+    <section class="ind-panel" data-panel="imprentas" id="panel-imprentas"></section>
+    <section class="ind-panel" data-panel="bpm" id="panel-bpm"></section>
+    <section class="ind-panel" data-panel="vidrio" id="panel-vidrio"></section>
+    <section class="ind-panel" data-panel="hisopado" id="panel-hisopado"></section>
+
+    <section class="ind-panel" data-panel="reportes">
 
     <div class="kpis">
       <div class="kpi"><div class="valor" id="kpi-total">0</div><div class="etiqueta">Total del período</div></div>
@@ -124,6 +164,7 @@
         <span><span class="punto" style="background:#888;"></span>Observación</span>
       </div>
     </div>
+    </section>
   </main>
 </div>
 
@@ -148,6 +189,7 @@
 <script src="../js/auth.js"></script>
 <script src="../js/reportes.js"></script>
 <script src="../js/dashboard.js"></script>
+<script src="../js/indicadores.js"></script>
 <script>
 let perfilAdmin = null;
 let usuarioAdmin = null;
@@ -168,13 +210,50 @@ protegerPagina("dashboard", async (user, perfil, permisos) => {
 });
 
 function inicializarFiltrosPorDefecto() {
-  const hoy = new Date();
-  const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-  document.getElementById("filtro-desde").value = primerDiaMes.toISOString().slice(0, 10);
-  document.getElementById("filtro-hasta").value = hoy.toISOString().slice(0, 10);
+  aplicarAtajoFechas("mes");
 }
 
+/** Llena Desde/Hasta con un período predefinido (fechas locales, no UTC). */
+function aplicarAtajoFechas(atajo) {
+  const hoy = new Date();
+  let desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  let hasta = hoy;
+  if (atajo === "mes-anterior") {
+    desde = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+    hasta = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+  } else if (atajo === "3-meses") {
+    desde = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1);
+  } else if (atajo === "6-meses") {
+    desde = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1);
+  } else if (atajo === "anio") {
+    desde = new Date(hoy.getFullYear(), 0, 1);
+  }
+  document.getElementById("filtro-desde").value = fechaISOLocal(desde);
+  document.getElementById("filtro-hasta").value = fechaISOLocal(hasta);
+}
+
+document.querySelectorAll("[data-atajo]").forEach((btn) => btn.addEventListener("click", () => {
+  aplicarAtajoFechas(btn.dataset.atajo);
+  cargarDatosYRenderizar();
+}));
+
 document.getElementById("btn-filtrar").addEventListener("click", cargarDatosYRenderizar);
+document.getElementById("incluir-borradores").addEventListener("change", cargarDatosYRenderizar);
+
+// Pestañas de indicadores: la última elegida se recuerda en este navegador.
+function mostrarPanelIndicadores(panel) {
+  document.querySelectorAll("#tabs-indicadores .tab").forEach((b) => b.classList.toggle("activo", b.dataset.panel === panel));
+  document.querySelectorAll(".ind-panel").forEach((s) => { s.hidden = s.dataset.panel !== panel; });
+  try { localStorage.setItem("dashboard_panel", panel); } catch (e) { /* sin almacenamiento local */ }
+  // Chart.js no puede medir un canvas oculto: al mostrarlo se reajustan.
+  Object.values(chartsActivos).forEach((c) => c.resize());
+}
+document.querySelectorAll("#tabs-indicadores .tab").forEach((btn) =>
+  btn.addEventListener("click", () => mostrarPanelIndicadores(btn.dataset.panel)));
+let panelInicial = "resumen";
+try { panelInicial = localStorage.getItem("dashboard_panel") || "resumen"; } catch (e) { /* sin almacenamiento local */ }
+if (!document.querySelector(`#tabs-indicadores .tab[data-panel="${panelInicial}"]`)) panelInicial = "resumen";
+mostrarPanelIndicadores(panelInicial);
 
 async function cargarDatosYRenderizar() {
   const desde = new Date(document.getElementById("filtro-desde").value + "T00:00:00");
@@ -187,6 +266,13 @@ async function cargarDatosYRenderizar() {
   ]);
   ultimosTodos = todos;
   ultimosValidados = validados;
+
+  const indicadores = cargarIndicadores(
+    document.getElementById("filtro-desde").value,
+    document.getElementById("filtro-hasta").value,
+    todos,
+    { incluirBorradores: document.getElementById("incluir-borradores").checked }
+  );
 
   const kpis = calcularKPIs(todos);
   document.getElementById("kpi-total").textContent = kpis.total;
@@ -236,6 +322,7 @@ async function cargarDatosYRenderizar() {
   }
   marcoPlanoDash = await cargarPlanoImagenReal(document.getElementById("contenedor-plano-dash"));
   renderizarMapaFiltrado();
+  await indicadores;
 }
 
 /** Repinta el mapa de calor con los validados del período actual, filtrados

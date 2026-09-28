@@ -741,6 +741,29 @@ body.tema-reportes .filtros-fecha { display: flex; gap: 10px; flex-wrap: wrap; a
 
 body.tema-reportes .filtros-fecha .campo { margin-bottom: 0; flex: 1; min-width: 140px; }
 
+/* ---- Indicadores por módulo (admin/dashboard.html + js/indicadores.js) ----
+   Los colores salen de --x-bien-* / --x-critico-*, que ya cambian solos
+   entre día y noche, así que no necesitan regla aparte para el tema oscuro. */
+body.tema-reportes .ind-atajos { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+body.tema-reportes .ind-check { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; margin-bottom: 6px; cursor: pointer; }
+body.tema-reportes .ind-ok { color: var(--x-bien-ink); font-weight: 700; }
+body.tema-reportes .ind-bajo { color: var(--x-critico-ink); font-weight: 700; }
+:root[data-theme="dark"] body.tema-reportes table.tabla td.ind-ok { color: var(--x-bien-ink); }
+:root[data-theme="dark"] body.tema-reportes table.tabla td.ind-bajo { color: var(--x-critico-ink); }
+body.tema-reportes .kpi .valor.ind-ok { color: var(--x-bien-ink); }
+body.tema-reportes .kpi .valor.ind-bajo { color: var(--x-critico-ink); }
+/* De noche el valor de un KPI es texto con degradado dorado; el de un
+   indicador contra meta necesita su color de estado. */
+:root[data-theme="dark"] body.tema-reportes .kpi .valor.ind-ok,
+:root[data-theme="dark"] body.tema-reportes .kpi .valor.ind-bajo { background: none; -webkit-text-fill-color: currentColor; }
+body.tema-reportes .ind-estado { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+body.tema-reportes .ind-estado.ok { background: var(--x-bien-suave); color: var(--x-bien-ink); }
+body.tema-reportes .ind-estado.bajo { background: var(--x-critico-suave); color: var(--x-critico-ink); }
+body.tema-reportes .ind-estado.sin { background: var(--x-observacion-suave); color: var(--x-observacion-ink); }
+body.tema-reportes .ind-fila-total td { border-top: 2px solid var(--color-borde); }
+body.tema-reportes .ind-aviso { color: var(--x-critico-ink); margin: 0; }
+body.tema-reportes table.tabla td[rowspan] { vertical-align: top; }
+
 body.tema-reportes .filtros-reportes .fila-campos { flex-wrap: wrap; margin-bottom: 12px; }
 
 body.tema-reportes .filtros-reportes .campo { min-width: 160px; margin-bottom: 0; }
