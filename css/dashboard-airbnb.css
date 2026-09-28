@@ -381,7 +381,8 @@ body.tema-reportes.dash-airbnb .kpi .ind-medidor { order: 2; }
 body.tema-reportes.dash-airbnb .kpi .valor.ind-ok { color: var(--ab-bien); }
 body.tema-reportes.dash-airbnb .kpi .valor.ind-bajo { color: var(--ab-mal); }
 
-/* Medidor: avance contra la meta (la rayita vertical es la meta). */
+/* Medidor: avance de 0 a 100%. Con meta definida se pinta verde/rojo y la
+   rayita vertical marca la meta. */
 body.tema-reportes.dash-airbnb .ind-medidor {
   position: relative;
   width: 100%;
@@ -395,9 +396,10 @@ body.tema-reportes.dash-airbnb .ind-medidor span {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: 999px;
-  background: var(--ab-bien);
+  background: var(--ab-tinta);
 }
 
+body.tema-reportes.dash-airbnb .ind-medidor.ok span { background: var(--ab-bien); }
 body.tema-reportes.dash-airbnb .ind-medidor.bajo span { background: var(--ab-mal); }
 
 body.tema-reportes.dash-airbnb .ind-medidor i {
