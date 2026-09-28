@@ -2,14 +2,15 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-  <script src="/js/tema-horario.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#060605">
+<meta name="theme-color" content="#ffffff">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <title>Dashboard - COGUSA SGI</title>
 <link rel="stylesheet" href="/css/estilos.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap">
+<link rel="stylesheet" href="/css/dashboard-airbnb.css">
 </head>
-<body class="tema-reportes">
+<body class="tema-reportes dash-airbnb">
 <div id="app">
   <header class="barra-superior">
     <div class="marca">
@@ -22,8 +23,16 @@
     <nav data-nav-principal></nav>
   </header>
 
-  <main class="contenedor" style="max-width:1100px;">
-    <div class="tarjeta">
+  <main class="contenedor" style="max-width:1280px;">
+    <div class="ab-encabezado">
+      <div>
+        <h2 class="ab-titulo">Indicadores de cumplimiento</h2>
+        <p class="ab-subtitulo" id="texto-periodo">Período seleccionado</p>
+      </div>
+      <a class="ab-enlace" href="informes.html">Informe oficial en PDF o Word →</a>
+    </div>
+
+    <div class="ab-buscador">
       <div class="filtros-fecha">
         <div class="campo">
           <label for="filtro-desde">Desde</label>
@@ -33,10 +42,52 @@
           <label for="filtro-hasta">Hasta</label>
           <input type="date" id="filtro-hasta">
         </div>
-        <button class="btn btn-primario" id="btn-filtrar">Aplicar filtro</button>
+        <button class="btn btn-primario" id="btn-filtrar" aria-label="Aplicar filtro">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
+          <span>Buscar</span>
+        </button>
       </div>
-      <p class="ayuda">Para generar el informe oficial en PDF o Word por semana, vaya a <a href="informes.html">Informes</a>.</p>
+      <div class="ind-atajos">
+        <button type="button" class="ab-chip" data-atajo="mes">Este mes</button>
+        <button type="button" class="ab-chip" data-atajo="mes-anterior">Mes anterior</button>
+        <button type="button" class="ab-chip" data-atajo="3-meses">Últimos 3 meses</button>
+        <button type="button" class="ab-chip" data-atajo="6-meses">Últimos 6 meses</button>
+        <button type="button" class="ab-chip" data-atajo="anio">Este año</button>
+        <label class="ind-check"><input type="checkbox" id="incluir-borradores"><span class="ab-interruptor" aria-hidden="true"></span> Incluir recorridos SIG-FO-115 en borrador</label>
+      </div>
     </div>
+
+    <div class="tabs" id="tabs-indicadores">
+      <button class="tab" data-panel="resumen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Resumen</span></button>
+      <button class="tab" data-panel="ppr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg><span>PPRs</span></button>
+      <button class="tab" data-panel="contenedores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="14" height="11" rx="1"/><path d="M16 11h3l3 3v4h-6"/><circle cx="6.5" cy="19" r="1.8"/><circle cx="18" cy="19" r="1.8"/></svg><span>Contenedores</span></button>
+      <button class="tab" data-panel="imprentas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg><span>Imprentas</span></button>
+      <button class="tab" data-panel="bpm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg><span>BPM</span></button>
+      <button class="tab" data-panel="vidrio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3h8l-1 8a3 3 0 0 1-6 0z"/><path d="M12 14v6M8 21h8"/></svg><span>Vidrio y plástico</span></button>
+      <button class="tab" data-panel="hisopado"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/><path d="M7.5 15h9"/></svg><span>Hisopado</span></button>
+      <button class="tab" data-panel="reportes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="10" r="3"/><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/></svg><span>Hallazgos</span></button>
+    </div>
+
+    <section class="ind-panel" data-panel="resumen">
+      <div class="kpis" id="resumen-kpis"></div>
+      <div class="tarjeta">
+        <h3>Indicadores por mes</h3>
+        <p class="ayuda">Verde: cumple la meta · Rojo: bajo la meta. "–" significa que no hubo registros ese mes.</p>
+        <div id="resumen-tabla-mes"></div>
+      </div>
+      <div class="tarjeta">
+        <h3>Cantidad de reportes de hallazgos por mes</h3>
+        <canvas id="grafica-reportes-mes"></canvas>
+      </div>
+    </section>
+    <section class="ind-panel" data-panel="ppr" id="panel-ppr"></section>
+    <section class="ind-panel" data-panel="contenedores" id="panel-contenedores"></section>
+    <section class="ind-panel" data-panel="imprentas" id="panel-imprentas"></section>
+    <section class="ind-panel" data-panel="bpm" id="panel-bpm"></section>
+    <section class="ind-panel" data-panel="vidrio" id="panel-vidrio"></section>
+    <section class="ind-panel" data-panel="hisopado" id="panel-hisopado"></section>
+
+    <section class="ind-panel" data-panel="reportes">
 
     <div class="kpis">
       <div class="kpi"><div class="valor" id="kpi-total">0</div><div class="etiqueta">Total del período</div></div>
@@ -124,6 +175,7 @@
         <span><span class="punto" style="background:#888;"></span>Observación</span>
       </div>
     </div>
+    </section>
   </main>
 </div>
 
@@ -148,6 +200,24 @@
 <script src="../js/auth.js"></script>
 <script src="../js/reportes.js"></script>
 <script src="../js/dashboard.js"></script>
+<script src="../js/indicadores.js"></script>
+<script>
+// Gráficas con la tipografía y grises del estilo del Dashboard (dashboard.js
+// fija por defecto los colores del tema oscuro de las demás pantallas).
+Chart.defaults.color = "#6A6A6A";
+Chart.defaults.borderColor = "#EBEBEB";
+Chart.defaults.font.family = "'Nunito Sans', system-ui, sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.aspectRatio = 2.2;
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.tooltip.backgroundColor = "#FFFFFF";
+Chart.defaults.plugins.tooltip.titleColor = "#222222";
+Chart.defaults.plugins.tooltip.bodyColor = "#222222";
+Chart.defaults.plugins.tooltip.borderColor = "#DDDDDD";
+Chart.defaults.plugins.tooltip.borderWidth = 1;
+Chart.defaults.plugins.tooltip.padding = 10;
+Chart.defaults.plugins.tooltip.cornerRadius = 12;
+</script>
 <script>
 let perfilAdmin = null;
 let usuarioAdmin = null;
@@ -168,18 +238,72 @@ protegerPagina("dashboard", async (user, perfil, permisos) => {
 });
 
 function inicializarFiltrosPorDefecto() {
+  aplicarAtajoFechas("mes");
+}
+
+/** Llena Desde/Hasta con un período predefinido (fechas locales, no UTC). */
+function aplicarAtajoFechas(atajo) {
   const hoy = new Date();
-  const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-  document.getElementById("filtro-desde").value = primerDiaMes.toISOString().slice(0, 10);
-  document.getElementById("filtro-hasta").value = hoy.toISOString().slice(0, 10);
+  let desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  let hasta = hoy;
+  if (atajo === "mes-anterior") {
+    desde = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+    hasta = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+  } else if (atajo === "3-meses") {
+    desde = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1);
+  } else if (atajo === "6-meses") {
+    desde = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1);
+  } else if (atajo === "anio") {
+    desde = new Date(hoy.getFullYear(), 0, 1);
+  }
+  document.getElementById("filtro-desde").value = fechaISOLocal(desde);
+  document.getElementById("filtro-hasta").value = fechaISOLocal(hasta);
+  marcarAtajo(atajo);
+}
+
+document.querySelectorAll("[data-atajo]").forEach((btn) => btn.addEventListener("click", () => {
+  aplicarAtajoFechas(btn.dataset.atajo);
+  cargarDatosYRenderizar();
+}));
+["filtro-desde", "filtro-hasta"].forEach((id) => document.getElementById(id).addEventListener("change", () => marcarAtajo(null)));
+
+function marcarAtajo(atajo) {
+  document.querySelectorAll("[data-atajo]").forEach((b) => b.classList.toggle("activo", b.dataset.atajo === atajo));
+}
+
+/** "1 jul – 28 sep 2026" para el encabezado. */
+function textoPeriodo(desdeISO, hastaISO) {
+  const f = (iso, conAnio) => {
+    const [a, m, d] = iso.split("-").map(Number);
+    return `${d} ${NOMBRES_MES[m - 1]}${conAnio ? " " + a : ""}`;
+  };
+  return `${f(desdeISO, desdeISO.slice(0, 4) !== hastaISO.slice(0, 4))} – ${f(hastaISO, true)}`;
 }
 
 document.getElementById("btn-filtrar").addEventListener("click", cargarDatosYRenderizar);
+document.getElementById("incluir-borradores").addEventListener("change", cargarDatosYRenderizar);
+
+// Pestañas de indicadores: la última elegida se recuerda en este navegador.
+function mostrarPanelIndicadores(panel) {
+  document.querySelectorAll("#tabs-indicadores .tab").forEach((b) => b.classList.toggle("activo", b.dataset.panel === panel));
+  document.querySelectorAll(".ind-panel").forEach((s) => { s.hidden = s.dataset.panel !== panel; });
+  try { localStorage.setItem("dashboard_panel", panel); } catch (e) { /* sin almacenamiento local */ }
+  // Chart.js no puede medir un canvas oculto: al mostrarlo se reajustan.
+  Object.values(chartsActivos).forEach((c) => c.resize());
+}
+document.querySelectorAll("#tabs-indicadores .tab").forEach((btn) =>
+  btn.addEventListener("click", () => mostrarPanelIndicadores(btn.dataset.panel)));
+let panelInicial = "resumen";
+try { panelInicial = localStorage.getItem("dashboard_panel") || "resumen"; } catch (e) { /* sin almacenamiento local */ }
+if (!document.querySelector(`#tabs-indicadores .tab[data-panel="${panelInicial}"]`)) panelInicial = "resumen";
+mostrarPanelIndicadores(panelInicial);
 
 async function cargarDatosYRenderizar() {
   const desde = new Date(document.getElementById("filtro-desde").value + "T00:00:00");
   const hasta = new Date(document.getElementById("filtro-hasta").value + "T23:59:59");
   ultimoDesde = desde; ultimoHasta = hasta;
+  document.getElementById("texto-periodo").textContent =
+    textoPeriodo(document.getElementById("filtro-desde").value, document.getElementById("filtro-hasta").value);
 
   const [todos, validados] = await Promise.all([
     obtenerTodosReportesRango(desde, hasta),
@@ -187,6 +311,13 @@ async function cargarDatosYRenderizar() {
   ]);
   ultimosTodos = todos;
   ultimosValidados = validados;
+
+  const indicadores = cargarIndicadores(
+    document.getElementById("filtro-desde").value,
+    document.getElementById("filtro-hasta").value,
+    todos,
+    { incluirBorradores: document.getElementById("incluir-borradores").checked }
+  );
 
   const kpis = calcularKPIs(todos);
   document.getElementById("kpi-total").textContent = kpis.total;
@@ -221,13 +352,13 @@ async function cargarDatosYRenderizar() {
   renderizarGraficaGravedadPorSemana("grafica-gravedad-semana", calcularGravedadPorSemana(validados));
 
   const porInspector = contarPorCampo(validados, "inspectorNombre");
-  renderizarGraficaBarras("grafica-inspector", Object.keys(porInspector), Object.values(porInspector), "#D4AF37");
+  renderizarGraficaBarras("grafica-inspector", Object.keys(porInspector), Object.values(porInspector), "#222222");
 
   const porProceso = contarPorCampo(validados, "proceso");
-  renderizarGraficaBarras("grafica-proceso", Object.keys(porProceso), Object.values(porProceso), "#3FBE7A");
+  renderizarGraficaBarras("grafica-proceso", Object.keys(porProceso), Object.values(porProceso), "#222222");
 
   const porCategoria = contarPorCampo(validados.map((r) => ({ categoria: textoCategoria(r) })), "categoria");
-  renderizarGraficaBarras("grafica-norma", Object.keys(porCategoria), Object.values(porCategoria), "#F1D27A");
+  renderizarGraficaBarras("grafica-norma", Object.keys(porCategoria), Object.values(porCategoria), "#222222");
 
   if (!categoriasMapaListas) {
     categoriasMapaListas = true;
@@ -236,6 +367,7 @@ async function cargarDatosYRenderizar() {
   }
   marcoPlanoDash = await cargarPlanoImagenReal(document.getElementById("contenedor-plano-dash"));
   renderizarMapaFiltrado();
+  await indicadores;
 }
 
 /** Repinta el mapa de calor con los validados del período actual, filtrados

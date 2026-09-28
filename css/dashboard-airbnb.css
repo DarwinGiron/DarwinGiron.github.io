@@ -1,0 +1,484 @@
+/* ============================================================================
+   dashboard-airbnb.css — apariencia del Dashboard (admin/dashboard.html)
+   ============================================================================
+   Estilo tipo Airbnb: fondo blanco, tipografía redondeada, mucho aire,
+   bordes suaves en vez de sombras, un solo color de acento (coral) para la
+   acción principal y el verde/rojo reservados para "cumple / bajo meta".
+
+   Todo vive bajo body.tema-reportes.dash-airbnb, así que solo aplica a esta
+   pantalla y le gana a las reglas base de estilos.css sin !important. El
+   Dashboard no carga js/tema-horario.js: se ve igual de día y de noche.
+   ============================================================================ */
+
+/* Layout: barra lateral blanca + columna de contenido de 1280px, con
+   encabezado, buscador tipo "píldora" y barra de categorías con íconos. */
+:root {
+  --ab-tinta: #222222;
+  --ab-gris: #6A6A6A;
+  --ab-gris-claro: #B0B0B0;
+  --ab-borde: #DDDDDD;
+  --ab-linea: #EBEBEB;
+  --ab-fondo: #FFFFFF;
+  --ab-suave: #F7F7F7;
+  --ab-coral: #FF385C;
+  --ab-coral-fuerte: #E00B41;
+  --ab-bien: #008A05;
+  --ab-bien-suave: #EAF6EA;
+  --ab-mal: #C13515;
+  --ab-mal-suave: #FFF1EF;
+  --ab-sombra: 0 6px 16px rgba(0, 0, 0, 0.12);
+  --ab-sombra-suave: 0 1px 2px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --ab-fuente: "Nunito Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ab-radio: 16px;
+}
+
+body.tema-reportes.dash-airbnb {
+  background: var(--ab-fondo);
+  color: var(--ab-tinta);
+  font-family: var(--ab-fuente);
+  -webkit-font-smoothing: antialiased;
+}
+
+body.tema-reportes.dash-airbnb h1,
+body.tema-reportes.dash-airbnb h2,
+body.tema-reportes.dash-airbnb h3 { font-family: var(--ab-fuente); color: var(--ab-tinta); text-wrap: balance; }
+
+body.tema-reportes.dash-airbnb a { color: var(--ab-tinta); }
+
+body.tema-reportes.dash-airbnb main.contenedor { padding: 32px 24px 64px; }
+
+@media (min-width: 900px) {
+  body.tema-reportes.dash-airbnb main.contenedor { padding: 40px 48px 80px; }
+}
+
+/* ---- Navegación ---------------------------------------------------------- */
+body.tema-reportes.dash-airbnb .barra-superior {
+  background: var(--ab-fondo);
+  color: var(--ab-tinta);
+  box-shadow: none;
+  border-bottom: 1px solid var(--ab-linea);
+}
+
+body.tema-reportes.dash-airbnb .barra-superior h1 { font-weight: 800; font-size: 1rem; }
+body.tema-reportes.dash-airbnb .barra-superior .subt { color: var(--ab-gris); opacity: 1; }
+
+body.tema-reportes.dash-airbnb .barra-superior a,
+body.tema-reportes.dash-airbnb .barra-superior nav button {
+  color: var(--ab-tinta);
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 10px 14px;
+}
+
+body.tema-reportes.dash-airbnb .barra-superior a:hover,
+body.tema-reportes.dash-airbnb .barra-superior nav button:hover { color: var(--ab-tinta); background: var(--ab-suave); }
+
+body.tema-reportes.dash-airbnb .barra-superior a.activo,
+body.tema-reportes.dash-airbnb .barra-superior nav button.activo {
+  color: var(--ab-tinta);
+  font-weight: 800;
+  background: var(--ab-suave);
+  box-shadow: none;
+}
+
+body.tema-reportes.dash-airbnb .barra-superior .btn-campana { color: var(--ab-tinta); }
+
+body.tema-reportes.dash-airbnb .barra-superior .btn-salir {
+  color: var(--ab-gris);
+  border-left-color: var(--ab-linea);
+}
+
+body.tema-reportes.dash-airbnb .barra-superior .btn-salir:hover { color: var(--ab-tinta); background: var(--ab-suave); }
+
+@media (min-width: 1100px) and (pointer: fine) {
+  body.tema-reportes.dash-airbnb .barra-superior {
+    border-bottom: none;
+    border-right: 1px solid var(--ab-linea);
+    padding: 28px 16px;
+    box-shadow: none;
+  }
+
+  body.tema-reportes.dash-airbnb .barra-superior a.activo,
+  body.tema-reportes.dash-airbnb .barra-superior nav button.activo { box-shadow: none; }
+
+  body.tema-reportes.dash-airbnb .barra-superior .btn-salir { border-top-color: var(--ab-linea); border-radius: 12px; }
+}
+
+/* ---- Encabezado de la página -------------------------------------------- */
+body.tema-reportes.dash-airbnb .ab-encabezado {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 24px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+body.tema-reportes.dash-airbnb .ab-titulo {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+body.tema-reportes.dash-airbnb .ab-subtitulo { margin: 6px 0 0; color: var(--ab-gris); font-size: 1rem; }
+
+body.tema-reportes.dash-airbnb .ab-enlace {
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- Buscador tipo píldora ---------------------------------------------- */
+body.tema-reportes.dash-airbnb .ab-buscador { margin-bottom: 28px; }
+
+body.tema-reportes.dash-airbnb .ab-buscador .filtros-fecha {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: nowrap;
+  max-width: 720px;
+  margin: 0 0 16px;
+  padding: 8px 8px 8px 0;
+  border: 1px solid var(--ab-borde);
+  border-radius: 999px;
+  background: var(--ab-fondo);
+  box-shadow: var(--ab-sombra-suave);
+  transition: box-shadow 0.2s ease;
+}
+
+body.tema-reportes.dash-airbnb .ab-buscador .filtros-fecha:hover,
+body.tema-reportes.dash-airbnb .ab-buscador .filtros-fecha:focus-within { box-shadow: var(--ab-sombra); }
+
+body.tema-reportes.dash-airbnb .ab-buscador .campo {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 28px;
+  border-radius: 999px;
+  position: relative;
+}
+
+body.tema-reportes.dash-airbnb .ab-buscador .campo + .campo::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 22%;
+  height: 56%;
+  border-left: 1px solid var(--ab-borde);
+}
+
+body.tema-reportes.dash-airbnb .ab-buscador .campo:hover { background: var(--ab-suave); }
+
+body.tema-reportes.dash-airbnb .ab-buscador .campo label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  margin-bottom: 2px;
+  color: var(--ab-tinta);
+}
+
+body.tema-reportes.dash-airbnb .ab-buscador .campo input[type="date"] {
+  border: none;
+  padding: 0;
+  background: transparent;
+  font-family: var(--ab-fuente);
+  font-size: 0.95rem;
+  color: var(--ab-gris);
+  min-height: 24px;
+}
+
+body.tema-reportes.dash-airbnb .ab-buscador .campo input[type="date"]:focus { outline: none; color: var(--ab-tinta); }
+
+body.tema-reportes.dash-airbnb #btn-filtrar {
+  flex-shrink: 0;
+  height: 48px;
+  min-width: 48px;
+  padding: 0 20px 0 16px;
+  border-radius: 999px;
+  background: var(--ab-coral);
+  color: #fff;
+  font-family: var(--ab-fuente);
+  font-weight: 800;
+  font-size: 1rem;
+  gap: 8px;
+}
+
+body.tema-reportes.dash-airbnb #btn-filtrar:hover { background: var(--ab-coral-fuerte); }
+body.tema-reportes.dash-airbnb #btn-filtrar svg { width: 18px; height: 18px; }
+
+/* Atajos de período: chips redondos como los filtros de Airbnb. */
+body.tema-reportes.dash-airbnb .ind-atajos { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; }
+
+body.tema-reportes.dash-airbnb .ab-chip {
+  font-family: var(--ab-fuente);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ab-tinta);
+  background: var(--ab-fondo);
+  border: 1px solid var(--ab-borde);
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+body.tema-reportes.dash-airbnb .ab-chip:hover { border-color: var(--ab-tinta); }
+
+body.tema-reportes.dash-airbnb .ab-chip.activo {
+  background: var(--ab-suave);
+  border-color: var(--ab-tinta);
+  box-shadow: inset 0 0 0 1px var(--ab-tinta);
+}
+
+/* Casilla de borradores como interruptor. */
+body.tema-reportes.dash-airbnb .ind-check {
+  position: relative;
+  margin: 0 0 0 8px;
+  gap: 10px;
+  font-size: 0.875rem;
+  color: var(--ab-gris);
+}
+
+body.tema-reportes.dash-airbnb .ind-check input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+body.tema-reportes.dash-airbnb .ab-interruptor {
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--ab-borde);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+body.tema-reportes.dash-airbnb .ab-interruptor::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+
+body.tema-reportes.dash-airbnb .ind-check input:checked + .ab-interruptor { background: var(--ab-tinta); }
+body.tema-reportes.dash-airbnb .ind-check input:checked + .ab-interruptor::after { transform: translateX(16px); }
+body.tema-reportes.dash-airbnb .ind-check input:focus-visible + .ab-interruptor { outline: 2px solid var(--ab-tinta); outline-offset: 2px; }
+
+/* ---- Barra de categorías (pestañas) ------------------------------------- */
+body.tema-reportes.dash-airbnb .tabs {
+  gap: 32px;
+  border-bottom: 1px solid var(--ab-linea);
+  margin: 0 0 32px;
+  padding: 0 4px;
+  scrollbar-width: none;
+}
+
+body.tema-reportes.dash-airbnb .tabs::-webkit-scrollbar { display: none; }
+
+body.tema-reportes.dash-airbnb .tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 12px;
+  font-family: var(--ab-fuente);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ab-gris);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  opacity: 0.85;
+  transition: color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+body.tema-reportes.dash-airbnb .tab svg { width: 24px; height: 24px; }
+
+body.tema-reportes.dash-airbnb .tab:hover { color: var(--ab-tinta); opacity: 1; border-bottom-color: var(--ab-borde); }
+
+body.tema-reportes.dash-airbnb .tab.activo {
+  color: var(--ab-tinta);
+  opacity: 1;
+  border-bottom-color: var(--ab-tinta);
+}
+
+body.tema-reportes.dash-airbnb .tab:focus-visible { outline: 2px solid var(--ab-tinta); outline-offset: 2px; border-radius: 6px; }
+
+/* ---- Tarjetas y KPIs ----------------------------------------------------- */
+body.tema-reportes.dash-airbnb .tarjeta {
+  background: var(--ab-fondo);
+  border: 1px solid var(--ab-linea);
+  border-radius: var(--ab-radio);
+  box-shadow: none;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+body.tema-reportes.dash-airbnb .tarjeta h3 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin: 0 0 6px;
+  color: var(--ab-tinta);
+}
+
+body.tema-reportes.dash-airbnb .ayuda { color: var(--ab-gris); font-size: 0.85rem; line-height: 1.5; }
+body.tema-reportes.dash-airbnb .tarjeta > .ayuda { margin: 0 0 16px; max-width: 75ch; }
+
+body.tema-reportes.dash-airbnb .grid-2 { gap: 24px; }
+body.tema-reportes.dash-airbnb .grid-2 > .tarjeta { margin-bottom: 0; min-width: 0; }
+body.tema-reportes.dash-airbnb .grid-2 { margin-bottom: 24px; }
+
+body.tema-reportes.dash-airbnb .kpis {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+body.tema-reportes.dash-airbnb .kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  background: var(--ab-fondo);
+  border: 1px solid var(--ab-linea);
+  border-radius: var(--ab-radio);
+  box-shadow: var(--ab-sombra-suave);
+  padding: 20px;
+}
+
+body.tema-reportes.dash-airbnb .kpi .etiqueta {
+  order: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ab-gris);
+  line-height: 1.35;
+}
+
+body.tema-reportes.dash-airbnb .kpi .valor {
+  order: 1;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ab-tinta);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+body.tema-reportes.dash-airbnb .kpi .ayuda { order: 3; margin-top: 2px; }
+body.tema-reportes.dash-airbnb .kpi .ind-medidor { order: 2; }
+
+body.tema-reportes.dash-airbnb .kpi .valor.ind-ok { color: var(--ab-bien); }
+body.tema-reportes.dash-airbnb .kpi .valor.ind-bajo { color: var(--ab-mal); }
+
+/* Medidor: avance contra la meta (la rayita vertical es la meta). */
+body.tema-reportes.dash-airbnb .ind-medidor {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  margin: 10px 0 4px;
+  border-radius: 999px;
+  background: var(--ab-linea);
+}
+
+body.tema-reportes.dash-airbnb .ind-medidor span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--ab-bien);
+}
+
+body.tema-reportes.dash-airbnb .ind-medidor.bajo span { background: var(--ab-mal); }
+
+body.tema-reportes.dash-airbnb .ind-medidor i {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 14px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ab-tinta);
+}
+
+/* ---- Estado contra meta y tablas ---------------------------------------- */
+body.tema-reportes.dash-airbnb .ind-ok { color: var(--ab-bien); }
+body.tema-reportes.dash-airbnb .ind-bajo { color: var(--ab-mal); }
+
+body.tema-reportes.dash-airbnb .ind-estado { font-size: 0.75rem; padding: 3px 10px; font-weight: 700; }
+body.tema-reportes.dash-airbnb .ind-estado.ok { background: var(--ab-bien-suave); color: var(--ab-bien); }
+body.tema-reportes.dash-airbnb .ind-estado.bajo { background: var(--ab-mal-suave); color: var(--ab-mal); }
+body.tema-reportes.dash-airbnb .ind-estado.sin { background: var(--ab-suave); color: var(--ab-gris); }
+
+body.tema-reportes.dash-airbnb table.tabla { font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+
+body.tema-reportes.dash-airbnb table.tabla th {
+  background: transparent;
+  color: var(--ab-gris);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--ab-borde);
+  padding: 10px 12px;
+}
+
+body.tema-reportes.dash-airbnb table.tabla td {
+  border-bottom: 1px solid var(--ab-linea);
+  padding: 12px;
+  color: var(--ab-tinta);
+}
+
+body.tema-reportes.dash-airbnb table.tabla td.ind-ok { color: var(--ab-bien); font-weight: 700; }
+body.tema-reportes.dash-airbnb table.tabla td.ind-bajo { color: var(--ab-mal); font-weight: 700; }
+body.tema-reportes.dash-airbnb table.tabla tr:hover td { background: var(--ab-suave); }
+body.tema-reportes.dash-airbnb table.tabla tr:last-child td { border-bottom: none; }
+body.tema-reportes.dash-airbnb table.tabla th,
+body.tema-reportes.dash-airbnb table.tabla td:first-child strong { white-space: nowrap; }
+body.tema-reportes.dash-airbnb .ind-fila-total td { border-top: 2px solid var(--ab-tinta); background: var(--ab-suave); }
+
+body.tema-reportes.dash-airbnb .ind-aviso { color: var(--ab-mal); font-weight: 600; }
+
+/* Etiquetas de gravedad y botones que ya existían en la pestaña Hallazgos. */
+body.tema-reportes.dash-airbnb .etiqueta-gravedad { border-radius: 999px; font-weight: 700; }
+
+body.tema-reportes.dash-airbnb .campo select {
+  border: 1px solid var(--ab-borde);
+  border-radius: 12px;
+  font-family: var(--ab-fuente);
+}
+
+body.tema-reportes.dash-airbnb .modal-caja { border-radius: 24px; }
+
+/* ---- Celular: el buscador pasa a tarjeta apilada ------------------------ */
+@media (max-width: 640px) {
+  body.tema-reportes.dash-airbnb main.contenedor { padding: 24px 16px 48px; }
+
+  body.tema-reportes.dash-airbnb .ab-buscador .filtros-fecha {
+    flex-wrap: wrap;
+    border-radius: 24px;
+    padding: 8px;
+  }
+
+  body.tema-reportes.dash-airbnb .ab-buscador .campo { flex: 1 1 40%; padding: 8px 16px; }
+  body.tema-reportes.dash-airbnb #btn-filtrar { flex: 1 1 100%; margin-top: 8px; justify-content: center; }
+  body.tema-reportes.dash-airbnb .ind-check { margin: 8px 0 0; flex-basis: 100%; }
+  body.tema-reportes.dash-airbnb .tabs { gap: 24px; }
+  body.tema-reportes.dash-airbnb .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  body.tema-reportes.dash-airbnb .kpi { padding: 16px; }
+  body.tema-reportes.dash-airbnb .kpi .valor { font-size: 1.6rem; }
+  body.tema-reportes.dash-airbnb .tarjeta { padding: 20px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.tema-reportes.dash-airbnb * { transition: none !important; }
+}
