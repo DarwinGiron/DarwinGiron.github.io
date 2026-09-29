@@ -25,6 +25,14 @@
       ]
     },
     {
+      "collectionGroup": "reportes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "inspectorUid", "order": "ASCENDING" },
+        { "fieldPath": "fechaHora", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "hisopados",
       "queryScope": "COLLECTION",
       "fields": [

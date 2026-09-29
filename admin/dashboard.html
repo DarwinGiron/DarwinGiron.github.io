@@ -181,10 +181,10 @@ async function cargarDatosYRenderizar() {
   const hasta = new Date(document.getElementById("filtro-hasta").value + "T23:59:59");
   ultimoDesde = desde; ultimoHasta = hasta;
 
-  const [todos, validados] = await Promise.all([
-    obtenerTodosReportesRango(desde, hasta),
-    obtenerReportesValidados(desde, hasta)
-  ]);
+  // Una sola consulta: los validados ya vienen dentro de "todos", así que
+  // pedirlos aparte cobraba dos veces las mismas lecturas.
+  const todos = await obtenerTodosReportesRango(desde, hasta);
+  const validados = todos.filter((r) => r.estado === "validado");
   ultimosTodos = todos;
   ultimosValidados = validados;
 

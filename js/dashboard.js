@@ -30,17 +30,7 @@ if (typeof Chart !== "undefined") {
 // normalizarClave() vive en reportes.js (compartida con los filtros de
 // reportes.html) — reportes.js siempre se carga antes que este archivo.
 
-/** Trae los reportes validados dentro de un rango de fechas [desde, hasta]. */
-async function obtenerReportesValidados(desde, hasta) {
-  const snap = await colReportes
-    .where("estado", "==", "validado")
-    .where("fechaHora", ">=", firebase.firestore.Timestamp.fromDate(desde))
-    .where("fechaHora", "<=", firebase.firestore.Timestamp.fromDate(hasta))
-    .get();
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-}
-
-/** Trae TODOS los reportes (para el KPI pendientes vs validados) del rango. */
+/** Trae TODOS los reportes del rango; los validados se filtran de aquí. */
 async function obtenerTodosReportesRango(desde, hasta) {
   const snap = await colReportes
     .where("fechaHora", ">=", firebase.firestore.Timestamp.fromDate(desde))
