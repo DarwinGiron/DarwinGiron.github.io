@@ -32,15 +32,21 @@ export const PROVEEDORES_INICIALES = [
 let cacheCatalogo = null;
 
 /**
- * Genera una clave canónica en minúsculas y sin espacios sobrantes para comparación estricta.
+ * Genera una clave canónica para comparar nombres: minúsculas, sin tildes,
+ * sin puntos ni comillas y sin espacios sobrantes; guiones y diagonales
+ * cuentan como espacio. Así "T.R.A." y "Tra" son el mismo proveedor, igual
+ * que "Cobra-Cargo" y "COBRA CARGO".
+ * (Misma regla que claveProveedor() en js/indicadores.js del Dashboard.)
  */
 export function normalizarClaveProveedor(str) {
   return String(str || "")
-    .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // elimina tildes/acentos
-    .replace(/\s+/g, " ");
+    .replace(/[-_/]/g, " ")
+    .replace(/[.,;:'"´`()]/g, "") // T.R.A. -> tra
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**
@@ -61,6 +67,7 @@ export async function obtenerCatalogoProveedores(forzarRefresco = false) {
     mapa.set(c, can);
   });
 
+  const aliasMapa = new Map();
   try {
     const snap = await getDocs(collection(db, COLEC_PROVEEDORES));
     if (!snap.empty) {
@@ -68,9 +75,15 @@ export async function obtenerCatalogoProveedores(forzarRefresco = false) {
         const data = docSnap.data();
         const nom = (data.nombre || "").trim();
         if (nom) {
-          const c = normalizarClaveProveedor(nom);
           const can = nom.toUpperCase();
-          mapa.set(c, can);
+          mapa.set(normalizarClaveProveedor(nom), can);
+          // Nombres viejos o mal escritos que un gestor unificó con este
+          // (p. ej. "FREX CARGO" -> "FLEX CARGO"): escribir el alias
+          // también resuelve al nombre oficial.
+          (Array.isArray(data.alias) ? data.alias : []).forEach((alias) => {
+            const c = normalizarClaveProveedor(alias);
+            if (c) aliasMapa.set(c, can);
+          });
         }
       });
     } else {
@@ -80,6 +93,9 @@ export async function obtenerCatalogoProveedores(forzarRefresco = false) {
   } catch (err) {
     console.warn("No se pudo leer proveedores_transporte en Firestore (usando iniciales):", err);
   }
+
+  // Un alias nunca pisa un nombre registrado con esa misma clave.
+  aliasMapa.forEach((can, c) => { if (!mapa.has(c)) mapa.set(c, can); });
 
   // Generar lista única ordenada alfabéticamente
   const valoresUnicos = Array.from(new Set(mapa.values())).sort((a, b) => a.localeCompare(b));

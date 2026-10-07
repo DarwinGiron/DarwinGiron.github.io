@@ -81,6 +81,10 @@ protegerPagina({}, async ({ user, perfil }) => {
   if (!esRolDeGestion(perfil.rol) && linkAdminSuperior) {
     linkAdminSuperior.classList.add("oculto");
   }
+  // Unificar proveedores cambia registros de todos: solo para gestión.
+  if (esRolDeGestion(perfil.rol)) {
+    document.getElementById("link-unificar-proveedores")?.classList.remove("oculto");
+  }
 
   if (formTransporte) {
     campoFecha.value = fechaHoyISO();

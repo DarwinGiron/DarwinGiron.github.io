@@ -29,8 +29,15 @@
         <h2 class="ab-titulo">Indicadores de cumplimiento</h2>
         <p class="ab-subtitulo" id="texto-periodo">Período seleccionado</p>
       </div>
-      <a class="ab-enlace" href="informes.html">Informe oficial en PDF o Word →</a>
+      <div class="ab-acciones">
+        <a class="ab-enlace" href="informes.html">Informe oficial en PDF o Word →</a>
+        <button type="button" class="ab-boton-excel" id="btn-exportar-excel" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          <span id="texto-exportar-excel">Descargar Excel</span>
+        </button>
+      </div>
     </div>
+    <p class="ab-estado-exportar" id="estado-exportar" role="status" aria-live="polite"></p>
 
     <div class="ab-buscador">
       <div class="filtros-fecha">
@@ -201,6 +208,7 @@
 <script src="../js/reportes.js"></script>
 <script src="../js/dashboard.js"></script>
 <script src="../js/indicadores.js"></script>
+<script src="../js/exportar-excel.js"></script>
 <script>
 // Gráficas con la tipografía y grises del estilo del Dashboard (dashboard.js
 // fija por defecto los colores del tema oscuro de las demás pantallas).
@@ -284,7 +292,33 @@ document.getElementById("btn-filtrar").addEventListener("click", cargarDatosYRen
 document.getElementById("incluir-borradores").addEventListener("change", cargarDatosYRenderizar);
 
 // Pestañas de indicadores: la última elegida se recuerda en este navegador.
+// Botón "Descargar Excel": exporta la pestaña activa (en Resumen, todo junto).
+let panelActivo = "resumen";
+function actualizarBotonExcel() {
+  const def = EXPORTACIONES[panelActivo];
+  document.getElementById("texto-exportar-excel").textContent = def ? `Descargar Excel · ${def.nombre}` : "Descargar Excel";
+}
+document.getElementById("btn-exportar-excel").addEventListener("click", async () => {
+  const boton = document.getElementById("btn-exportar-excel");
+  const estado = document.getElementById("estado-exportar");
+  boton.disabled = true;
+  estado.classList.remove("error");
+  estado.textContent = "Generando el Excel… puede tardar unos segundos si el período tiene muchos registros.";
+  try {
+    await exportarExcel(panelActivo);
+    estado.textContent = "Listo: el archivo se descargó.";
+  } catch (err) {
+    console.error("Exportar a Excel:", err);
+    estado.classList.add("error");
+    estado.textContent = err.message || "No se pudo generar el Excel. Intenta de nuevo.";
+  } finally {
+    boton.disabled = false;
+  }
+});
+
 function mostrarPanelIndicadores(panel) {
+  panelActivo = panel;
+  actualizarBotonExcel();
   document.querySelectorAll("#tabs-indicadores .tab").forEach((b) => b.classList.toggle("activo", b.dataset.panel === panel));
   document.querySelectorAll(".ind-panel").forEach((s) => { s.hidden = s.dataset.panel !== panel; });
   try { localStorage.setItem("dashboard_panel", panel); } catch (e) { /* sin almacenamiento local */ }
@@ -302,6 +336,8 @@ async function cargarDatosYRenderizar() {
   const desde = new Date(document.getElementById("filtro-desde").value + "T00:00:00");
   const hasta = new Date(document.getElementById("filtro-hasta").value + "T23:59:59");
   ultimoDesde = desde; ultimoHasta = hasta;
+  document.getElementById("btn-exportar-excel").disabled = true;
+  document.getElementById("estado-exportar").textContent = "";
   document.getElementById("texto-periodo").textContent =
     textoPeriodo(document.getElementById("filtro-desde").value, document.getElementById("filtro-hasta").value);
 
@@ -368,6 +404,7 @@ async function cargarDatosYRenderizar() {
   marcoPlanoDash = await cargarPlanoImagenReal(document.getElementById("contenedor-plano-dash"));
   renderizarMapaFiltrado();
   await indicadores;
+  document.getElementById("btn-exportar-excel").disabled = false;
 }
 
 /** Repinta el mapa de calor con los validados del período actual, filtrados

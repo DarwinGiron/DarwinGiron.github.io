@@ -131,6 +131,33 @@ body.tema-reportes.dash-airbnb .ab-enlace {
   text-underline-offset: 3px;
 }
 
+body.tema-reportes.dash-airbnb .ab-acciones { display: flex; align-items: center; gap: 12px 20px; flex-wrap: wrap; }
+
+body.tema-reportes.dash-airbnb .ab-boton-excel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ab-fuente);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ab-tinta);
+  background: var(--ab-fondo);
+  border: 1px solid var(--ab-tinta);
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+body.tema-reportes.dash-airbnb .ab-boton-excel svg { width: 18px; height: 18px; }
+body.tema-reportes.dash-airbnb .ab-boton-excel:hover:not(:disabled) { background: var(--ab-suave); }
+body.tema-reportes.dash-airbnb .ab-boton-excel:disabled { opacity: 0.45; cursor: progress; }
+body.tema-reportes.dash-airbnb .ab-boton-excel:focus-visible { outline: 2px solid var(--ab-tinta); outline-offset: 2px; }
+
+body.tema-reportes.dash-airbnb .ab-estado-exportar { margin: -12px 0 20px; font-size: 0.85rem; color: var(--ab-gris); min-height: 0; }
+body.tema-reportes.dash-airbnb .ab-estado-exportar:empty { display: none; }
+body.tema-reportes.dash-airbnb .ab-estado-exportar.error { color: var(--ab-mal); font-weight: 600; }
+
 /* ---- Buscador tipo píldora ---------------------------------------------- */
 body.tema-reportes.dash-airbnb .ab-buscador { margin-bottom: 28px; }
 
