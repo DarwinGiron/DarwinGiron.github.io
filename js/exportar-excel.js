@@ -551,6 +551,9 @@ function hojaBaseDatosPPR(wb, prefijo, d) {
 async function hojasContenedores(wb, d, prefijo) {
   const registros = [...d.contenedores].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
   const r = calcularContenedores(registros);
+  // Empresa unificada ("Oliva" y "OLIVA" salen igual); la original queda al lado.
+  const nombres = nombresProveedores(registros);
+  const empresa = (x) => nombres.get(claveProveedor(x.transporte)) || "";
   const porMes = agruparPorMes(registros, (x) => x.fecha);
   const filasMes = d.meses.map((m) => {
     const lista = porMes[m] || [];
@@ -583,13 +586,13 @@ async function hojasContenedores(wb, d, prefijo) {
 
   hojaBaseDatos(wb, prefijo, "Base de datos", "Verificación de transporte · Base de datos", d, [
     { titulo: "Fecha", ancho: 12, tipo: "fecha" }, { titulo: "Inspector", ancho: 22 }, { titulo: "Empresa de transporte", ancho: 26 },
-    { titulo: "Piloto", ancho: 22 }, { titulo: "Placa", ancho: 12 }, { titulo: "TC", ancho: 14 }, { titulo: "No. equipo", ancho: 12 },
+    { titulo: "Empresa (como se escribió)", ancho: 26 }, { titulo: "Piloto", ancho: 22 }, { titulo: "Placa", ancho: 12 }, { titulo: "TC", ancho: 14 }, { titulo: "No. equipo", ancho: 12 },
     { titulo: "Marchamo", ancho: 12 }, { titulo: "Orden de producción", ancho: 16 }, { titulo: "Cliente", ancho: 22 },
     { titulo: "Picking", ancho: 12 }, { titulo: "Resultado", ancho: 12 }, { titulo: "% checklist", ancho: 11, tipo: "pct" },
     { titulo: "Puntos cumplidos", ancho: 10 }, { titulo: "Puntos evaluados", ancho: 10 }, { titulo: "Inspector de inocuidad", ancho: 22 },
     { titulo: "Observaciones", ancho: 40 },
   ], registros.map((x) => [
-    fechaExcel(x.fecha), x.inspectorNombre || "", x.transporte || "", x.nombrePiloto || "", x.placaCamion || "", x.tc || "",
+    fechaExcel(x.fecha), x.inspectorNombre || "", empresa(x), x.transporte || "", x.nombrePiloto || "", x.placaCamion || "", x.tc || "",
     x.numeroEquipo || "", x.numeroMarchamo || "", x.ordenProduccion || "", x.cliente || "", x.numeroPicking || "",
     contenedorAprobado(x) ? "Aprobado" : "Rechazado", typeof x.cumplimientoPorcentaje === "number" ? x.cumplimientoPorcentaje : null,
     x.cumplidos ?? "", x.total ?? "", x.inspectorInocuidad || "", x.observacionesGenerales || "",
@@ -597,7 +600,7 @@ async function hojasContenedores(wb, d, prefijo) {
 
   const detalle = [];
   registros.forEach((x) => {
-    const base = [fechaExcel(x.fecha), x.placaCamion || "", x.tc || "", x.transporte || ""];
+    const base = [fechaExcel(x.fecha), x.placaCamion || "", x.tc || "", empresa(x)];
     Object.values(x.respuestasPorZona || {}).forEach((zona) => {
       [["externa", "Exterior"], ["interna", "Interior"]].forEach(([modo, lado]) => (zona[modo] || []).forEach((p) => {
         detalle.push([...base, zona.nombre || "", lado, p.texto || "", p.valor === "si" ? "Sí" : p.valor === "no" ? "No" : p.valor || "", p.observacion || ""]);

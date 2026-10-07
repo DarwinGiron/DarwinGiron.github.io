@@ -269,12 +269,46 @@ function contenedorAprobado(d) {
   return false;
 }
 
+/**
+ * Clave para comparar empresas de transporte: minúsculas, sin tildes ni
+ * puntos; guiones y diagonales cuentan como espacio. Misma regla que
+ * normalizarClaveProveedor() en hub/js/proveedores-transporte.js, así
+ * "Oliva" y "OLIVA", o "T.R.A." y "TRA", cuentan como una sola empresa.
+ */
+function claveProveedor(nombre) {
+  return String(nombre || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[-_/]/g, " ")
+    .replace(/[.,;:'"´`()]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Nombre a mostrar por clave: la forma más usada en los registros, en mayúsculas. */
+function nombresProveedores(registros) {
+  const usos = new Map(); // clave -> Map(nombre en mayúsculas -> veces)
+  registros.forEach((r) => {
+    const clave = claveProveedor(r.transporte);
+    if (!clave) return;
+    const nombre = String(r.transporte).trim().replace(/\s+/g, " ").toUpperCase();
+    const m = usos.get(clave) || new Map();
+    m.set(nombre, (m.get(nombre) || 0) + 1);
+    usos.set(clave, m);
+  });
+  const nombres = new Map();
+  usos.forEach((m, clave) => nombres.set(clave, [...m.entries()].sort((a, b) => b[1] - a[1])[0][0]));
+  return nombres;
+}
+
 function calcularContenedores(registros) {
   const aprobados = registros.filter(contenedorAprobado).length;
+  const nombres = nombresProveedores(registros);
   const porEmpresa = {};
   const fallas = [];
   registros.forEach((r) => {
-    const empresa = r.transporte || "Sin empresa";
+    const empresa = nombres.get(claveProveedor(r.transporte)) || "Sin empresa";
     porEmpresa[empresa] = porEmpresa[empresa] || { total: 0, aprobados: 0 };
     porEmpresa[empresa].total++;
     if (contenedorAprobado(r)) porEmpresa[empresa].aprobados++;

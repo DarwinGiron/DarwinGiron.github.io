@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <script src="/js/tema-horario.js"></script>
+  <base href="/hub/verificacion-transporte/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Unificar proveedores · COGUSA</title>
+  <link rel="stylesheet" href="/css/estilos.css" />
+  <style>
+    .tabla-unificar { width: 100%; border-collapse: collapse; font-size: var(--txt-md); }
+    .tabla-unificar th, .tabla-unificar td { padding: 10px 8px; border-bottom: 1px solid var(--borde); text-align: left; vertical-align: top; }
+    .tabla-unificar th { font-size: var(--txt-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--tinta-suave, #5b6b7d); }
+    .tabla-unificar input[type="text"], .tabla-unificar select { width: 100%; min-width: 150px; padding: 8px; border: 1px solid var(--borde); border-radius: 8px; font: inherit; background: var(--superficie); color: var(--tinta); }
+    .tabla-unificar tr.unido td { opacity: 0.55; }
+    .tabla-unificar .numero { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .variantes { display: flex; flex-wrap: wrap; gap: 6px; }
+    .variante { border: 1px solid var(--borde); border-radius: 999px; padding: 2px 10px; font-size: var(--txt-sm); background: var(--superficie-hundida); white-space: nowrap; }
+    .sugerencia { margin-top: 6px; font-size: var(--txt-sm); color: var(--estado-alerta-ink, #7a4f00); }
+    .sugerencia button { margin-left: 6px; }
+    .resumen-cambios { font-size: var(--txt-md); }
+    .resumen-cambios strong { font-variant-numeric: tabular-nums; }
+    .lista-fallas { font-size: var(--txt-sm); color: var(--estado-critico-ink, #b32626); }
+  </style>
+</head>
+<body class="tema-hub">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="historial.html" class="app-header__logo" style="text-decoration: none; color: inherit;">LIB</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Unificar proveedores de transporte</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <div class="app-header__acciones">
+        <a href="historial.html" class="btn btn-texto btn-sm">← Volver al historial</a>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <section class="tarjeta mb-4">
+        <h2 class="tarjeta__titulo">¿Qué hace esta herramienta?</h2>
+        <p class="texto-sm">
+          Junta en un solo nombre las empresas de transporte que se escribieron distinto en las
+          verificaciones de contenedores. Ya vienen agrupadas las que solo cambian en mayúsculas,
+          tildes o puntos (por ejemplo <strong>Oliva</strong> y <strong>OLIVA</strong>, o
+          <strong>T.R.A.</strong> y <strong>TRA</strong>). Los errores de escritura
+          (por ejemplo <strong>FREX CARGO</strong> y <strong>FLEX CARGO</strong>) los decides tú
+          con "Unir con"; abajo de cada nombre parecido aparece una sugerencia.
+        </p>
+        <p class="texto-sm mb-0">
+          Al aplicar, cada registro queda con el nombre final y guarda el nombre original en
+          el campo <code>transporteAnterior</code>. El catálogo del buscador queda con un solo
+          nombre por empresa, y los nombres unidos quedan como alias: si alguien vuelve a
+          escribir "FREX CARGO", el formulario lo guarda como "FLEX CARGO".
+        </p>
+      </section>
+
+      <div id="aviso"></div>
+
+      <section class="tarjeta mb-4" id="tarjeta-grupos">
+        <div class="flex-entre mb-2">
+          <h2 class="tarjeta__titulo mb-0">Empresas encontradas</h2>
+          <span class="texto-sm texto-suave" id="conteo-registros">Cargando registros…</span>
+        </div>
+        <div class="tabla-scroll">
+          <table class="tabla-unificar">
+            <thead>
+              <tr>
+                <th style="width: 26%;">Nombre final</th>
+                <th>Cómo se escribió (registros)</th>
+                <th class="numero">Registros</th>
+                <th style="width: 24%;">Unir con</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-grupos"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="tarjeta mb-4">
+        <h2 class="tarjeta__titulo">Aplicar cambios</h2>
+        <p class="resumen-cambios" id="resumen-cambios">—</p>
+        <div class="grupo-botones">
+          <button type="button" id="btn-aplicar" class="btn btn-primario btn-sm btn-ancho-auto" disabled>Aplicar unificación</button>
+          <button type="button" id="btn-confirmar" class="btn btn-peligro btn-sm btn-ancho-auto oculto">Sí, actualizar los registros</button>
+          <button type="button" id="btn-cancelar" class="btn btn-texto btn-sm btn-ancho-auto oculto">Cancelar</button>
+        </div>
+        <p class="texto-sm mb-0" id="estado-aplicar" role="status" aria-live="polite"></p>
+        <div id="fallas"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    import { protegerPagina, etiquetaRol, ROLES_GESTION } from "/hub/js/auth.js";
+    import { db } from "/hub/js/firebase-config.js";
+    import {
+      collection, getDocs, doc, writeBatch, updateDoc, addDoc, deleteDoc, serverTimestamp,
+    } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+    import { escaparHtml } from "/hub/js/utils.js";
+    import { COLEC_PROVEEDORES, normalizarClaveProveedor as clave } from "/hub/js/proveedores-transporte.js";
+
+    const COLEC = "verificaciones_transporte";
+    const LOTE = 200;
+
+    const estado = {
+      usuario: null,
+      esGestor: false,
+      registros: [],
+      catalogo: [], // [{ id, nombre, alias }]
+      grupos: [],   // [{ clave, variantes: [{ texto, veces }], total, nombreFinal, unirCon, sugerencia }]
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    protegerPagina({}, async ({ user, perfil }) => {
+      estado.usuario = user;
+      estado.esGestor = ROLES_GESTION.includes(perfil.rol);
+      $("texto-usuario").textContent = `${perfil.nombre || user.email} · ${etiquetaRol(perfil.rol)}`;
+      if (!estado.esGestor) {
+        avisar(`Tu cuenta tiene rol "<strong>${escaparHtml(etiquetaRol(perfil.rol))}</strong>". Puedes revisar los nombres,
+          pero solo un administrador o coordinador puede aplicar la unificación.`);
+      }
+      await cargar();
+    });
+
+    function avisar(html, tipo = "alerta") {
+      const color = tipo === "error" ? "var(--estado-critico-ink, #b32626)" : "var(--estado-alerta-ink, #7a4f00)";
+      $("aviso").insertAdjacentHTML("beforeend", `<section class="tarjeta mb-4"><p class="texto-sm mb-0" style="color:${color};">${html}</p></section>`);
+    }
+
+    // ------------------------------------------------------------------
+    // Carga y agrupación
+    // ------------------------------------------------------------------
+    async function cargar() {
+      try {
+        const snap = await getDocs(collection(db, COLEC));
+        estado.registros = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      } catch (err) {
+        console.error("No se pudieron leer las verificaciones:", err);
+        $("conteo-registros").textContent = "";
+        avisar(`No se pudieron leer las verificaciones de transporte: ${escaparHtml(err.message || String(err))}`, "error");
+        return;
+      }
+
+      try {
+        const snap = await getDocs(collection(db, COLEC_PROVEEDORES));
+        estado.catalogo = snap.docs.map((d) => ({ id: d.id, nombre: d.data().nombre || "", alias: d.data().alias || [] }));
+      } catch (err) {
+        console.warn("No se pudo leer el catálogo de proveedores:", err);
+        avisar(`No se pudo leer el catálogo <code>proveedores_transporte</code>
+          (${escaparHtml(err.code || err.message || "")}). Publica primero las reglas de Firestore con el bloque
+          de <code>proveedores_transporte</code>; mientras tanto se unifican solo los registros.`);
+      }
+
+      agrupar();
+      pintar();
+    }
+
+    function agrupar() {
+      const porClave = new Map();
+      const agregar = (texto, veces) => {
+        const limpio = String(texto || "").trim().replace(/\s+/g, " ");
+        const k = clave(limpio);
+        if (!k) return;
+        const g = porClave.get(k) || { clave: k, variantes: new Map(), total: 0 };
+        g.variantes.set(limpio, (g.variantes.get(limpio) || 0) + veces);
+        g.total += veces;
+        porClave.set(k, g);
+      };
+      estado.registros.forEach((r) => agregar(r.transporte, 1));
+      estado.catalogo.forEach((c) => agregar(c.nombre, 0));
+
+      estado.grupos = [...porClave.values()]
+        .map((g) => {
+          const variantes = [...g.variantes.entries()].map(([texto, veces]) => ({ texto, veces })).sort((a, b) => b.veces - a.veces);
+          return { clave: g.clave, variantes, total: g.total, nombreFinal: variantes[0].texto.toUpperCase(), unirCon: "", sugerencia: null };
+        })
+        .sort((a, b) => b.total - a.total || a.nombreFinal.localeCompare(b.nombreFinal));
+
+      // Sugerencias para errores de escritura: nombres a 1 letra de distancia
+      // (2 si son largos). El grupo con menos registros se sugiere unir al otro.
+      estado.grupos.forEach((g, i) => {
+        estado.grupos.forEach((otro, j) => {
+          if (i === j || g.sugerencia) return;
+          const a = g.clave.replace(/ /g, ""), b = otro.clave.replace(/ /g, "");
+          const minimo = Math.min(a.length, b.length);
+          const limite = minimo >= 8 ? 2 : minimo >= 3 ? 1 : 0;
+          if (!limite || distancia(a, b) > limite) return;
+          const gMenor = g.total < otro.total || (g.total === otro.total && i > j);
+          if (gMenor) g.sugerencia = otro.clave;
+        });
+      });
+    }
+
+    /** Distancia de edición con transposición (FREX/FLEX = 1, BDT/DBT = 1). */
+    function distancia(a, b) {
+      const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+      for (let j = 1; j <= b.length; j++) d[0][j] = j;
+      for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+          const costo = a[i - 1] === b[j - 1] ? 0 : 1;
+          d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + costo);
+          if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+        }
+      }
+      return d[a.length][b.length];
+    }
+
+    const grupo = (k) => estado.grupos.find((g) => g.clave === k);
+
+    /** Grupo al que termina unido (sigue la cadena de "Unir con", sin ciclos). */
+    function destino(g) {
+      const vistos = new Set();
+      while (g.unirCon && !vistos.has(g.clave)) {
+        vistos.add(g.clave);
+        const siguiente = grupo(g.unirCon);
+        if (!siguiente) break;
+        g = siguiente;
+      }
+      return g;
+    }
+
+    const nombreFinalDe = (g) => destino(g).nombreFinal.trim().replace(/\s+/g, " ").toUpperCase();
+
+    // ------------------------------------------------------------------
+    // Pantalla
+    // ------------------------------------------------------------------
+    function pintar() {
+      $("conteo-registros").textContent = `${estado.registros.length} verificaciones · ${estado.grupos.length} nombres distintos`;
+      const opciones = (g) => [`<option value="">— Queda como está —</option>`,
+        ...estado.grupos.filter((o) => o.clave !== g.clave)
+          .map((o) => `<option value="${escaparHtml(o.clave)}" ${g.unirCon === o.clave ? "selected" : ""}>${escaparHtml(o.nombreFinal)} (${o.total})</option>`)].join("");
+
+      $("cuerpo-grupos").innerHTML = estado.grupos.map((g, i) => {
+        const sug = g.sugerencia && !g.unirCon ? grupo(g.sugerencia) : null;
+        return `
+        <tr class="${g.unirCon ? "unido" : ""}" data-indice="${i}">
+          <td><input type="text" id="nombre-${i}" value="${escaparHtml(g.nombreFinal)}" aria-label="Nombre final de ${escaparHtml(g.nombreFinal)}" ${g.unirCon ? "disabled" : ""} /></td>
+          <td>
+            <div class="variantes">${g.variantes.map((v) => `<span class="variante">${escaparHtml(v.texto)} (${v.veces})</span>`).join("")}</div>
+            ${sug ? `<div class="sugerencia">¿Es la misma empresa que <strong>${escaparHtml(sug.nombreFinal)}</strong>?
+              <button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-sugerir="${i}">Unir</button></div>` : ""}
+          </td>
+          <td class="numero">${g.total}</td>
+          <td><select id="unir-${i}" aria-label="Unir ${escaparHtml(g.nombreFinal)} con otra empresa">${opciones(g)}</select>
+            ${g.unirCon ? `<div class="texto-xs texto-suave" style="margin-top:4px;">Quedará como <strong>${escaparHtml(nombreFinalDe(g))}</strong></div>` : ""}</td>
+        </tr>`;
+      }).join("");
+
+      estado.grupos.forEach((g, i) => {
+        $(`nombre-${i}`).addEventListener("input", (e) => { g.nombreFinal = e.target.value; actualizarResumen(); });
+        $(`nombre-${i}`).addEventListener("change", () => pintar());
+        $(`unir-${i}`).addEventListener("change", (e) => { g.unirCon = e.target.value; pintar(); });
+      });
+      document.querySelectorAll("[data-sugerir]").forEach((b) => b.addEventListener("click", () => {
+        const g = estado.grupos[Number(b.dataset.sugerir)];
+        g.unirCon = g.sugerencia;
+        pintar();
+      }));
+      actualizarResumen();
+    }
+
+    function registrosACambiar() {
+      return estado.registros
+        .map((r) => {
+          const original = String(r.transporte || "").trim().replace(/\s+/g, " ");
+          const g = grupo(clave(original));
+          return g ? { registro: r, final: nombreFinalDe(g) } : null;
+        })
+        .filter((c) => c && c.final && c.final !== c.registro.transporte);
+    }
+
+    function actualizarResumen() {
+      const finales = new Set(estado.grupos.map(nombreFinalDe).filter(Boolean));
+      const cambios = registrosACambiar();
+      $("resumen-cambios").innerHTML = `Quedarán <strong>${finales.size}</strong> empresas.
+        Se actualizarán <strong>${cambios.length}</strong> de ${estado.registros.length} verificaciones.`;
+      $("btn-aplicar").disabled = !estado.esGestor || (!cambios.length && !estado.catalogo.length);
+    }
+
+    // ------------------------------------------------------------------
+    // Aplicar
+    // ------------------------------------------------------------------
+    $("btn-aplicar").addEventListener("click", () => {
+      $("btn-aplicar").classList.add("oculto");
+      $("btn-confirmar").classList.remove("oculto");
+      $("btn-cancelar").classList.remove("oculto");
+      $("estado-aplicar").textContent = `Se cambiará el nombre de la empresa en ${registrosACambiar().length} verificaciones y se limpiará el catálogo. ¿Continuar?`;
+    });
+    $("btn-cancelar").addEventListener("click", () => {
+      $("btn-aplicar").classList.remove("oculto");
+      $("btn-confirmar").classList.add("oculto");
+      $("btn-cancelar").classList.add("oculto");
+      $("estado-aplicar").textContent = "";
+    });
+    $("btn-confirmar").addEventListener("click", aplicar);
+
+    async function aplicar() {
+      $("btn-confirmar").disabled = true;
+      $("btn-cancelar").classList.add("oculto");
+      $("fallas").innerHTML = "";
+      const cambios = registrosACambiar();
+      const fallas = [];
+      let hechos = 0;
+
+      const datosCambio = (c) => ({
+        transporte: c.final,
+        transporteAnterior: c.registro.transporteAnterior ?? c.registro.transporte ?? "",
+        transporteUnificadoEn: serverTimestamp(),
+        transporteUnificadoPor: estado.usuario.uid,
+      });
+
+      for (let i = 0; i < cambios.length; i += LOTE) {
+        const lote = cambios.slice(i, i + LOTE);
+        try {
+          const batch = writeBatch(db);
+          lote.forEach((c) => batch.update(doc(db, COLEC, c.registro.id), datosCambio(c)));
+          await batch.commit();
+          hechos += lote.length;
+        } catch (err) {
+          // Un registro rechazado tumba todo el lote: se reintenta uno por uno
+          // para saber exactamente cuáles fallaron.
+          console.warn("Lote rechazado, se reintenta uno por uno:", err);
+          for (const c of lote) {
+            try {
+              await updateDoc(doc(db, COLEC, c.registro.id), datosCambio(c));
+              hechos++;
+            } catch (e) {
+              fallas.push({ c, error: e.code || e.message || String(e) });
+            }
+          }
+        }
+        $("estado-aplicar").textContent = `Actualizando registros… ${hechos} de ${cambios.length}`;
+      }
+
+      const catalogo = await unificarCatalogo();
+
+      $("estado-aplicar").innerHTML = `Listo: <strong>${hechos}</strong> verificaciones actualizadas.` +
+        (catalogo ? ` Catálogo: ${catalogo}.` : "") +
+        (fallas.length ? ` <strong>${fallas.length}</strong> no se pudieron actualizar (ver abajo).` : "");
+      if (fallas.length) {
+        $("fallas").innerHTML = `<ul class="lista-fallas">${fallas.map((f) =>
+          `<li>${escaparHtml(f.c.registro.fecha || "")} · placa ${escaparHtml(f.c.registro.placaCamion || "—")} ·
+            "${escaparHtml(f.c.registro.transporte || "")}" → "${escaparHtml(f.c.final)}": ${escaparHtml(f.error)}</li>`).join("")}</ul>`;
+      }
+      $("btn-confirmar").classList.add("oculto");
+      $("btn-confirmar").disabled = false;
+      $("btn-aplicar").classList.remove("oculto");
+
+      // Volver a leer todo: la pantalla queda mostrando el estado real guardado.
+      $("aviso").innerHTML = "";
+      await cargar();
+    }
+
+    /** Un documento por empresa final; los nombres unidos quedan como alias. */
+    async function unificarCatalogo() {
+      // Cada nombre final con los nombres (de otra clave) que se le unieron.
+      const finales = new Map(); // clave final -> { nombre, alias: Set }
+      estado.grupos.forEach((g) => {
+        const nombre = nombreFinalDe(g);
+        if (!nombre) return;
+        const kFinal = clave(nombre);
+        const f = finales.get(kFinal) || { nombre, alias: new Set() };
+        g.variantes.forEach((v) => { if (clave(v.texto) !== kFinal) f.alias.add(v.texto.toUpperCase()); });
+        finales.set(kFinal, f);
+      });
+
+      let creados = 0, actualizados = 0, borrados = 0, errores = 0;
+      const usados = new Set();
+      for (const [kFinal, f] of finales) {
+        const claves = new Set([kFinal, ...[...f.alias].map(clave)]);
+        const docs = estado.catalogo.filter((c) => claves.has(clave(c.nombre)) && !usados.has(c.id));
+        const principal = docs.find((c) => clave(c.nombre) === kFinal) || docs[0];
+        const alias = new Set([...f.alias]);
+        docs.forEach((c) => (c.alias || []).forEach((a) => { if (clave(a) !== kFinal) alias.add(String(a).toUpperCase()); }));
+        try {
+          const datos = { nombre: f.nombre, nombreNormalizado: kFinal, alias: [...alias].sort() };
+          if (principal) {
+            await updateDoc(doc(db, COLEC_PROVEEDORES, principal.id), datos);
+            usados.add(principal.id);
+            actualizados++;
+          } else {
+            await addDoc(collection(db, COLEC_PROVEEDORES), {
+              ...datos, creadoPor: estado.usuario.uid, fechaCreacion: serverTimestamp(), origen: "unificacion",
+            });
+            creados++;
+          }
+          for (const c of docs) {
+            if (principal && c.id === principal.id) continue;
+            await deleteDoc(doc(db, COLEC_PROVEEDORES, c.id));
+            usados.add(c.id);
+            borrados++;
+          }
+        } catch (err) {
+          console.warn("No se pudo actualizar el catálogo para", f.nombre, err);
+          errores++;
+        }
+      }
+      if (errores && !creados && !actualizados) {
+        return `no se pudo actualizar (${errores} errores; revisa que las reglas de Firestore ya incluyan proveedores_transporte)`;
+      }
+      return `${actualizados + creados} empresas (${creados} nuevas), ${borrados} nombres duplicados eliminados` +
+        (errores ? `, ${errores} con error` : "");
+    }
+  </script>
+</body>
+</html>
