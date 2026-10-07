@@ -65,6 +65,18 @@ en el navegador por [`js/indicadores.js`](js/indicadores.js) para el rango Desde
 | Vidrio y plástico | `registrosVidrio` | puntos por nivel de riesgo, puntos de acción urgente |
 | Hisopado | `hisopados` | % de análisis dentro del límite, desviaciones |
 
+### Exportar a Excel
+
+El botón **Descargar Excel** del Dashboard (lógica en
+[`js/exportar-excel.js`](js/exportar-excel.js)) descarga la pestaña activa como
+.xlsx para el período cargado; en la pestaña Resumen descarga todo en un solo libro.
+Cada módulo trae una hoja de resumen (indicadores, tablas por mes y por área,
+gráficas insertadas como imagen) y su **base de datos completa** del período, con
+filtros. SIG-FO-115 además incluye "Resultado por proceso" y "Tabla de datos"
+(aspecto × recorrido con ✔/✘/N/A), con el mismo formato del consolidado en Excel.
+El archivo usa los mismos registros que se ven en pantalla (no consulta de nuevo)
+y la librería ExcelJS se descarga del CDN solo al presionar el botón.
+
 Todos los indicadores se calculan con los registros reales de Firestore; no hay
 valores fijos en el código. Las metas todavía no están definidas: en
 `METAS_INDICADORES`, al inicio de `js/indicadores.js`, cada una vale `null` y

@@ -43,6 +43,9 @@ const COLOR_ACENTO = "#FF385C";
 const COLOR_MEDIO = "#E07912";
 const COLOR_META = "#222222";
 
+// Último período cargado (registros crudos + resultados), para exportar.
+let datosIndicadores = null;
+
 const NOMBRES_MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 // Etiquetas de las secciones del SIG-FO-116 (hub/js/bpm-checklist.js), por si
@@ -224,9 +227,13 @@ function calcularCumplimientoPPR({ recorridos, aspectos, secciones, ordenAreas }
       const cuestiones = Object.keys(conteo[areaId])
         .sort((a, b) => (secciones.get(a)?.orden ?? 999) - (secciones.get(b)?.orden ?? 999))
         .map((seccionId) => {
-          const porAspecto = Object.values(conteo[areaId][seccionId]).map((c) => (c.si / c.total) * 100);
+          const conteosAspecto = Object.values(conteo[areaId][seccionId]);
+          const porAspecto = conteosAspecto.map((c) => (c.si / c.total) * 100);
           return {
+            seccionId,
             titulo: secciones.get(seccionId)?.titulo || "Otros",
+            si: conteosAspecto.reduce((t, c) => t + c.si, 0),
+            evaluados: conteosAspecto.reduce((t, c) => t + c.total, 0),
             porcentaje: promedio(porAspecto),
             aspectos: porAspecto.length,
           };
@@ -350,7 +357,7 @@ async function cargarDatosBpm(desdeISO, hastaISO) {
   (config || []).forEach((sec) => {
     etiquetas[sec.id] = sec.label || etiquetas[sec.id] || sec.id;
     (sec.grupos || []).forEach((g) => (g.preguntas || []).forEach((p) => {
-      preguntas.set(p.id, { seccionId: sec.id, texto: p.label, activa: p.activa !== false });
+      preguntas.set(p.id, { seccionId: sec.id, grupo: g.nombre || "", texto: p.label, activa: p.activa !== false });
     }));
   });
   return { auditorias, preguntas, etiquetas };
@@ -465,10 +472,8 @@ function fechaReporteISO(r) {
 // ---------------------------------------------------------------------------
 // GRÁFICAS (Chart.js, mismo registro de instancias que dashboard.js)
 // ---------------------------------------------------------------------------
-function graficaPorcentajeConMeta(idCanvas, etiquetas, valores, meta, etiquetaSerie) {
-  if (chartsActivos[idCanvas]) chartsActivos[idCanvas].destroy();
-  const canvas = document.getElementById(idCanvas);
-  if (!canvas) return;
+/** Configuración Chart.js de un % por categoría o mes (con línea de meta si hay). */
+function configPorcentaje(etiquetas, valores, meta, etiquetaSerie) {
   const conMeta = hayMeta(meta);
   const datasets = [{
     type: "bar", label: etiquetaSerie, data: valores,
@@ -477,11 +482,11 @@ function graficaPorcentajeConMeta(idCanvas, etiquetas, valores, meta, etiquetaSe
   }];
   if (conMeta) {
     datasets.push({
-      type: "line", label: textoMeta(meta), data: etiquetas.map(() => meta),
+      type: "line", label: `Meta ${meta}%`, data: etiquetas.map(() => meta),
       borderColor: COLOR_META, borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0, fill: false,
     });
   }
-  chartsActivos[idCanvas] = new Chart(canvas.getContext("2d"), {
+  return {
     data: { labels: etiquetas, datasets },
     options: {
       responsive: true,
@@ -492,14 +497,12 @@ function graficaPorcentajeConMeta(idCanvas, etiquetas, valores, meta, etiquetaSe
       },
       scales: { y: { min: 0, max: 100, ticks: { callback: (v) => v + "%" } } },
     },
-  });
+  };
 }
 
-function graficaApilada(idCanvas, etiquetas, series) {
-  if (chartsActivos[idCanvas]) chartsActivos[idCanvas].destroy();
-  const canvas = document.getElementById(idCanvas);
-  if (!canvas) return;
-  chartsActivos[idCanvas] = new Chart(canvas.getContext("2d"), {
+/** Configuración Chart.js de barras apiladas (conteos por mes). */
+function configApilada(etiquetas, series) {
+  return {
     type: "bar",
     data: {
       labels: etiquetas,
@@ -511,7 +514,22 @@ function graficaApilada(idCanvas, etiquetas, series) {
       plugins: { legend: { display: series.length > 1, position: "bottom" } },
       scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } },
     },
-  });
+  };
+}
+
+function pintarGrafica(idCanvas, config) {
+  if (chartsActivos[idCanvas]) chartsActivos[idCanvas].destroy();
+  const canvas = document.getElementById(idCanvas);
+  if (!canvas) return;
+  chartsActivos[idCanvas] = new Chart(canvas.getContext("2d"), config);
+}
+
+function graficaPorcentajeConMeta(idCanvas, etiquetas, valores, meta, etiquetaSerie) {
+  pintarGrafica(idCanvas, configPorcentaje(etiquetas, valores, meta, etiquetaSerie));
+}
+
+function graficaApilada(idCanvas, etiquetas, series) {
+  pintarGrafica(idCanvas, configApilada(etiquetas, series));
 }
 
 // ---------------------------------------------------------------------------
@@ -888,24 +906,32 @@ async function cargarIndicadores(desdeISO, hastaISO, todosReportes, opciones = {
     document.getElementById(id).innerHTML = `<div class="tarjeta"><p class="ayuda">Cargando…</p></div>`;
   });
 
+  // Lo que se cargó se guarda tal cual para la exportación a Excel
+  // (js/exportar-excel.js): exporta exactamente lo que se ve en pantalla.
+  const datos = { desdeISO, hastaISO, meses, resultados };
+  datosIndicadores = datos;
+  const guardar = (clave, valor) => { datos[clave] = valor; return valor; };
+
   await Promise.all([
     ejecutar("ppr", "panel-ppr", async () => {
-      const datos = await cargarDatosPPR(desdeISO, hastaISO);
-      const total = datos.recorridos.length;
-      if (!opciones.incluirBorradores) datos.recorridos = datos.recorridos.filter((r) => r.estado === "enviada");
-      datos.excluidos = total - datos.recorridos.length;
-      return renderPPR(datos, meses);
+      const ppr = await cargarDatosPPR(desdeISO, hastaISO);
+      const total = ppr.recorridos.length;
+      if (!opciones.incluirBorradores) ppr.recorridos = ppr.recorridos.filter((r) => r.estado === "enviada");
+      ppr.excluidos = total - ppr.recorridos.length;
+      return renderPPR(guardar("ppr", ppr), meses);
     }),
     ejecutar("contenedores", "panel-contenedores", async () =>
-      renderContenedores(await consultarRangoISO("verificaciones_transporte", "fecha", desdeISO, hastaISO), meses)),
+      renderContenedores(guardar("contenedores", await consultarRangoISO("verificaciones_transporte", "fecha", desdeISO, hastaISO)), meses)),
     ejecutar("imprentas", "panel-imprentas", async () =>
-      renderImprentas(await consultarRangoISO("liberaciones", "fecha", desdeISO, hastaISO), meses)),
-    ejecutar("bpm", "panel-bpm", async () => renderBpm(await cargarDatosBpm(desdeISO, hastaISO), meses)),
+      renderImprentas(guardar("imprentas", await consultarRangoISO("liberaciones", "fecha", desdeISO, hastaISO)), meses)),
+    ejecutar("bpm", "panel-bpm", async () => renderBpm(guardar("bpm", await cargarDatosBpm(desdeISO, hastaISO)), meses)),
     ejecutar("vidrio", "panel-vidrio", async () =>
-      renderVidrio(await consultarRangoISO("registrosVidrio", "fecha", desdeISO, hastaISO), meses)),
+      renderVidrio(guardar("vidrio", await consultarRangoISO("registrosVidrio", "fecha", desdeISO, hastaISO)), meses)),
     ejecutar("hisopado", "panel-hisopado", async () =>
-      renderHisopado(await consultarRangoISO("hisopados", "fecha", desdeISO, hastaISO), meses)),
+      renderHisopado(guardar("hisopado", await consultarRangoISO("hisopados", "fecha", desdeISO, hastaISO)), meses)),
   ]);
+  guardar("reportes", todosReportes);
   resultados.reportes = renderReportesPorMes(todosReportes, meses);
   renderResumen(resultados, meses);
+  datos.listo = true;
 }
