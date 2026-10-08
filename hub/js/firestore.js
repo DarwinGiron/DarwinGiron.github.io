@@ -13,6 +13,7 @@
 //   hisopadoConfig/tabla                       (tabla de muestreo SIG-TA-102)
 //   sigfo111Config/formato                     (puntos y riesgos del SIG-FO-111)
 //   registrosVidrio/{autoId}                   (registro SIG-FO-111)
+//   registrosTarimas/{autoId}                  (registro SIG-FO-118, un callejón)
 // =========================================================
 
 import {
@@ -504,4 +505,43 @@ export async function listarRegistrosVidrio(filtros = {}) {
 /** Elimina un registro del SIG-FO-111 (solo gestión, ver firestore.rules). */
 export async function eliminarRegistroVidrio(id) {
   await deleteDoc(doc(db, "registrosVidrio", id));
+}
+
+/* ---------------------------------------------------------
+   SIG-FO-118 — Inspección de tarimas
+   Un documento por callejón inspeccionado.
+   --------------------------------------------------------- */
+
+/** Guarda el registro de un callejón. Devuelve su id. */
+export async function crearRegistroTarimas(datos) {
+  const referencia = await addDoc(collection(db, "registrosTarimas"), {
+    ...datos,
+    creadoEn: serverTimestamp(),
+  });
+  return referencia.id;
+}
+
+/**
+ * Lista registros del SIG-FO-118, del más reciente al más antiguo.
+ * El inspector solo puede consultar los suyos (ver firestore.rules).
+ */
+export async function listarRegistrosTarimas(filtros = {}) {
+  const condiciones = [];
+  if (filtros.inspectorUid) {
+    condiciones.push(where("inspectorUid", "==", filtros.inspectorUid));
+  }
+
+  const consulta = query(
+    collection(db, "registrosTarimas"),
+    ...condiciones,
+    orderBy("fecha", "desc"),
+    limitarA(filtros.max || 500)
+  );
+  const snap = await getDocs(consulta);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** Elimina un registro del SIG-FO-118 (solo gestión, ver firestore.rules). */
+export async function eliminarRegistroTarimas(id) {
+  await deleteDoc(doc(db, "registrosTarimas", id));
 }

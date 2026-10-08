@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <script src="/js/tema-horario.js"></script>
+  <base href="/hub/sig-fo-118/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Inspección de Tarimas · SIG-FO-118</title>
+  <link rel="stylesheet" href="/css/estilos.css" />
+  <style>
+    /* Contadores táctiles: cada toque suma una tarima dañada. */
+    .tap-fila { display: grid; grid-template-columns: 1fr 1fr; gap: var(--e3); margin-bottom: var(--e3); }
+    .tap-card {
+      position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 2px; min-height: 104px; padding: var(--e3) var(--e2);
+      border: 2.5px solid var(--borde); border-radius: 12px; background: var(--superficie);
+      cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+      transition: transform .07s, box-shadow .08s;
+    }
+    .tap-card:active { transform: scale(.95); box-shadow: inset 0 4px 12px rgba(0,0,0,.18); }
+    .tap-card--madera { border-color: #6a9a30; background: rgba(106,154,48,.12); }
+    .tap-card--plastica { border-color: #2d7ab0; background: rgba(45,122,176,.12); }
+    .tap-num { font: 900 40px/1 ui-monospace, "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; color: var(--tinta); }
+    .tap-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-2); }
+    .tap-menos {
+      position: absolute; top: 4px; right: 6px; width: 40px; height: 40px; border: none; background: none;
+      font-size: 26px; line-height: 1; color: var(--tinta-2); cursor: pointer; touch-action: manipulation;
+    }
+    .tap-edit { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); border-radius: 10px; }
+    .tap-edit input { width: 80%; max-width: 110px; font: 900 30px ui-monospace, monospace; text-align: center; padding: 6px; border-radius: 8px; border: 2px solid #fff; background: rgba(255,255,255,.15); color: #fff; }
+    .tap-hint { font-size: 10px; color: var(--tinta-3); text-align: center; margin: calc(var(--e2) * -1) 0 var(--e3); }
+
+    .live-barra { display: flex; align-items: center; gap: var(--e3); padding: var(--e3); border: 1px solid var(--borde); border-radius: 10px; background: var(--superficie); margin-bottom: var(--e3); }
+    .live-barra__pista { flex: 1; height: 8px; border-radius: 4px; background: var(--borde); overflow: hidden; }
+    .live-barra__relleno { height: 100%; width: 0; background: var(--estado-bien-mark); transition: width .2s, background .2s; }
+    .live-barra__relleno.alerta { background: var(--estado-alerta-mark); }
+    .live-barra__relleno.critico { background: var(--estado-critico-mark); }
+    .live-barra strong { font: 800 18px ui-monospace, monospace; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: var(--e2); margin-bottom: var(--e3); }
+    .chip { display: inline-flex; gap: 6px; align-items: center; min-height: 40px; padding: 4px 12px; border: 1.5px solid var(--borde); border-radius: 20px; background: var(--superficie); color: var(--tinta-2); font-size: 12px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+    .chip code { font-family: ui-monospace, monospace; letter-spacing: .05em; }
+    .chip.activo { background: var(--marino-700); border-color: var(--marino-700); color: #fff; }
+    .chip--mas { border-style: dashed; }
+  </style>
+</head>
+<body class="tema-hub">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="../index.html" class="app-header__logo" style="text-decoration: none; color: inherit;">PPR</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Inspección de Tarimas</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <div class="app-header__acciones">
+        <a href="historial.html" class="btn btn-texto btn-sm">Historial</a>
+        <span class="avatar avatar--claro avatar--sm" id="avatar-usuario" aria-hidden="true">—</span>
+        <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <a href="../index.html" class="btn btn-secundario btn-sm btn-ancho-auto mb-2">← Volver al inicio</a>
+
+      <section class="tarjeta">
+        <div class="flex-entre mb-1">
+          <h2 class="tarjeta__titulo mb-0">Registro por callejón</h2>
+          <span class="badge badge-neutro">SIG-FO-118</span>
+        </div>
+        <p class="texto-suave texto-sm">Toca la tarjeta para sumar una tarima dañada, “−” para restar, doble toque o mantener presionado para escribir la cantidad.</p>
+
+        <div class="campos-fila">
+          <div class="campo">
+            <label for="campo-fecha">Fecha</label>
+            <input type="date" id="campo-fecha" />
+          </div>
+          <div class="campo">
+            <label for="campo-evaluador">Evaluador</label>
+            <input type="text" id="campo-evaluador" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="campo">
+          <label for="campo-bodega">Bodega *</label>
+          <select id="campo-bodega">
+            <option value="">— Seleccionar —</option>
+            <option>Mercado Agrícola</option>
+            <option>Mercado Nacional</option>
+            <option>Producto en Proceso</option>
+          </select>
+        </div>
+
+        <div class="campos-fila">
+          <div class="campo">
+            <label for="campo-callejon">Callejón *</label>
+            <input type="text" id="campo-callejon" maxlength="5" placeholder="H1" autocomplete="off" style="text-transform: uppercase; font-weight: 800; letter-spacing: .1em;" />
+          </div>
+          <div class="campo">
+            <label for="campo-total">Total inspeccionadas *</label>
+            <input type="number" id="campo-total" min="1" inputmode="numeric" placeholder="0" />
+          </div>
+        </div>
+
+        <div class="tap-fila">
+          <div class="tap-card tap-card--madera" id="card-madera">
+            <button type="button" class="tap-menos" data-menos="madera" aria-label="Restar madera">−</button>
+            <span style="font-size:26px" aria-hidden="true">🪵</span>
+            <span class="tap-num" id="cnt-madera">0</span>
+            <span class="tap-label">Madera dañada</span>
+            <div class="tap-edit oculto" id="edit-madera"><input type="number" min="0" inputmode="numeric" id="inp-madera" /></div>
+          </div>
+          <div class="tap-card tap-card--plastica" id="card-plastica">
+            <button type="button" class="tap-menos" data-menos="plastica" aria-label="Restar plástica">−</button>
+            <span style="font-size:26px" aria-hidden="true">🔵</span>
+            <span class="tap-num" id="cnt-plastica">0</span>
+            <span class="tap-label">Plástica dañada</span>
+            <div class="tap-edit oculto" id="edit-plastica"><input type="number" min="0" inputmode="numeric" id="inp-plastica" /></div>
+          </div>
+        </div>
+
+        <div class="live-barra">
+          <span class="texto-suave texto-sm">Dañadas</span>
+          <strong id="live-suma">0</strong>
+          <div class="live-barra__pista"><div class="live-barra__relleno" id="live-barra"></div></div>
+          <strong id="live-pct">—</strong>
+        </div>
+
+        <div class="campo"><label>Hallazgos</label></div>
+        <div class="chips" id="chips"></div>
+
+        <button type="button" id="btn-guardar" class="btn btn-dorado">Guardar registro</button>
+      </section>
+
+      <section class="tarjeta">
+        <div class="flex-entre mb-1">
+          <h2 class="tarjeta__titulo mb-0">Registros de hoy (esta sesión)</h2>
+          <span class="badge badge-neutro" id="contador-sesion">0</span>
+        </div>
+        <div id="lista-sesion" class="editor-lista"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/hub/js/tarimas.js"></script>
+</body>
+</html>

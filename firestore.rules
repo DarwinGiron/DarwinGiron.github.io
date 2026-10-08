@@ -11,7 +11,7 @@ rules_version = '2';
 //      colecciones: usuarios (COMPARTIDA con Reportes), checklists,
 //      inspecciones (SIG-FO-115), hisopados, hisopadoConfig,
 //      supervisores_hisopado, areas_maquina_hisopado, registrosVidrio (SIG-FO-111),
-//      sigfo111Config, liberaciones
+//      sigfo111Config, registrosTarimas (SIG-FO-118), liberaciones
 //      (SIG-FO-101), sigfo101Config, verificaciones_transporte,
 //      proveedores_transporte.
 // Un proyecto de Firebase publica un ÚNICO archivo de reglas para TODA la
@@ -375,6 +375,26 @@ service cloud.firestore {
     // Mismo alcance que los hisopados: el inspector ve y edita los suyos,
     // un gestor ve todos.
     match /registrosVidrio/{registroId} {
+      allow get: if autenticado()
+        && (esGestor() || resource.data.inspectorUid == request.auth.uid);
+
+      allow list: if esGestor()
+        || (esUsuarioActivo() && resource.data.inspectorUid == request.auth.uid);
+
+      allow create: if esUsuarioActivo()
+        && request.resource.data.inspectorUid == request.auth.uid;
+
+      allow update: if esUsuarioActivo()
+        && (resource.data.inspectorUid == request.auth.uid || esGestor())
+        && request.resource.data.inspectorUid == resource.data.inspectorUid;
+
+      allow delete: if esGestor();
+    }
+
+    // ---- registrosTarimas (SIG-FO-118) -------------------------
+    // Mismo alcance que registrosVidrio: el inspector ve y edita los suyos,
+    // un gestor ve todos.
+    match /registrosTarimas/{registroId} {
       allow get: if autenticado()
         && (esGestor() || resource.data.inspectorUid == request.auth.uid);
 
