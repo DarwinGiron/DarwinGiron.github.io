@@ -91,9 +91,10 @@ let reportesCacheActual = [];
 const REPORTES_PROPIOS_POR_PAGINA = 10;
 let hayMasReportesPropios = true;
 let cargandoPaginaReportesPropios = false;
-// Todos los reportes del usuario, ya ordenados; de aquí se van mostrando de
-// 10 en 10 (ver traerReportesPropios).
+// Solo se usa en el modo de respaldo (ver traerPaginaPropia): todos los
+// reportes del usuario, ya ordenados, para irlos mostrando de 10 en 10.
 let reportesPropiosOrdenados = null;
+let ultimoDocPropio = null;
 // Quien revisa el trabajo del equipo (admin o con permiso de validación) ve
 // los reportes de TODOS los inspectores; el inspector común sigue viendo solo
 // los suyos. Se usan esos dos perfiles y no todos los que pueden leer, porque
@@ -127,7 +128,7 @@ async function cargarPaginaReportesPropios() {
   try {
     if (verReportesDeTodos) {
       await traerPaginaDeTodos();
-    } else {
+    } else if (reportesPropiosOrdenados || !(await traerPaginaPropia())) {
       if (!reportesPropiosOrdenados) await traerReportesPropios();
       reportesCacheActual = reportesPropiosOrdenados.slice(
         0, reportesCacheActual.length + REPORTES_PROPIOS_POR_PAGINA
@@ -182,6 +183,41 @@ async function traerPaginaDeTodos() {
   reportesCacheActual = reportesCacheActual.concat(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
   ultimoDocDeTodos = snap.docs.length ? snap.docs[snap.docs.length - 1] : ultimoDocDeTodos;
   hayMasReportesPropios = snap.docs.length === REPORTES_PROPIOS_POR_PAGINA;
+}
+
+/**
+ * Reportes propios, de 10 en 10, ordenados por Firestore ("fechaHora", la
+ * fecha que se ve en la tarjeta). Así cada apertura cuesta 10 lecturas y no
+ * una por cada reporte que el inspector haya hecho en su historia.
+ *
+ * Necesita el índice compuesto inspectorUid + fechaHora (firestore.indexes.json).
+ * Devuelve false —y se usa traerReportesPropios, que trae todo y ordena en la
+ * página— si la consulta no sirve en esta base: el índice aún no existe, la
+ * primera página sale vacía (lo que dejó esta pantalla en blanco antes) o
+ * aparece un reporte viejo cuya fecha no es Timestamp (Firestore los
+ * ordenaría aparte, no por fecha).
+ */
+async function traerPaginaPropia() {
+  let consulta = colReportes.where("inspectorUid", "==", usuarioActual.uid)
+    .orderBy("fechaHora", "desc").limit(REPORTES_PROPIOS_POR_PAGINA);
+  if (ultimoDocPropio) consulta = consulta.startAfter(ultimoDocPropio);
+  let snap;
+  try {
+    snap = await consulta.get();
+  } catch (err) {
+    console.warn("Consulta paginada de reportes propios no disponible, se traen todos:", err.message);
+    return false;
+  }
+  const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const esPrimeraPagina = !ultimoDocPropio;
+  const fechaRara = docs.some((r) => !(r.fechaHora instanceof firebase.firestore.Timestamp));
+  if (esPrimeraPagina && (!docs.length || fechaRara)) return false;
+  if (fechaRara) console.warn("Hay reportes con fechaHora que no es Timestamp; el orden puede no ser exacto.");
+
+  reportesCacheActual = reportesCacheActual.concat(docs);
+  ultimoDocPropio = snap.docs.length ? snap.docs[snap.docs.length - 1] : ultimoDocPropio;
+  hayMasReportesPropios = snap.docs.length === REPORTES_PROPIOS_POR_PAGINA;
+  return true;
 }
 
 async function traerReportesPropios() {
