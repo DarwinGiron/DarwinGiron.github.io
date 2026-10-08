@@ -9,6 +9,7 @@
 //   SIG-FO-101  liberaciones              % de liberaciones de imprentas conformes
 //   SIG-FO-116  auditoriasBpm              % de cumplimiento de la auditoría BPM
 //   SIG-FO-111  registrosVidrio            Puntos de vidrio/plástico por nivel de riesgo
+//   SIG-FO-118  registrosTarimas           % de tarimas dañadas (madera / plástica) por bodega
 //   Hisopado    hisopados                  % de análisis dentro del límite
 //   Reportes    reportes                   Cantidad de reportes por mes
 //
@@ -465,6 +466,33 @@ function calcularVidrio(registros) {
 }
 
 // ---------------------------------------------------------------------------
+// TARIMAS (SIG-FO-118, registrosTarimas) — % de tarimas dañadas
+// Un documento por callejón inspeccionado. A diferencia de los demás
+// indicadores, aquí MENOS es mejor (es porcentaje de daño, no de cumplimiento).
+// ---------------------------------------------------------------------------
+function calcularTarimas(registros) {
+  const porBodega = {};
+  let inspeccionadas = 0, danadas = 0, madera = 0, plastica = 0;
+  registros.forEach((r) => {
+    const insp = Number(r.totalInspeccionadas) || 0;
+    const m = Number(r.cntMadera) || 0;
+    const p = Number(r.cntPlastica) || 0;
+    inspeccionadas += insp; madera += m; plastica += p; danadas += m + p;
+    const b = (porBodega[r.bodega || "Sin bodega"] = porBodega[r.bodega || "Sin bodega"] || { callejones: 0, insp: 0, madera: 0, plastica: 0 });
+    b.callejones++; b.insp += insp; b.madera += m; b.plastica += p;
+  });
+  const hallazgos = {};
+  registros.forEach((r) => (r.hallazgos || []).forEach((h) => { hallazgos[h] = (hallazgos[h] || 0) + 1; }));
+  return {
+    callejones: registros.length,
+    inspeccionadas, danadas, madera, plastica,
+    porcentaje: porcentaje(danadas, inspeccionadas),
+    porBodega: Object.entries(porBodega).sort((a, b) => a[0].localeCompare(b[0])),
+    hallazgos: Object.entries(hallazgos).sort((a, b) => b[1] - a[1]),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // HISOPADO (hisopados) — análisis dentro/fuera del límite
 // ---------------------------------------------------------------------------
 function calcularHisopado(registros) {
@@ -829,6 +857,49 @@ function renderVidrio(registros, meses) {
   return { urgentes: r.niveles[3], inspecciones: r.inspecciones, porMes: Object.fromEntries(meses.map((m, i) => [m, urgentesMes[i]])) };
 }
 
+function renderTarimas(registros, meses) {
+  const r = calcularTarimas(registros);
+  const porMes = agruparPorMes(registros, (x) => x.fecha);
+  const sumar = (m, campo) => (porMes[m] || []).reduce((s, reg) => s + (Number(reg[campo]) || 0), 0);
+  const tendencia = meses.map((m) => porcentaje(sumar(m, "cntMadera") + sumar(m, "cntPlastica"), sumar(m, "totalInspeccionadas")));
+
+  document.getElementById("panel-tarimas").innerHTML = `
+    <div class="kpis">
+      ${kpiHtml(textoPct(r.porcentaje), "Tarimas dañadas", `${r.danadas.toLocaleString()} de ${r.inspeccionadas.toLocaleString()}`)}
+      ${kpiHtml(r.callejones, "Callejones inspeccionados")}
+      ${kpiHtml(r.madera.toLocaleString(), "Madera dañada")}
+      ${kpiHtml(r.plastica.toLocaleString(), "Plástica dañada")}
+    </div>
+    <div class="grid-2">
+      <div class="tarjeta">
+        <h3>% de tarimas dañadas por mes</h3>
+        <canvas id="grafica-tarimas-mes"></canvas>
+      </div>
+      <div class="tarjeta">
+        <h3>Daño por tipo de tarima y mes</h3>
+        <canvas id="grafica-tarimas-tipo"></canvas>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="tarjeta">
+        <h3>Por bodega</h3>
+        ${tablaHtml(["Bodega", "Callejones", "Inspeccionadas", "Madera", "Plástica", "% daño"], r.porBodega.map(([bodega, c]) =>
+          `<tr><td>${escHtml(bodega)}</td><td>${c.callejones}</td><td>${c.insp.toLocaleString()}</td><td>${c.madera}</td><td>${c.plastica}</td><td>${textoPct(porcentaje(c.madera + c.plastica, c.insp))}</td></tr>`))}
+      </div>
+      <div class="tarjeta">
+        <h3>Hallazgos más frecuentes</h3>
+        ${tablaHtml(["Hallazgo", "Callejones"], r.hallazgos.map(([h, n]) => `<tr><td>${escHtml(h)}</td><td>${n}</td></tr>`), "Sin hallazgos registrados.")}
+      </div>
+    </div>`;
+
+  graficaPorcentajeConMeta("grafica-tarimas-mes", meses.map(etiquetaMes), tendencia, null, "% dañadas");
+  graficaApilada("grafica-tarimas-tipo", meses.map(etiquetaMes), [
+    { etiqueta: "Madera", datos: meses.map((m) => sumar(m, "cntMadera")), color: COLOR_CUMPLE },
+    { etiqueta: "Plástica", datos: meses.map((m) => sumar(m, "cntPlastica")), color: COLOR_SERIE },
+  ]);
+  return { final: r.porcentaje, callejones: r.callejones, porMes: Object.fromEntries(meses.map((m, i) => [m, tendencia[i]])) };
+}
+
 function renderHisopado(registros, meses) {
   const r = calcularHisopado(registros);
   const meta = METAS_INDICADORES.hisopado;
@@ -900,11 +971,12 @@ function renderResumen(res, meses) {
     kpi("bpm", "BPM · SIG-FO-116", (r) => r.final, true, METAS_INDICADORES.bpm),
     kpi("hisopado", "Hisopados en límite", (r) => r.final, true, METAS_INDICADORES.hisopado),
     kpi("vidrio", "Vidrio: puntos urgentes", (r) => r.urgentes),
+    kpi("tarimas", "Tarimas dañadas · SIG-FO-118", (r) => r.final, true, null),
     kpi("reportes", "Reportes de hallazgos", (r) => r.total),
   ].join("");
 
   document.getElementById("resumen-tabla-mes").innerHTML = tablaHtml(
-    ["Mes", "PPRs", "Contenedores", "Imprentas", "BPM", "Hisopado", "Vidrio urgentes", "Reportes"],
+    ["Mes", "PPRs", "Contenedores", "Imprentas", "BPM", "Hisopado", "Vidrio urgentes", "Tarimas dañadas", "Reportes"],
     meses.map((m) => `<tr><td><strong>${etiquetaMes(m)}</strong></td>
       ${celda(porMes("ppr", m), true, METAS_INDICADORES.ppr)}
       ${celda(porMes("contenedores", m), true, METAS_INDICADORES.contenedores)}
@@ -912,6 +984,7 @@ function renderResumen(res, meses) {
       ${celda(porMes("bpm", m), true, METAS_INDICADORES.bpm)}
       ${celda(porMes("hisopado", m), true, METAS_INDICADORES.hisopado)}
       ${celda(porMes("vidrio", m))}
+      ${celda(porMes("tarimas", m), true, null)}
       ${celda(porMes("reportes", m))}</tr>`)
   );
 }
@@ -936,7 +1009,7 @@ async function cargarIndicadores(desdeISO, hastaISO, todosReportes, opciones = {
     }
   };
 
-  ["panel-ppr", "panel-contenedores", "panel-imprentas", "panel-bpm", "panel-vidrio", "panel-hisopado"].forEach((id) => {
+  ["panel-ppr", "panel-contenedores", "panel-imprentas", "panel-bpm", "panel-vidrio", "panel-tarimas", "panel-hisopado"].forEach((id) => {
     document.getElementById(id).innerHTML = `<div class="tarjeta"><p class="ayuda">Cargando…</p></div>`;
   });
 
@@ -961,6 +1034,8 @@ async function cargarIndicadores(desdeISO, hastaISO, todosReportes, opciones = {
     ejecutar("bpm", "panel-bpm", async () => renderBpm(guardar("bpm", await cargarDatosBpm(desdeISO, hastaISO)), meses)),
     ejecutar("vidrio", "panel-vidrio", async () =>
       renderVidrio(guardar("vidrio", await consultarRangoISO("registrosVidrio", "fecha", desdeISO, hastaISO)), meses)),
+    ejecutar("tarimas", "panel-tarimas", async () =>
+      renderTarimas(guardar("tarimas", await consultarRangoISO("registrosTarimas", "fecha", desdeISO, hastaISO)), meses)),
     ejecutar("hisopado", "panel-hisopado", async () =>
       renderHisopado(guardar("hisopado", await consultarRangoISO("hisopados", "fecha", desdeISO, hastaISO)), meses)),
   ]);

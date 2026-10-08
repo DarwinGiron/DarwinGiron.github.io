@@ -63,6 +63,7 @@ en el navegador por [`js/indicadores.js`](js/indicadores.js) para el rango Desde
 | Imprentas SIG-FO-101 | `liberaciones` | % de liberaciones conformes (todo en SI), por máquina y turno |
 | BPM SIG-FO-116 | `auditoriasBpm` | % por sección y total por mes, preguntas en NO |
 | Vidrio y plástico | `registrosVidrio` | puntos por nivel de riesgo, puntos de acción urgente |
+| Tarimas SIG-FO-118 | `registrosTarimas` | % de tarimas dañadas (madera / plástica), por bodega y mes, hallazgos frecuentes |
 | Hisopado | `hisopados` | % de análisis dentro del límite, desviaciones |
 
 ### Exportar a Excel

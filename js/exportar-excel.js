@@ -49,6 +49,7 @@ const EXPORTACIONES = {
   imprentas: { nombre: "Imprentas", archivo: "Imprentas_SIG-FO-101", hojas: hojasImprentas, datos: "imprentas" },
   bpm: { nombre: "BPM", archivo: "BPM_SIG-FO-116", hojas: hojasBpm, datos: "bpm" },
   vidrio: { nombre: "Vidrio y plástico", archivo: "Vidrio_SIG-FO-111", hojas: hojasVidrio, datos: "vidrio" },
+  tarimas: { nombre: "Tarimas", archivo: "Tarimas_SIG-FO-118", hojas: hojasTarimas, datos: "tarimas" },
   hisopado: { nombre: "Hisopado", archivo: "Hisopado", hojas: hojasHisopado, datos: "hisopado" },
   reportes: { nombre: "Hallazgos", archivo: "Hallazgos", hojas: hojasHallazgos, datos: "reportes" },
 };
@@ -778,6 +779,53 @@ async function hojasVidrio(wb, d, prefijo) {
 }
 
 // ---------------------------------------------------------------------------
+// TARIMAS — SIG-FO-118
+// ---------------------------------------------------------------------------
+async function hojasTarimas(wb, d, prefijo) {
+  const registros = [...d.tarimas].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  const r = calcularTarimas(registros);
+  const porMes = agruparPorMes(registros, (x) => x.fecha);
+  const suma = (m, campo) => (porMes[m] || []).reduce((s, reg) => s + (Number(reg[campo]) || 0), 0);
+  const filasMes = d.meses.map((m) => {
+    const insp = suma(m, "totalInspeccionadas"), ma = suma(m, "cntMadera"), pl = suma(m, "cntPlastica");
+    return [etiquetaMes(m), (porMes[m] || []).length, insp, ma, pl, pct(ratio(ma + pl, insp))];
+  });
+
+  const ws = nuevaHoja(wb, prefijo, "Resumen tarimas", "SIG-FO-118 · Inspección de tarimas", d);
+  let fila = escribirTabla(ws, 4, 1, [{ titulo: "Indicador", ancho: 34 }, { titulo: "Valor", ancho: 14 }], [
+    ["Callejones inspeccionados", r.callejones],
+    ["Tarimas inspeccionadas", r.inspeccionadas],
+    ["Madera dañada", r.madera],
+    ["Plástica dañada", r.plastica],
+    ["Total dañadas", r.danadas],
+    ["% de tarimas dañadas", pct(r.porcentaje)],
+  ]);
+  fila = escribirTabla(ws, fila, 1, [{ titulo: "Mes" }, { titulo: "Callejones", ancho: 12 }, { titulo: "Inspeccionadas", ancho: 15 }, { titulo: "Madera", ancho: 10 }, { titulo: "Plástica", ancho: 10 }, { titulo: "% daño", ancho: 10, tipo: "pct" }],
+    filasMes, { titulo: "Por mes" });
+  escribirTabla(ws, fila, 1, [{ titulo: "Bodega" }, { titulo: "Callejones" }, { titulo: "Inspeccionadas" }, { titulo: "Madera" }, { titulo: "Plástica" }, { titulo: "% daño", tipo: "pct" }],
+    r.porBodega.map(([b, c]) => [b, c.callejones, c.insp, c.madera, c.plastica, pct(ratio(c.madera + c.plastica, c.insp))]), { titulo: "Por bodega" });
+  await insertarGraficas(wb, ws, 4, 9, [{
+    titulo: "Tarimas dañadas por tipo y mes",
+    config: configApilada(d.meses.map(etiquetaMes), [
+      { etiqueta: "Madera", datos: filasMes.map((f) => f[3]), color: COLOR_CUMPLE },
+      { etiqueta: "Plástica", datos: filasMes.map((f) => f[4]), color: COLOR_SERIE },
+    ]),
+  }]);
+
+  const filas = registros.map((x) => [
+    fechaExcel(x.fecha), x.evaluador || x.inspectorNombre || "", x.bodega || "", x.callejon || "", x.tipo || "",
+    Number(x.totalInspeccionadas) || 0, Number(x.cntMadera) || 0, Number(x.cntPlastica) || 0, Number(x.danadas) || 0,
+    pct(ratio(Number(x.danadas) || 0, Number(x.totalInspeccionadas) || 0)), (x.hallazgos || []).join(", "),
+  ]);
+  hojaBaseDatos(wb, prefijo, "Base de datos", "SIG-FO-118 · Base de datos por callejón", d, [
+    { titulo: "Fecha", ancho: 12, tipo: "fecha" }, { titulo: "Evaluador", ancho: 22 }, { titulo: "Bodega", ancho: 22 },
+    { titulo: "Callejón", ancho: 10 }, { titulo: "Tipo", ancho: 18 }, { titulo: "Inspeccionadas", ancho: 15 },
+    { titulo: "Madera dañada", ancho: 14 }, { titulo: "Plástica dañada", ancho: 15 }, { titulo: "Total dañadas", ancho: 14 },
+    { titulo: "% daño", ancho: 10, tipo: "pct" }, { titulo: "Hallazgos", ancho: 36 },
+  ], filas);
+}
+
+// ---------------------------------------------------------------------------
 // HISOPADO
 // ---------------------------------------------------------------------------
 async function hojasHisopado(wb, d, prefijo) {
@@ -907,15 +955,16 @@ async function hojasTodo(wb, d) {
     ["Cumplimiento BPM (SIG-FO-116)", valor("bpm", "final", true)],
     ["Hisopados dentro del límite", valor("hisopado", "final", true)],
     ["Vidrio y plástico: puntos de acción urgente", valor("vidrio", "urgentes", false)],
+    ["Tarimas dañadas (SIG-FO-118)", valor("tarimas", "final", true)],
     ["Reportes de hallazgos", valor("reportes", "total", false)],
   ]);
   const porMes = (clave, m) => (res[clave] ? res[clave].porMes[m] ?? null : null);
   escribirTabla(ws, fila, 1, [
     { titulo: "Mes" }, { titulo: "PPRs", ancho: 14, tipo: "pct" }, { titulo: "Contenedores", ancho: 14, tipo: "pct" },
     { titulo: "Imprentas", ancho: 14, tipo: "pct" }, { titulo: "BPM", ancho: 14, tipo: "pct" }, { titulo: "Hisopado", ancho: 14, tipo: "pct" },
-    { titulo: "Vidrio urgentes", ancho: 14 }, { titulo: "Reportes", ancho: 14 },
+    { titulo: "Vidrio urgentes", ancho: 14 }, { titulo: "Tarimas dañadas", ancho: 15, tipo: "pct" }, { titulo: "Reportes", ancho: 14 },
   ], d.meses.map((m) => [etiquetaMes(m), porMes("ppr", m), porMes("contenedores", m), porMes("imprentas", m),
-    porMes("bpm", m), porMes("hisopado", m), porMes("vidrio", m), porMes("reportes", m)]), { titulo: "Indicadores por mes" });
+    porMes("bpm", m), porMes("hisopado", m), porMes("vidrio", m), porMes("tarimas", m), porMes("reportes", m)]), { titulo: "Indicadores por mes" });
   await insertarGraficas(wb, ws, 4, 10, [{
     titulo: "Cumplimiento por módulo",
     config: configPorcentaje(
@@ -925,7 +974,7 @@ async function hojasTodo(wb, d) {
 
   const modulos = [
     ["ppr", "PPR "], ["contenedores", "Cont "], ["imprentas", "Impr "], ["bpm", "BPM "],
-    ["vidrio", "Vidrio "], ["hisopado", "Hisop "], ["reportes", "Hallaz "],
+    ["vidrio", "Vidrio "], ["tarimas", "Tarim "], ["hisopado", "Hisop "], ["reportes", "Hallaz "],
   ];
   for (const [clave, prefijo] of modulos) {
     if (d[clave] === undefined) continue; // sin permiso o con error: ya se avisó en su pestaña
