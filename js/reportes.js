@@ -129,17 +129,34 @@ function crearAutocompletarConCreacion({ inputEl, listaEl, coleccion, uidUsuario
   let opciones = []; // cache local {id, nombre}
   let valorSeleccionado = null;
 
-  coleccion.where("activo", "!=", false).onSnapshot((snap) => {
-    opciones = snap.docs.map((d) => ({ id: d.id, nombre: d.data().nombre }));
-  }, () => {
-    // Fallback si el índice "activo" no existe aún: trae todo sin filtro
-    coleccion.onSnapshot((snap) => {
-      opciones = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((d) => d.activo !== false)
-        .map((d) => ({ id: d.id, nombre: d.nombre }));
-    });
-  });
+  // Antes esto era un onSnapshot (escucha en vivo): cada vez que un inspector
+  // abría el formulario descargaba el catálogo completo y seguía escuchándolo.
+  // Un catálogo casi no cambia, así que se lee una vez y se guarda unos
+  // minutos en sessionStorage; las páginas siguientes lo reutilizan.
+  const claveCache = "catalogo_" + coleccion.path;
+  const VIGENCIA_MS = 10 * 60 * 1000;
+
+  function guardarCache() {
+    try { sessionStorage.setItem(claveCache, JSON.stringify({ t: Date.now(), opciones })); } catch (_) { /* sin almacenamiento */ }
+  }
+  (async function cargarOpciones() {
+    try {
+      const guardado = JSON.parse(sessionStorage.getItem(claveCache) || "null");
+      if (guardado && Date.now() - guardado.t < VIGENCIA_MS) { opciones = guardado.opciones; return; }
+    } catch (_) { /* cache ilegible: se vuelve a leer */ }
+    let snap;
+    try {
+      snap = await coleccion.where("activo", "!=", false).get();
+    } catch (_) {
+      // Fallback si el índice "activo" no existe aún: trae todo sin filtro
+      snap = await coleccion.get();
+    }
+    opciones = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((d) => d.activo !== false)
+      .map((d) => ({ id: d.id, nombre: d.nombre }));
+    guardarCache();
+  })().catch((e) => console.warn("No se pudo cargar el catálogo:", e.message));
 
   function normalizar(txt) {
     return (txt || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -182,6 +199,8 @@ function crearAutocompletarConCreacion({ inputEl, listaEl, coleccion, uidUsuario
         fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
         origenInspector: true
       });
+      opciones.push({ id: doc.id, nombre });
+      guardarCache();
       seleccionar(nombre, doc.id);
     } catch (e) {
       console.error("Error creando catálogo en línea:", e);
@@ -774,7 +793,9 @@ function inicializarCampana(perfil, uid) {
   if (!btn || !panel) return;
 
   if (perfil.rol === "admin") {
-    colReportes.where("estado", "==", "pendiente").orderBy("creadoEn", "desc").onSnapshot((snap) => {
+    // limit(9): el panel solo muestra 8, y escuchar TODOS los pendientes
+    // cobraba una lectura por cada uno en cada página que abre el admin.
+    colReportes.where("estado", "==", "pendiente").orderBy("creadoEn", "desc").limit(9).onSnapshot((snap) => {
       renderizarCampanaAdmin(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     }, (err) => console.warn("No se pudo cargar la campana de admin:", err.message));
   } else {
@@ -819,7 +840,7 @@ function renderizarCampanaAdmin(reportes) {
   if (!badge || !panel) return;
   const n = reportes.length;
   badge.style.display = n ? "inline-flex" : "none";
-  badge.textContent = n;
+  badge.textContent = n > 8 ? "8+" : n;
 
   if (!n) {
     panel.innerHTML = `<p class="ayuda" style="padding:12px; margin:0;">No hay reportes pendientes de validar.</p>`;
@@ -831,7 +852,7 @@ function renderizarCampanaAdmin(reportes) {
     <a class="campana-item" href="${rutaValidacion}">
       <p>Nuevo reporte de <strong>${r.zona}</strong> (${r.inspectorNombre || "Inspector"}) del día ${formatearFechaHora(r.fechaHora)}.</p>
     </a>
-  `).join("") + (n > visibles.length ? `<p class="ayuda" style="padding:8px 14px; margin:0;">y ${n - visibles.length} más...</p>` : "");
+  `).join("") + (n > visibles.length ? `<p class="ayuda" style="padding:8px 14px; margin:0;">y más pendientes en Validación...</p>` : "");
 }
 
 // Para el inspector, un clic en el aviso NO navega: abre el modal de
