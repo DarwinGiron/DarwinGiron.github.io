@@ -3582,6 +3582,21 @@ body.tema-hub .toast-info {
   border-color: var(--marino-200);
 }
 
+/* Aviso de "falta algo" (validaciones de formularios). Antes no tenía
+   estilo: quedaba sin fondo y el texto no se leía. */
+body.tema-hub .toast-alerta {
+  background: var(--estado-alerta-suave);
+  color: var(--estado-alerta-ink);
+  border-color: color-mix(in srgb, var(--estado-alerta-mark) 50%, transparent);
+}
+
+/* Campo obligatorio vacío, marcado al intentar guardar. */
+body.tema-hub .campo--falta input,
+body.tema-hub .campo--falta select {
+  border-color: var(--estado-critico-mark);
+  outline: 2px solid color-mix(in srgb, var(--estado-critico-mark) 25%, transparent);
+}
+
 body.tema-hub .recorrido-datos__campo-inicial {
   display: flex;
   align-items: center;

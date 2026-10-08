@@ -58,6 +58,9 @@ protegerPagina({}, ({ user, perfil }) => {
 });
 
 $("btn-salir").addEventListener("click", () => cerrarSesion());
+[campoFecha, campoBodega, campoCallejon, campoTotal].forEach((c) =>
+  c.addEventListener("input", () => c.closest(".campo").classList.remove("campo--falta"))
+);
 campoCallejon.addEventListener("input", () => { campoCallejon.value = campoCallejon.value.toUpperCase(); });
 campoTotal.addEventListener("input", pintarContadores);
 campoBodega.addEventListener("change", () => {
@@ -206,11 +209,23 @@ btnGuardar.addEventListener("click", async () => {
   const { madera, plastica } = estado.conteo;
   const danadas = madera + plastica;
 
-  if (!fecha) return mostrarToast("Indica la fecha.", "alerta");
-  if (!bodega) return mostrarToast("Selecciona una bodega.", "alerta");
-  if (!callejon) return mostrarToast("Ingresa el identificador del callejón (ej. H1).", "alerta");
-  if (Number.isNaN(total) || total <= 0) return mostrarToast("Ingresa el total de tarimas inspeccionadas.", "alerta");
-  if (danadas > total) return mostrarToast(`Dañadas (${danadas}) supera el total (${total}).`, "alerta");
+  // Se revisan todos los campos juntos para avisar de TODO lo que falta,
+  // no solo del primero.
+  document.querySelectorAll(".campo--falta").forEach((c) => c.classList.remove("campo--falta"));
+  const faltan = [];
+  if (!fecha) faltan.push({ campo: campoFecha, texto: "la fecha" });
+  if (!bodega) faltan.push({ campo: campoBodega, texto: "la bodega" });
+  if (!callejon) faltan.push({ campo: campoCallejon, texto: "el callejón" });
+  if (Number.isNaN(total) || total <= 0) faltan.push({ campo: campoTotal, texto: "el total de tarimas inspeccionadas" });
+  if (faltan.length) {
+    faltan.forEach((f) => f.campo.closest(".campo").classList.add("campo--falta"));
+    faltan[0].campo.focus();
+    return mostrarToast(`Falta ${unir(faltan.map((f) => f.texto))}.`, "alerta");
+  }
+  if (danadas > total) {
+    campoTotal.closest(".campo").classList.add("campo--falta");
+    return mostrarToast(`Las dañadas (${danadas}) superan el total inspeccionado (${total}).`, "alerta");
+  }
 
   const tipo = madera && plastica ? "Madera + Plástica" : madera ? "Madera" : plastica ? "Plástica" : "—";
   const registro = {
@@ -244,6 +259,11 @@ btnGuardar.addEventListener("click", async () => {
     btnGuardar.disabled = false;
   }
 });
+
+/** ["a", "b", "c"] -> "a, b y c" */
+function unir(lista) {
+  return lista.length > 1 ? `${lista.slice(0, -1).join(", ")} y ${lista[lista.length - 1]}` : lista[0];
+}
 
 function reiniciarFormulario() {
   estado.conteo = { madera: 0, plastica: 0 };
