@@ -31,6 +31,15 @@
      acomodan en dos columnas para que el formulario completo (incluyendo el
      mapa) quepa en pantalla con el mínimo de scroll posible. En celular se
      mantiene una sola columna. */
+  /* Aprobación por lote */
+  .barra-lote { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 14px; padding:10px 12px; border:1px solid var(--color-borde); border-radius:12px; }
+  .barra-lote .contador-lote { margin-left:auto; font-weight:700; }
+  .tarjeta-reporte { position:relative; }
+  .tarjeta-reporte.seleccionada { outline:3px solid var(--color-acento, #c9a227); outline-offset:-3px; }
+  .sel-lote { position:absolute; top:8px; left:8px; z-index:2; width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.92); border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.35); cursor:pointer; }
+  .sel-lote input { width:20px; height:20px; cursor:pointer; margin:0; }
+  #modal-lote .modal-caja { max-width:460px; }
+
   #modal-fondo #mod-descripcion { min-height: 64px; }
   #modal-fondo #mod-observaciones-inspector { min-height: 64px; }
   @media (min-width: 720px) {
@@ -100,6 +109,13 @@
         <button class="tab" id="tab-pendientes">Pendientes</button>
         <button class="tab" id="tab-validados">Validados</button>
       </div>
+      <div class="barra-lote" id="barra-lote" style="display:none;">
+        <button class="btn btn-secundario btn-pequeno" id="btn-sel-todos">Seleccionar todos</button>
+        <button class="btn btn-secundario btn-pequeno" id="btn-sel-ninguno">Quitar selección</button>
+        <button class="btn btn-exito btn-pequeno" id="btn-aprobar-lote" disabled>Aprobar seleccionados</button>
+        <button class="btn btn-secundario btn-pequeno" id="btn-actualizar" title="Volver a leer los pendientes">Actualizar</button>
+        <span class="contador-lote" id="contador-lote"></span>
+      </div>
       <div id="lista-vacia" class="aviso aviso-info" style="display:none;">No hay reportes en esta bandeja.</div>
       <div class="rejilla-reportes" id="rejilla-reportes"></div>
       <div style="display:flex; justify-content:center; margin-top:16px;">
@@ -120,6 +136,31 @@
     </div>
     <div class="modal-cuerpo" id="modal-contenido"></div>
     <div class="modal-pie" id="modal-pie"></div>
+  </div>
+</div>
+
+<!-- Modal de aprobación por lote -->
+<div class="modal-fondo" id="modal-lote" style="display:none;">
+  <div class="modal-caja">
+    <div class="modal-encabezado">
+      <h2>Aprobar reportes</h2>
+      <button class="cerrar-modal" id="cerrar-modal-lote" aria-label="Cerrar">
+        <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-cuerpo">
+      <p id="texto-lote"></p>
+      <div class="campo">
+        <label>Gravedad para todos *</label>
+        <select id="lote-gravedad"></select>
+        <p class="ayuda">Se aplica la misma gravedad a todos los reportes seleccionados. No se modifica ningún otro dato y no se envía aviso a los inspectores.</p>
+      </div>
+      <p id="estado-lote" class="ayuda" role="status"></p>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" id="btn-cancelar-lote">Cancelar</button>
+      <button class="btn btn-exito" id="btn-confirmar-lote">Aprobar</button>
+    </div>
   </div>
 </div>
 
@@ -152,17 +193,16 @@ let estadoActual = "pendiente";
 let reportesCache = [];
 let gpsCorregidoMod = null;
 
-// "Pendientes" se mantiene en vivo (onSnapshot): son pocos y hay que verlos
-// apenas entran. "Validados" puede acumular años de historial, así que se
-// pagina de 20 en 20 con consultas puntuales (.get) en vez de escuchar en
-// vivo la colección completa — antes se releía TODO lo validado (y cada vez
-// que se cambiaba de pestaña se sumaba un listener más sin cerrar el
-// anterior), lo cual crecía sin límite con el tiempo.
+// Las dos bandejas se paginan de 20 en 20 con consultas puntuales (.get). Antes
+// "Pendientes" escuchaba en vivo TODOS los pendientes (con 200 pendientes eran
+// 200 lecturas en cada visita y sin paginación visible). El aviso de reportes
+// nuevos sigue en vivo en la campana; aquí el botón "Actualizar" vuelve a leer.
 const REPORTES_POR_PAGINA = 20;
-let unsubscribeReportes = null;
-let ultimoDocValidados = null;
-let hayMasValidados = true;
-let cargandoPaginaValidados = false;
+let ultimoDoc = null;
+let hayMas = true;
+let cargandoPagina = false;
+let versionCarga = 0; // descarta respuestas de una bandeja que ya no está abierta
+const seleccion = new Set();
 
 protegerPagina("validacion", (user, perfil, permisos) => {
   usuarioAdmin = user;
@@ -180,67 +220,70 @@ protegerPagina("validacion", (user, perfil, permisos) => {
 
 document.getElementById("tab-pendientes").addEventListener("click", () => { estadoActual = "pendiente"; cargarReportes(); });
 document.getElementById("tab-validados").addEventListener("click", () => { estadoActual = "validado"; cargarReportes(); });
+document.getElementById("btn-actualizar").addEventListener("click", cargarReportes);
 
 function cargarReportes() {
   document.getElementById("tab-pendientes").classList.toggle("activo", estadoActual === "pendiente");
   document.getElementById("tab-validados").classList.toggle("activo", estadoActual === "validado");
 
-  if (unsubscribeReportes) { unsubscribeReportes(); unsubscribeReportes = null; }
+  versionCarga++;
   reportesCache = [];
-  ultimoDocValidados = null;
-  hayMasValidados = true;
+  ultimoDoc = null;
+  hayMas = true;
+  cargandoPagina = false;
+  seleccion.clear();
   document.getElementById("btn-cargar-mas").style.display = "none";
-
-  if (estadoActual === "pendiente") {
-    unsubscribeReportes = colReportes.where("estado", "==", "pendiente").orderBy("creadoEn", "desc")
-      .onSnapshot((snap) => {
-        reportesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        renderizarRejilla();
-      }, (err) => {
-        console.error(err);
-        document.getElementById("rejilla-reportes").innerHTML = "";
-        document.getElementById("lista-vacia").style.display = "block";
-        document.getElementById("lista-vacia").textContent = "Error cargando reportes. Verifique su conexión.";
-      });
-  } else {
-    cargarPaginaValidados();
-  }
+  document.getElementById("barra-lote").style.display = estadoActual === "pendiente" ? "flex" : "none";
+  actualizarContadorLote();
+  cargarPagina();
 }
 
-async function cargarPaginaValidados() {
-  if (cargandoPaginaValidados || !hayMasValidados) return;
-  cargandoPaginaValidados = true;
+async function cargarPagina() {
+  if (cargandoPagina || !hayMas) return;
+  cargandoPagina = true;
+  const version = versionCarga;
   actualizarBotonCargarMas();
   try {
-    let consulta = colReportes.where("estado", "==", "validado").orderBy("creadoEn", "desc").limit(REPORTES_POR_PAGINA);
-    if (ultimoDocValidados) consulta = consulta.startAfter(ultimoDocValidados);
+    let consulta = colReportes.where("estado", "==", estadoActual).orderBy("creadoEn", "desc").limit(REPORTES_POR_PAGINA);
+    if (ultimoDoc) consulta = consulta.startAfter(ultimoDoc);
     const snap = await consulta.get();
+    if (version !== versionCarga) return;
     reportesCache = reportesCache.concat(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    ultimoDocValidados = snap.docs.length ? snap.docs[snap.docs.length - 1] : ultimoDocValidados;
-    hayMasValidados = snap.docs.length === REPORTES_POR_PAGINA;
+    ultimoDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : ultimoDoc;
+    hayMas = snap.docs.length === REPORTES_POR_PAGINA;
     renderizarRejilla();
   } catch (err) {
+    if (version !== versionCarga) return;
     console.error(err);
     document.getElementById("rejilla-reportes").innerHTML = "";
     document.getElementById("lista-vacia").style.display = "block";
     document.getElementById("lista-vacia").textContent = "Error cargando reportes. Verifique su conexión.";
   } finally {
-    cargandoPaginaValidados = false;
-    actualizarBotonCargarMas();
+    if (version === versionCarga) {
+      cargandoPagina = false;
+      actualizarBotonCargarMas();
+    }
   }
 }
 
 function actualizarBotonCargarMas() {
   const btn = document.getElementById("btn-cargar-mas");
-  if (estadoActual !== "validado" || !hayMasValidados) {
+  if (!hayMas) {
     btn.style.display = "none";
     return;
   }
   btn.style.display = "inline-flex";
-  btn.disabled = cargandoPaginaValidados;
-  btn.textContent = cargandoPaginaValidados ? "Cargando..." : "Cargar 20 más";
+  btn.disabled = cargandoPagina;
+  btn.textContent = cargandoPagina ? "Cargando..." : "Cargar 20 más";
 }
-document.getElementById("btn-cargar-mas").addEventListener("click", cargarPaginaValidados);
+document.getElementById("btn-cargar-mas").addEventListener("click", cargarPagina);
+
+/** Saca un reporte de la bandeja abierta (tras validarlo o eliminarlo). */
+function quitarDeBandeja(id) {
+  reportesCache = reportesCache.filter((r) => r.id !== id);
+  seleccion.delete(id);
+  renderizarRejilla();
+}
 
 function renderizarRejilla() {
   const rejilla = document.getElementById("rejilla-reportes");
@@ -254,8 +297,12 @@ function renderizarRejilla() {
 
   reportesCache.forEach((r) => {
     const div = document.createElement("div");
-    div.className = "tarjeta tarjeta-reporte";
+    div.className = "tarjeta tarjeta-reporte" + (seleccion.has(r.id) ? " seleccionada" : "");
+    div.dataset.id = r.id;
+    const casilla = estadoActual === "pendiente"
+      ? `<label class="sel-lote" title="Seleccionar para aprobar"><input type="checkbox" ${seleccion.has(r.id) ? "checked" : ""}></label>` : "";
     div.innerHTML = `
+      ${casilla}
       <div class="foto-portada">
         ${r.fotos && r.fotos[0] ? `<img src="${r.fotos[0]}">` : ""}
         ${r.gravedad ? `<span class="etiqueta-gravedad ${claseGravedad(r.gravedad)}">${r.gravedad}</span>` : ""}
@@ -272,9 +319,134 @@ function renderizarRejilla() {
       </div>
     `;
     div.addEventListener("click", () => abrirModal(r));
+    const lab = div.querySelector(".sel-lote");
+    if (lab) {
+      lab.addEventListener("click", (e) => e.stopPropagation());
+      lab.querySelector("input").addEventListener("change", (e) => {
+        if (e.target.checked) seleccion.add(r.id); else seleccion.delete(r.id);
+        div.classList.toggle("seleccionada", e.target.checked);
+        actualizarContadorLote();
+      });
+    }
     rejilla.appendChild(div);
   });
+  actualizarContadorLote();
 }
+
+// --- Aprobación por lote ----------------------------------------------------
+function actualizarContadorLote() {
+  const n = seleccion.size;
+  document.getElementById("contador-lote").textContent =
+    n ? `${n} seleccionado${n === 1 ? "" : "s"}` : `${reportesCache.length} cargado${reportesCache.length === 1 ? "" : "s"}${hayMas ? " (hay más)" : ""}`;
+  const btn = document.getElementById("btn-aprobar-lote");
+  btn.disabled = n === 0;
+  btn.textContent = n ? `Aprobar ${n}` : "Aprobar seleccionados";
+}
+
+document.getElementById("btn-sel-todos").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-sel-todos");
+  // "Todos" son TODOS los pendientes: si faltan páginas se leen ahora.
+  btn.disabled = true;
+  const version = versionCarga;
+  while (hayMas && version === versionCarga) {
+    btn.textContent = `Cargando… (${reportesCache.length})`;
+    if (cargandoPagina) {
+      // Ya hay una página en camino: se espera en vez de girar en vacío.
+      await new Promise((r) => setTimeout(r, 150));
+      continue;
+    }
+    await cargarPagina();
+  }
+  btn.textContent = "Seleccionar todos";
+  btn.disabled = false;
+  if (version !== versionCarga) return;
+  reportesCache.forEach((r) => seleccion.add(r.id));
+  document.querySelectorAll("#rejilla-reportes .tarjeta-reporte").forEach((el) => {
+    el.classList.add("seleccionada");
+    const chk = el.querySelector(".sel-lote input");
+    if (chk) chk.checked = true;
+  });
+  actualizarContadorLote();
+});
+document.getElementById("btn-sel-ninguno").addEventListener("click", () => {
+  seleccion.clear();
+  document.querySelectorAll("#rejilla-reportes .tarjeta-reporte").forEach((el) => {
+    el.classList.remove("seleccionada");
+    const chk = el.querySelector(".sel-lote input");
+    if (chk) chk.checked = false;
+  });
+  actualizarContadorLote();
+});
+
+function cerrarModalLote() { document.getElementById("modal-lote").style.display = "none"; }
+document.getElementById("cerrar-modal-lote").addEventListener("click", cerrarModalLote);
+document.getElementById("btn-cancelar-lote").addEventListener("click", cerrarModalLote);
+
+document.getElementById("btn-aprobar-lote").addEventListener("click", () => {
+  const n = seleccion.size;
+  if (!n) return;
+  document.getElementById("texto-lote").textContent =
+    `Se aprobarán ${n} reporte${n === 1 ? "" : "s"} pendiente${n === 1 ? "" : "s"}. Esta acción los pasa a "Validados".`;
+  document.getElementById("lote-gravedad").innerHTML =
+    `<option value="">-- Seleccione --</option>` + NIVELES_GRAVEDAD.map((g) => `<option value="${g}">${g}</option>`).join("");
+  document.getElementById("estado-lote").textContent = "";
+  document.getElementById("btn-confirmar-lote").disabled = false;
+  document.getElementById("btn-confirmar-lote").textContent = `Aprobar ${n}`;
+  document.getElementById("modal-lote").style.display = "flex";
+});
+
+document.getElementById("btn-confirmar-lote").addEventListener("click", async () => {
+  const gravedad = document.getElementById("lote-gravedad").value;
+  if (!gravedad) { mostrarAvisoGlobal("Seleccione la gravedad que se aplicará a todos.", "advertencia"); return; }
+
+  const ids = [...seleccion];
+  const btn = document.getElementById("btn-confirmar-lote");
+  const estado = document.getElementById("estado-lote");
+  btn.disabled = true;
+
+  const nombre = perfilAdmin.nombre || perfilAdmin.correo;
+  const hechos = [];
+  try {
+    // Un lote de Firestore admite hasta 500 escrituras; se usan 400 por margen.
+    for (let i = 0; i < ids.length; i += 400) {
+      const trozo = ids.slice(i, i + 400);
+      const lote = db.batch();
+      trozo.forEach((id) => {
+        lote.update(colReportes.doc(id), {
+          gravedad,
+          estado: "validado",
+          validadoPor: usuarioAdmin.uid,
+          validadoPorNombre: nombre,
+          validadoPorPuesto: perfilAdmin.puesto || null,
+          fechaValidacion: firebase.firestore.FieldValue.serverTimestamp(),
+          historialValidacion: firebase.firestore.FieldValue.arrayUnion({
+            uid: usuarioAdmin.uid, nombre, puesto: perfilAdmin.puesto || null,
+            fecha: new Date().toISOString(), gravedad, porLote: true
+          })
+        });
+      });
+      estado.textContent = `Aprobando… ${Math.min(i + 400, ids.length)} de ${ids.length}`;
+      await lote.commit();
+      hechos.push(...trozo);
+    }
+    mostrarAvisoGlobal(`${ids.length} reporte${ids.length === 1 ? "" : "s"} aprobado${ids.length === 1 ? "" : "s"}.`, "exito");
+    cerrarModalLote();
+  } catch (err) {
+    console.error(err);
+    mostrarAvisoGlobal(`Se aprobaron ${hechos.length} de ${ids.length}. Verifique su conexión e intente con el resto.`, "error");
+    btn.disabled = false;
+  }
+  if (hechos.length) {
+    const hechosSet = new Set(hechos);
+    reportesCache = reportesCache.filter((r) => !hechosSet.has(r.id));
+    hechos.forEach((id) => seleccion.delete(id));
+    renderizarRejilla();
+    // Si se vació la página visible pero quedan más pendientes, se trae la siguiente.
+    if (!reportesCache.length && hayMas) cargarPagina();
+  }
+});
+
+
 
 function abrirModal(reporte) {
   const modal = document.getElementById("modal-fondo");
@@ -458,6 +630,7 @@ function abrirModal(reporte) {
 
     try {
       await colReportes.doc(reporte.id).update(cambios);
+      if (estadoActual === "pendiente") quitarDeBandeja(reporte.id);
       cerrarModal();
     } catch (err) {
       console.error(err);
@@ -481,6 +654,7 @@ function abrirModal(reporte) {
     try {
       await colReportes.doc(reporte.id).delete();
       mostrarAvisoGlobal("Reporte eliminado correctamente.", "exito");
+      quitarDeBandeja(reporte.id);
       cerrarModal();
     } catch (err) {
       console.error(err);
