@@ -30,6 +30,12 @@
         ← Volver al inicio
       </a>
 
+      <div class="tabs" role="tablist">
+        <button type="button" class="tabs__item activo" data-pestana="personas" role="tab">Personas</button>
+        <button type="button" class="tabs__item" data-pestana="accesos" role="tab">Accesos</button>
+      </div>
+
+      <div id="pestana-personas" class="pestana activa">
       <div class="flex-entre mb-2">
         <p class="texto-suave texto-sm mb-0">
           Usuarios con acceso a la aplicación.
@@ -45,6 +51,14 @@
       </label>
 
       <div id="lista-usuarios" class="editor-lista"></div>
+      </div>
+
+      <div id="pestana-accesos" class="pestana">
+        <section class="tarjeta" id="tarjeta-permisos"></section>
+        <h2 class="tarjeta__titulo" style="margin: var(--e4) 0 var(--e2);">Acceso por persona</h2>
+        <div id="lista-accesos" class="editor-lista"></div>
+        <section class="tarjeta" id="tarjeta-roles" style="margin-top: var(--e4);"></section>
+      </div>
     </main>
   </div>
 

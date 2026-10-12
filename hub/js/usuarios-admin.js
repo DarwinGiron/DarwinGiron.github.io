@@ -19,6 +19,7 @@ import { listarUsuarios, guardarUsuario } from "./firestore.js";
 import { invitarUsuario, generarContrasenaTemporal } from "./usuarios.js";
 import { crearModalFormulario } from "./modal-formulario.js";
 import { iniciales, mostrarToast, escaparHtml, traducirErrorAuth } from "./utils.js";
+import { iniciarAccesos, refrescarAccesos } from "./accesos-usuarios.js";
 
 const textoUsuario = document.getElementById("texto-usuario");
 const avatarUsuario = document.getElementById("avatar-usuario");
@@ -48,6 +49,19 @@ protegerPagina({ rolesPermitidos: ROLES_GESTION }, async ({ user, perfil }) => {
   avatarUsuario.textContent = iniciales(nombreVisible);
 
   await cargarUsuarios();
+  iniciarAccesos({ obtenerUsuarios: () => estado.usuarios, esAdmin: perfil.rol === "admin" });
+});
+
+// Pestañas Personas / Accesos. Los permisos se leen la primera vez que se abre
+// "Accesos", no al entrar a la pantalla.
+document.querySelectorAll("[data-pestana]").forEach((boton) => {
+  boton.addEventListener("click", () => {
+    const destino = boton.dataset.pestana;
+    document.querySelectorAll("[data-pestana]").forEach((b) => b.classList.toggle("activo", b === boton));
+    document.getElementById("pestana-personas").classList.toggle("activa", destino === "personas");
+    document.getElementById("pestana-accesos").classList.toggle("activa", destino === "accesos");
+    if (destino === "accesos") refrescarAccesos();
+  });
 });
 
 btnSalir.addEventListener("click", () => cerrarSesion());

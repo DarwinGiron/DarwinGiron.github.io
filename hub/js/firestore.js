@@ -545,3 +545,37 @@ export async function listarRegistrosTarimas(filtros = {}) {
 export async function eliminarRegistroTarimas(id) {
   await deleteDoc(doc(db, "registrosTarimas", id));
 }
+
+/* ---------------------------------------------------------
+   Permisos del rol Inspector (configuracion/permisosInspector)
+   Es el MISMO documento que edita la pestaña Permisos de Configuraciones en
+   el sistema de Reportes: se conserva su forma (solo casillas booleanas) para
+   que ambas pantallas puedan leerlo y escribirlo. Escribir es solo del admin
+   (ver firestore.rules); un documento ausente equivale a "sin permisos".
+   --------------------------------------------------------- */
+
+export const CLAVES_PERMISOS_INSPECTOR = [
+  "dashboard",
+  "validacion",
+  "informes",
+  "configuraciones",
+  "configSeccionZonas",
+  "configSeccionProcesos",
+  "configSeccionCategorias",
+  "configSeccionUbicacionPlanta",
+  "configSeccionPlanoReporte",
+];
+
+/** Lee los permisos del rol Inspector. Devuelve {} si aún no se configuraron. */
+export async function obtenerPermisosInspector() {
+  const snap = await getDoc(doc(db, "configuracion", "permisosInspector"));
+  return snap.exists() ? snap.data() : {};
+}
+
+/** Guarda los permisos del rol Inspector (solo admin). */
+export async function guardarPermisosInspector(permisos) {
+  const limpio = {};
+  CLAVES_PERMISOS_INSPECTOR.forEach((k) => { limpio[k] = permisos[k] === true; });
+  await setDoc(doc(db, "configuracion", "permisosInspector"), limpio);
+  return limpio;
+}
