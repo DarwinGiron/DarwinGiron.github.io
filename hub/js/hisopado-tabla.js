@@ -99,25 +99,33 @@ export function pintarTablaMuestreo(tabla, { zonas, registros, anio, encabezado 
     }
   });
 
-  const chip = (r, zona) =>
-    `<span class="valor-resultado ${r.desviacion ? "valor-resultado--fuera" : "valor-resultado--conforme"}" title="${escaparHtml(
-      tituloDeResultado(r, zona)
-    )}">${escaparHtml(String(r.resultado ?? "—"))}</span>`;
+  const chip = (r, zona, fueraDePrograma, turnoAro = 0) =>
+    `<span class="valor-resultado ${r.desviacion ? "valor-resultado--fuera" : "valor-resultado--conforme"}${
+      fueraDePrograma ? ` valor-resultado--extra tp-aro-t${turnoAro}` : ""
+    }" title="${escaparHtml(tituloDeResultado(r, zona) + (fueraDePrograma ? " · Turno no programado este mes" : ""))}">${escaparHtml(
+      String(r.resultado ?? "—")
+    )}</span>`;
 
-  // Una franja por cada turno que le toca a la superficie ese mes. Una toma
-  // de otro turno, o sin turno, va en una franja extra sin color para no
-  // perderla.
+  // Una franja por cada turno que le toca a la superficie ese mes, todas de la
+  // misma altura. Si se hizo una toma de un turno que ese mes no le tocaba (o
+  // sin turno), no se pierde ni se encima con las franjas: va aparte, en una
+  // tira neutra debajo, con un aro del color de SU turno.
   const celdaMes = (zona, mes) => {
     const delMes = (porZonaMes.get(`${zona.id}|${mes}`) || [])
       .slice()
       .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
     const turnos = turnosProgramados(zona, mes, posicionDos.get(zona.id) ?? 0);
-    let html = turnos
-      .map((t) => `<div class="tp-franja tp-t${t}">${delMes.filter((r) => Number(r.turno) === t).map((r) => chip(r, zona)).join("")}</div>`)
+
+    const franjas = turnos
+      .map((t) => `<div class="tp-franja tp-t${t}">${delMes.filter((r) => Number(r.turno) === t).map((r) => chip(r, zona, false)).join("")}</div>`)
       .join("");
-    const otras = delMes.filter((r) => !turnos.includes(Number(r.turno)));
-    if (otras.length) html += `<div class="tp-franja tp-tx">${otras.map((r) => chip(r, zona)).join("")}</div>`;
-    return `<td class="tp-celda"><div class="tp-franjas">${html}</div></td>`;
+
+    const fuera = delMes.filter((r) => !turnos.includes(Number(r.turno)));
+    const extras = fuera.length
+      ? `<div class="tp-extras">${fuera.map((r) => chip(r, zona, true, TURNOS.includes(Number(r.turno)) ? Number(r.turno) : 0)).join("")}</div>`
+      : "";
+
+    return `<td class="tp-celda"><div class="tp-franjas"><div class="tp-planeadas">${franjas}</div>${extras}</div></td>`;
   };
 
   // Agrupa las zonas por tipo conservando el orden de la tabla.

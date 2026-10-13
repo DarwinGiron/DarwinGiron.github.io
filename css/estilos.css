@@ -2926,7 +2926,15 @@ body.tema-hub .tabla-papel .tp-mes span {
 body.tema-hub .tabla-papel td.tp-celda { min-width: 50px; padding: 0; vertical-align: top; height: 1px; }
 
 /* Las franjas se reparten toda la altura de la fila (como en el Excel). */
+/* La celda es una columna: las franjas planeadas se reparten la altura (todas
+   iguales) y, solo si hay tomas fuera de programa, una tira neutra debajo. */
 body.tema-hub .tabla-papel .tp-franjas { display: flex; flex-direction: column; height: 100%; }
+
+body.tema-hub .tabla-papel .tp-planeadas {
+  flex: 1 1 auto;
+  display: grid;
+  grid-auto-rows: minmax(36px, 1fr);
+}
 
 body.tema-hub .tabla-papel .tp-franja {
   display: flex;
@@ -2934,9 +2942,18 @@ body.tema-hub .tabla-papel .tp-franja {
   justify-content: center;
   flex-direction: column;
   gap: 2px;
-  flex: 1 1 0;
-  min-height: 30px;
-  padding: 3px 4px;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+body.tema-hub .tabla-papel .tp-extras {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 4px;
+  background: var(--superficie);
+  border-top: 1px dashed var(--tp-linea);
 }
 
 body.tema-hub .tabla-papel .tp-franja + .tp-franja { border-top: 1px solid rgba(255, 255, 255, 0.75); }
@@ -2961,6 +2978,12 @@ body.tema-hub .tabla-papel .valor-resultado {
 }
 
 body.tema-hub .tabla-papel .valor-resultado + .valor-resultado { margin-left: 0; }
+
+/* Toma de un turno que ese mes no estaba programado: se ve, pero marcada. */
+body.tema-hub .tabla-papel .valor-resultado--extra { box-shadow: 0 0 0 3px var(--tp-aro, #b8c2d3); }
+body.tema-hub .tabla-papel .tp-aro-t1 { --tp-aro: var(--tp-t1-fuerte); }
+body.tema-hub .tabla-papel .tp-aro-t2 { --tp-aro: var(--tp-t2-fuerte); }
+body.tema-hub .tabla-papel .tp-aro-t3 { --tp-aro: var(--tp-t3-fuerte); }
 
 body.tema-hub .tabla-papel .valor-resultado--conforme,
 body.tema-hub .leyenda-resultados .valor-resultado--conforme {
