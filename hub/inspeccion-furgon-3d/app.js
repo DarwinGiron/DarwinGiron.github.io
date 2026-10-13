@@ -22,6 +22,7 @@ import {
   registrarProveedorSiNoExiste,
   normalizarNombreProveedor,
 } from "../js/proveedores-transporte.js";
+import { configurarHistorialTransporte } from "../js/historial-campos-transporte.js";
 import {
   preguntasBase,
   cargarPreguntasLiberacion,
@@ -904,6 +905,14 @@ configurarAutocompletadoProveedor({
 forzarMayusculas(els.transporte);
 ['piloto', 'tc'].forEach((key) => forzarMayusculas(els[key]));
 forzarFormatoPlaca(els.placa); // ya incluye las mayúsculas
+
+// Sugerencias tipo historial para piloto, placa y TC (de inspecciones anteriores).
+configurarHistorialTransporte({
+  piloto: { input: els.piloto, lista: document.getElementById('listaSugerenciasPiloto') },
+  placa: { input: els.placa, lista: document.getElementById('listaSugerenciasPlaca') },
+  tc: { input: els.tc, lista: document.getElementById('listaSugerenciasTc') },
+  alCambiar: (campo, valor) => { state.headerFields[campo] = valor; },
+});
 
 ['piloto', 'placa', 'tc'].forEach((key) => {
   if (els[key]) {

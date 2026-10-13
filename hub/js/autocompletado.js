@@ -35,6 +35,8 @@
  * @param {string} [opciones.claseBadgeRegistrado] - clase(s) CSS del badge cuando ya existe (cada página trae su propio estilo de badge).
  * @param {string} [opciones.claseBadgeNuevo] - clase(s) CSS del badge cuando es nuevo.
  */
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 export function configurarAutocompletado({
   inputEl,
   dropdownEl,
@@ -99,7 +101,7 @@ export function configurarAutocompletado({
       const aviso = document.createElement("div");
       aviso.className = "sugerencia-item sugerencia-item--aviso";
       aviso.innerHTML = filtro
-        ? `No existe aún <strong>"${filtro.toUpperCase()}"</strong> · ${fraseSeRegistrara(filtro)}`
+        ? `No existe aún <strong>"${esc(filtro.toUpperCase())}"</strong> · ${fraseSeRegistrara(filtro)}`
         : fraseSinRegistros;
       dropdownEl.appendChild(aviso);
       dropdownEl.classList.remove("oculto");
@@ -120,9 +122,9 @@ export function configurarAutocompletado({
 
       if (terminoClave) {
         const regex = new RegExp(`(${terminoClave.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
-        fila.innerHTML = `<span class="sugerencia-nombre">${valor.replace(regex, "<mark class='mark-resaltado'>$1</mark>")}</span><span class="sugerencia-icono">↵</span>`;
+        fila.innerHTML = `<span class="sugerencia-nombre">${esc(valor).replace(regex, "<mark class='mark-resaltado'>$1</mark>")}</span><span class="sugerencia-icono">↵</span>`;
       } else {
-        fila.innerHTML = `<span class="sugerencia-nombre">${valor}</span>`;
+        fila.innerHTML = `<span class="sugerencia-nombre">${esc(valor)}</span>`;
       }
 
       fila.addEventListener("mousedown", (evento) => {
