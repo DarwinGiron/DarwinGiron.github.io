@@ -44,15 +44,16 @@
         <button type="button" class="tabs__item" data-vista="tarjetas" role="tab">Tarjetas</button>
       </div>
 
+      <div class="campo mb-2" style="max-width: 160px;">
+        <label for="campo-anio">Año</label>
+        <select id="campo-anio"></select>
+      </div>
+
       <section id="vista-tabla">
         <div class="flex-entre mb-2" style="flex-wrap: wrap; gap: var(--e3);">
           <div class="flex-entre leyenda-resultados" style="gap: var(--e3); font-size: var(--txt-xs); flex-wrap: wrap;">
             <span><span class="valor-resultado valor-resultado--conforme">RLU</span> Conforme</span>
             <span><span class="valor-resultado valor-resultado--fuera">RLU</span> Fuera del límite</span>
-          </div>
-          <div class="campo mb-0" style="min-width: 140px;">
-            <label for="campo-anio">Año</label>
-            <select id="campo-anio"></select>
           </div>
         </div>
         <section id="zona-mensaje" class="tarjeta oculto"></section>
@@ -68,6 +69,12 @@
         </div>
 
         <div id="lista-hisopados" class="editor-lista"></div>
+        <div style="display: flex; justify-content: center; margin-top: var(--e3);">
+          <button type="button" id="btn-mas-tarjetas" class="btn btn-secundario btn-sm btn-ancho-auto oculto">Cargar 20 más</button>
+        </div>
+        <p id="nota-busqueda" class="texto-suave texto-xs oculto" style="text-align:center; margin-top: var(--e2);">
+          La búsqueda revisa solo lo ya cargado; pulsa “Cargar 20 más” para traer otros.
+        </p>
       </section>
     </main>
   </div>

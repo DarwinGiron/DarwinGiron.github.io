@@ -13,7 +13,7 @@
 // =========================================================
 
 import { protegerPagina, cerrarSesion, esRolDeGestion, etiquetaRol } from "./auth.js";
-import { listarHisopados, eliminarHisopado, obtenerTablaHisopado } from "./firestore.js";
+import { listarHisopados, listarHisopadosPagina, eliminarHisopado, obtenerTablaHisopado } from "./firestore.js";
 import { zonasConLimite } from "./hisopado-datos.js";
 import { pintarTablaMuestreo } from "./hisopado-tabla.js";
 import { mostrarBloqueError } from "./aviso-carga.js";
@@ -46,6 +46,9 @@ const estado = {
   encabezado: {},
   anio: new Date().getFullYear(),
   tarjetasCargadas: false,
+  cursor: null, // última tarjeta leída (para pedir la siguiente página)
+  hayMas: false,
+  cargandoTarjetas: false,
   tablaDesactualizada: false, // se eliminó un registro desde las tarjetas
 };
 
@@ -109,8 +112,17 @@ async function cargarTabla() {
 
 campoAnio.addEventListener("change", () => {
   estado.anio = Number(campoAnio.value);
-  cargarTabla();
+  // Cada vista se reinicia con el año nuevo; la que no está a la vista se
+  // carga solo cuando se abra.
+  estado.tarjetasCargadas = false;
+  estado.registros = [];
+  if (vistaActual() === "tarjetas") cargarTarjetas();
+  else cargarTabla();
 });
+
+function vistaActual() {
+  return document.querySelector("[data-vista].activo")?.dataset.vista || "tabla";
+}
 
 /* ---------- Cambio de vista ---------- */
 
@@ -130,24 +142,63 @@ document.querySelectorAll("[data-vista]").forEach((boton) => {
 });
 
 /* ---------- Vista Tarjetas ---------- */
+// Se piden de 20 en 20 y solo del año elegido. "Cargar 20 más" trae la
+// siguiente página; no se descarga el historial completo de una vez.
+
+const POR_PAGINA = 20;
+const btnMasTarjetas = document.getElementById("btn-mas-tarjetas");
+const notaBusqueda = document.getElementById("nota-busqueda");
 
 async function cargarTarjetas() {
+  estado.registros = [];
+  estado.cursor = null;
+  estado.hayMas = false;
   mostrarCarga(lista, "Cargando registros…");
+  btnMasTarjetas.classList.add("oculto");
+  notaBusqueda.classList.add("oculto");
+  await cargarPaginaTarjetas();
+}
+
+async function cargarPaginaTarjetas() {
+  if (estado.cargandoTarjetas) return;
+  estado.cargandoTarjetas = true;
+  btnMasTarjetas.disabled = true;
+  btnMasTarjetas.textContent = "Cargando…";
+  const anio = estado.anio;
   try {
-    estado.registros = await listarHisopados(
-      estado.puedeEliminar ? {} : { inspectorUid: estado.usuario.uid }
-    );
+    const pagina = await listarHisopadosPagina({
+      ...(estado.puedeEliminar ? {} : { inspectorUid: estado.usuario.uid }),
+      desde: `${anio}-01-01`,
+      hasta: `${anio}-12-31`,
+      limite: POR_PAGINA,
+      despues: estado.cursor,
+    });
+    if (anio !== estado.anio) return; // se cambió de año mientras cargaba
+    estado.registros = estado.registros.concat(pagina.registros);
+    estado.cursor = pagina.cursor;
+    estado.hayMas = pagina.hayMas;
     estado.tarjetasCargadas = true;
     renderizar();
   } catch (error) {
     console.error("No se pudieron cargar los hisopados:", error);
-    lista.innerHTML = "";
+    if (!estado.registros.length) lista.innerHTML = "";
     mostrarToast("No se pudo cargar el historial. Verifica tu conexión.", "error");
+  } finally {
+    estado.cargandoTarjetas = false;
+    btnMasTarjetas.disabled = false;
+    btnMasTarjetas.textContent = `Cargar ${POR_PAGINA} más`;
+    btnMasTarjetas.classList.toggle("oculto", !estado.hayMas);
+    notaBusqueda.classList.toggle("oculto", !(estado.hayMas && filtroBusqueda.value.trim()));
   }
 }
 
+btnMasTarjetas.addEventListener("click", cargarPaginaTarjetas);
+
 btnSalir.addEventListener("click", () => cerrarSesion());
-filtroBusqueda.addEventListener("input", renderizar);
+filtroBusqueda.addEventListener("input", () => {
+  renderizar();
+  notaBusqueda.classList.toggle("oculto", !(estado.hayMas && filtroBusqueda.value.trim()));
+});
 
 /** Texto donde busca el filtro: todo lo que el usuario podría teclear de memoria. */
 function textoBuscable(registro) {

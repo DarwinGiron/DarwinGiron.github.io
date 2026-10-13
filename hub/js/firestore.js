@@ -30,6 +30,7 @@ import {
   where,
   orderBy,
   limit as limitarA,
+  startAfter,
   Timestamp,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -423,6 +424,35 @@ export async function listarHisopados(filtros = {}) {
   );
   const snap = await getDocs(consulta);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Una página de hisopados, del más reciente al más antiguo. Trae solo `limite`
+ * documentos (no todo el historial): el cursor que devuelve se pasa en
+ * `despues` para pedir la página siguiente.
+ * Filtros: inspectorUid (obligatorio para un inspector, ver firestore.rules),
+ * desde / hasta (fecha ISO).
+ */
+export async function listarHisopadosPagina(filtros = {}) {
+  const limite = filtros.limite || 20;
+  const condiciones = [];
+  if (filtros.inspectorUid) condiciones.push(where("inspectorUid", "==", filtros.inspectorUid));
+  if (filtros.desde) condiciones.push(where("fecha", ">=", filtros.desde));
+  if (filtros.hasta) condiciones.push(where("fecha", "<=", filtros.hasta));
+
+  const consulta = query(
+    collection(db, "hisopados"),
+    ...condiciones,
+    orderBy("fecha", "desc"),
+    ...(filtros.despues ? [startAfter(filtros.despues)] : []),
+    limitarA(limite)
+  );
+  const snap = await getDocs(consulta);
+  return {
+    registros: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+    cursor: snap.docs.length ? snap.docs[snap.docs.length - 1] : filtros.despues || null,
+    hayMas: snap.docs.length === limite,
+  };
 }
 
 /**
