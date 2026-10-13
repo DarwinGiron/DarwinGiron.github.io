@@ -3,12 +3,13 @@
 // Excel (.xlsx). Incluye TODOS los reportes del período elegido (pendientes
 // + validados).
 //
-// El PDF y el Word usan un diseño de TARJETAS (una por hallazgo, 4 por
-// página en cuadrícula 2x2), parecido a las tarjetas de la app: una sola
-// fotografía, chip de color según la gravedad, título "Categoría — Proceso",
-// zona/área, descripción completa y los metadatos (autor, revisado por,
-// fecha/hora, turno). El encabezado oficial (logo, código SIG-FO-114,
-// período) se mantiene igual que antes.
+// El PDF y el Word usan un diseño de TARJETAS tipo Airbnb (una por hallazgo,
+// 4 por página en cuadrícula 2x2): fotografía de esquinas redondeadas con la
+// gravedad como insignia sobre la foto, y debajo, sin marco, el título
+// "Zona — Proceso", la categoría, la descripción completa y los metadatos
+// (autor, fecha/hora, turno, revisado por). Antes de las tarjetas va una hoja
+// de resumen con el período, los totales y el detalle por proceso. El
+// encabezado oficial (logo, código SIG-FO-114) se mantiene en cada hoja.
 // El Excel es solo tabular y no incluye imágenes.
 // ============================================================================
 
@@ -39,18 +40,17 @@ function textoEstado(r) {
   return r.estado === "validado" ? "Validado" : "Pendiente";
 }
 
-/** Colores del chip de gravedad, iguales a los usados en la app (css/styles.css). */
-function coloresGravedad(g) {
-  const paleta = {
-    "Crítico": { bg: "#fbe4e1", fg: "#a3241b" },
-    "Mayor": { bg: "#fdecd8", fg: "#9a5610" },
-    "Menor": { bg: "#fff6e0", fg: "#8a6100" },
-    "Observación": { bg: "#e9eaed", fg: "#495057" }
-  };
+/** Color del punto de gravedad (insignia sobre la foto y fila de resumen). */
+function colorPuntoGravedad(g) {
+  const paleta = { "Crítico": "#C13515", "Mayor": "#E07912", "Menor": "#E8B007", "Observación": "#6A6A6A" };
   return paleta[g] || paleta["Observación"];
 }
 
+// Paleta del informe (la del Dashboard tipo Airbnb).
+const INF = { tinta: "#222222", gris: "#6A6A6A", linea: "#EBEBEB", suave: "#F7F7F7", coral: "#FF385C" };
+
 const TARJETAS_POR_PAGINA = 4; // cuadrícula 2x2
+const FOTO_PX = { w: 640, h: 300 }; // proporción de la foto de cada tarjeta
 
 /**
  * Agrupa por proceso (alfabético) y, dentro de cada proceso, ordena por
@@ -87,6 +87,123 @@ function construirPaginasDeTarjetas(reportes) {
   return paginas;
 }
 
+/** Totales del período y detalle por proceso, para la hoja de resumen. */
+function resumenInforme(reportes) {
+  const porProceso = new Map();
+  reportes.forEach((r) => {
+    const clave = r.proceso || "Sin proceso";
+    const f = porProceso.get(clave) || { proceso: clave, total: 0, pendientes: 0, criticos: 0 };
+    f.total++;
+    if (r.estado !== "validado") f.pendientes++;
+    if (r.gravedad === "Crítico") f.criticos++;
+    porProceso.set(clave, f);
+  });
+  return {
+    total: reportes.length,
+    pendientes: reportes.filter((r) => r.estado !== "validado").length,
+    validados: reportes.filter((r) => r.estado === "validado").length,
+    criticos: reportes.filter((r) => r.gravedad === "Crítico").length,
+    procesos: [...porProceso.values()].sort((a, b) => a.proceso.localeCompare(b.proceso, "es"))
+  };
+}
+
+function textoPeriodoInforme(desde, hasta) {
+  if (!desde || !hasta) return "";
+  const f = (d) => d.toLocaleDateString("es-GT", { day: "numeric", month: "long", year: "numeric" });
+  return `Semana del ${f(desde)} al ${f(hasta)}`;
+}
+
+function textoRevisadoPor(r) {
+  return (r.validadoPorNombre || "Pendiente de validación") + (r.validadoPorNombre && r.validadoPorPuesto ? ` (${r.validadoPorPuesto})` : "");
+}
+
+function cargarImagen(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+/**
+ * Foto de la tarjeta, recortada a una proporción fija (como las fichas de
+ * Airbnb), con esquinas redondeadas y la gravedad como insignia blanca sobre
+ * la esquina superior izquierda. Se dibuja en un canvas y se entrega como JPEG
+ * (las esquinas quedan blancas, igual que el fondo de la hoja), así el PDF y el
+ * Word reciben una sola imagen ya terminada y pesan poco.
+ * Sin fotografía se dibuja un recuadro gris con la leyenda.
+ */
+async function fotoTarjeta(urlFoto, gravedad) {
+  try {
+    const base64 = urlFoto ? await urlAImagenBase64(urlFoto) : null;
+    const img = base64 ? await cargarImagen(base64) : null;
+    const { w: W, h: H } = FOTO_PX;
+    const canvas = document.createElement("canvas");
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, W, H);
+
+    const trazoRedondeado = (x, y, w, h, r) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    };
+
+    ctx.save();
+    trazoRedondeado(0, 0, W, H, 26);
+    ctx.clip();
+    if (img) {
+      // Recorte tipo "cover": llena el recuadro sin deformar la foto.
+      const escala = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+      const dw = img.naturalWidth * escala, dh = img.naturalHeight * escala;
+      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    } else {
+      ctx.fillStyle = INF.suave;
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "#B0B0B0";
+      ctx.font = "600 26px 'Nunito Sans', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Sin fotografía", W / 2, H / 2);
+    }
+    ctx.restore();
+
+    if (gravedad) {
+      ctx.font = "800 24px 'Nunito Sans', Arial, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      const texto = gravedad;
+      const anchoTexto = ctx.measureText(texto).width;
+      const bx = 18, by = 18, bh = 46, bw = anchoTexto + 62;
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.28)";
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 2;
+      ctx.fillStyle = "#FFFFFF";
+      trazoRedondeado(bx, by, bw, bh, bh / 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = colorPuntoGravedad(gravedad);
+      ctx.beginPath();
+      ctx.arc(bx + 22, by + bh / 2, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = INF.tinta;
+      ctx.fillText(texto, bx + 40, by + bh / 2 + 1);
+    }
+    return canvas.toDataURL("image/jpeg", 0.84);
+  } catch (e) {
+    console.warn("No se pudo preparar la foto de la tarjeta:", e);
+    return null;
+  }
+}
+
 /**
  * Convierte un SVG (stroke-based, con "currentColor") a un PNG pequeño en
  * base64, para poder usar el MISMO ícono que la app (usuario, reloj) tanto
@@ -109,96 +226,124 @@ function svgAImagenBase64(svgTexto, colorHex, tamanoPx = 40) {
   });
 }
 
-// Mismos íconos (y mismo color de texto secundario, #666) que usa la tarjeta
-// real de la app en admin/validacion.html.
+// Mismos íconos que usa la tarjeta real de la app en admin/validacion.html.
 const ICONO_USUARIO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
 const ICONO_RELOJ_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
 
 // ---------------------------------------------------------------------------
-// EXPORTACIÓN A PDF (pdfmake) - mismo formato tabular que el Word oficial
+// EXPORTACIÓN A PDF (pdfmake)
 // ---------------------------------------------------------------------------
 async function exportarInformePDF(reportes, desde, hasta, perfilAdmin) {
   if (!reportes.length) { mostrarAvisoGlobal("No hay reportes en el período seleccionado.", "advertencia"); return; }
 
-  // Solo la primera fotografía de cada reporte (diseño de tarjeta)
+  const paginas = construirPaginasDeTarjetas(reportes);
+  const resumen = resumenInforme(reportes);
+
+  // Foto terminada de cada tarjeta (recortada, redondeada y con insignia)
   const fotoPorReporte = {};
   for (const r of reportes) {
-    if (r.fotos && r.fotos.length) {
-      const b64 = await urlAImagenBase64(r.fotos[0]);
-      if (b64) fotoPorReporte[r.id] = b64;
-    }
+    fotoPorReporte[r.id] = await fotoTarjeta(r.fotos && r.fotos.length ? r.fotos[0] : null, r.gravedad);
   }
 
   // Logo para el encabezado (opcional: si falla, se muestra el nombre en texto)
   const logoB64 = await urlAImagenBase64(rutaLogoEmpresa());
 
-  // Íconos de usuario/reloj, igual que la tarjeta real de la app (color #666)
   const [iconoUsuarioB64, iconoRelojB64] = await Promise.all([
-    svgAImagenBase64(ICONO_USUARIO_SVG, "#666666"),
-    svgAImagenBase64(ICONO_RELOJ_SVG, "#666666")
+    svgAImagenBase64(ICONO_USUARIO_SVG, INF.gris),
+    svgAImagenBase64(ICONO_RELOJ_SVG, INF.gris)
   ]);
+
+  // Ancho útil: 612 - 2×50 = 512pt. Dos columnas de 249pt con 14pt entre ellas.
+  const ANCHO_TARJETA = 249;
 
   function tarjetaPDF(r) {
     const foto = fotoPorReporte[r.id];
-    const contenido = [
-      foto
-        ? { image: foto, fit: [210, 115], alignment: "center", margin: [0, 0, 0, 6] }
-        : { text: "(sin fotografía)", italics: true, color: "#999", alignment: "center", margin: [0, 0, 0, 6] }
-    ];
+    const contenido = [];
+    if (foto) contenido.push({ image: foto, width: ANCHO_TARJETA, margin: [0, 0, 0, 8] });
 
-    if (r.gravedad) {
-      const colores = coloresGravedad(r.gravedad);
-      contenido.push({
-        table: { widths: ["auto"], body: [[{ text: r.gravedad.toUpperCase(), color: colores.fg, fillColor: colores.bg, bold: true, fontSize: 7, margin: [5, 2, 5, 2] }]] },
-        layout: "noBorders",
-        margin: [0, 0, 0, 4]
-      });
-    }
+    contenido.push({ text: `${r.zona} — ${r.proceso}`, bold: true, color: INF.tinta, fontSize: 10.5, margin: [0, 0, 0, 1] });
+    contenido.push({ text: textoCategoria(r), color: INF.gris, fontSize: 8, margin: [0, 0, 0, 5] });
+    contenido.push({ text: r.descripcion, color: INF.tinta, fontSize: 8, lineHeight: 1.25, margin: [0, 0, 0, 7] });
 
-    // Título igual que la tarjeta de la app: Zona — Proceso
-    contenido.push({ text: `${r.zona} — ${r.proceso}`, bold: true, color: "#2b2262", fontSize: 10, margin: [0, 0, 0, 1] });
-    contenido.push({ text: textoCategoria(r), color: "#888", fontSize: 7, margin: [0, 0, 0, 4] });
-    contenido.push({ text: r.descripcion, fontSize: 8, margin: [0, 0, 0, 7] });
-
-    // Meta: ícono de usuario + nombre; ícono de reloj + fecha · turno
     contenido.push({
-      columns: [{ width: 10, image: iconoUsuarioB64, height: 10 }, { width: "*", text: r.inspectorNombre + (r.inspectorPuesto ? ` (${r.inspectorPuesto})` : ""), fontSize: 7, margin: [4, 1, 0, 0] }],
+      columns: [{ width: 10, image: iconoUsuarioB64, height: 10 }, { width: "*", text: r.inspectorNombre + (r.inspectorPuesto ? ` (${r.inspectorPuesto})` : ""), fontSize: 7.5, color: INF.tinta, margin: [4, 1, 0, 0] }],
       margin: [0, 0, 0, 3]
     });
     contenido.push({
-      columns: [{ width: 10, image: iconoRelojB64, height: 10 }, { width: "*", text: `${formatearFechaHora(r.fechaHora)}${r.turno ? " · " + r.turno : ""}`, fontSize: 7, margin: [4, 1, 0, 0] }],
-      margin: [0, 0, 0, 4]
+      columns: [{ width: 10, image: iconoRelojB64, height: 10 }, { width: "*", text: `${formatearFechaHora(r.fechaHora)}${r.turno ? " · " + r.turno : ""}`, fontSize: 7.5, color: INF.tinta, margin: [4, 1, 0, 0] }],
+      margin: [0, 0, 0, 5]
     });
-    contenido.push({ text: [{ text: "Revisado por: ", bold: true }, { text: (r.validadoPorNombre || "Pendiente de validación") + (r.validadoPorNombre && r.validadoPorPuesto ? ` (${r.validadoPorPuesto})` : "") }], fontSize: 6.5, color: "#888" });
+    contenido.push({ text: [{ text: "Revisado por ", color: INF.gris }, { text: textoRevisadoPor(r), bold: true, color: INF.tinta }], fontSize: 7 });
 
-    return {
-      table: { widths: ["*"], body: [[{ stack: contenido, margin: [7, 7, 7, 7] }]] },
-      layout: { hLineWidth: () => 1, vLineWidth: () => 1, hLineColor: () => "#d9d9e3", vLineColor: () => "#d9d9e3" },
-      dontBreakRows: true
-    };
+    return { stack: contenido };
   }
+
+  // --- Hoja de resumen: título, período, totales y detalle por proceso -----
+  const celdaKpi = (valor, etiqueta) => ({
+    stack: [
+      { text: String(valor), fontSize: 22, bold: true, color: INF.tinta },
+      { text: etiqueta, fontSize: 8, color: INF.gris, margin: [0, 2, 0, 0] }
+    ],
+    fillColor: INF.suave,
+    margin: [12, 10, 12, 10]
+  });
+
+  const encabezadoTabla = (t, alinear) => ({ text: t.toUpperCase(), fontSize: 7, bold: true, color: INF.gris, alignment: alinear || "left", margin: [0, 2, 0, 2] });
+  const filasProceso = resumen.procesos.map((p) => [
+    { text: p.proceso, fontSize: 9, color: INF.tinta },
+    { text: String(p.total), fontSize: 9, bold: true, alignment: "right" },
+    { text: String(p.pendientes), fontSize: 9, alignment: "right" },
+    { text: String(p.criticos), fontSize: 9, alignment: "right", bold: p.criticos > 0, color: p.criticos > 0 ? colorPuntoGravedad("Crítico") : INF.tinta }
+  ]);
+
+  const hojaResumen = [
+    { text: EMPRESA_CONFIG.tituloInforme, fontSize: 22, bold: true, color: INF.tinta, margin: [0, 14, 0, 4] },
+    { text: textoPeriodoInforme(desde, hasta), fontSize: 12, color: INF.gris, margin: [0, 0, 0, 2] },
+    { text: `Generado el ${new Date().toLocaleDateString("es-GT", { day: "numeric", month: "long", year: "numeric" })}${perfilAdmin ? " por " + (perfilAdmin.nombre || perfilAdmin.correo) : ""}`, fontSize: 8, color: INF.gris, margin: [0, 0, 0, 22] },
+    {
+      table: { widths: ["*", "*", "*", "*"], body: [[celdaKpi(resumen.total, "Reportes"), celdaKpi(resumen.pendientes, "Pendientes"), celdaKpi(resumen.validados, "Validados"), celdaKpi(resumen.criticos, "Críticos")]] },
+      layout: { hLineWidth: () => 0, vLineWidth: (i) => (i === 0 || i === 4 ? 0 : 8), vLineColor: () => "#FFFFFF" },
+      margin: [0, 0, 0, 28]
+    },
+    { text: "Hallazgos por proceso", fontSize: 13, bold: true, color: INF.tinta, margin: [0, 0, 0, 8] },
+    {
+      table: {
+        headerRows: 1,
+        widths: ["*", 60, 60, 60],
+        body: [[encabezadoTabla("Proceso"), encabezadoTabla("Reportes", "right"), encabezadoTabla("Pendientes", "right"), encabezadoTabla("Críticos", "right")], ...filasProceso]
+      },
+      layout: {
+        hLineWidth: (i, nodo) => (i === 0 || i === nodo.table.body.length ? 0 : i === 1 ? 1 : 0.5),
+        hLineColor: (i) => (i === 1 ? "#DDDDDD" : INF.linea),
+        vLineWidth: () => 0,
+        paddingTop: () => 6, paddingBottom: () => 6, paddingLeft: () => 2, paddingRight: () => 2
+      }
+    }
+  ];
 
   // --- Cuadrícula de tarjetas, 4 por página (2x2). Cada fila de 2 tarjetas
   // es su PROPIA tabla (con dontBreakRows) para que, si alguna vez el
   // contenido no cabe completo en lo que queda de la página, la fila
-  // COMPLETA pase a la siguiente en vez de partirse a la mitad. El salto de
-  // página manual solo se aplica al iniciar cada grupo nuevo de 4. ---
+  // COMPLETA pase a la siguiente en vez de partirse a la mitad. ---
   const bloquesTarjetas = [];
-  const paginas = construirPaginasDeTarjetas(reportes);
-
-  paginas.forEach((pagina, indicePagina) => {
-    // Título del proceso al inicio de cada hoja. El salto de página se aplica
-    // AQUÍ (en el título) para que quede pegado a las tarjetas de esa hoja.
+  paginas.forEach((pagina) => {
+    const totalProceso = resumen.procesos.find((p) => p.proceso === pagina.proceso)?.total;
+    // Título del proceso al inicio de cada hoja; el salto de página va AQUÍ
+    // para que quede pegado a las tarjetas de esa hoja.
     bloquesTarjetas.push({
-      text: `— ${pagina.proceso} —`,
-      style: "tituloProceso",
-      pageBreak: indicePagina > 0 ? "before" : undefined
+      columns: [
+        { text: pagina.proceso, fontSize: 15, bold: true, color: INF.tinta, width: "*" },
+        { text: totalProceso ? `${totalProceso} reporte${totalProceso === 1 ? "" : "s"}` : "", fontSize: 9, color: INF.gris, alignment: "right", width: "auto", margin: [0, 5, 0, 0] }
+      ],
+      pageBreak: "before",
+      margin: [0, 0, 0, 4]
     });
+    bloquesTarjetas.push({ canvas: [{ type: "line", x1: 0, y1: 0, x2: 512, y2: 0, lineWidth: 0.75, lineColor: INF.linea }], margin: [0, 0, 0, 14] });
     for (let i = 0; i < pagina.tarjetas.length; i += 2) {
       const izq = pagina.tarjetas[i], der = pagina.tarjetas[i + 1];
       bloquesTarjetas.push({
-        table: { widths: ["50%", "50%"], body: [[izq ? tarjetaPDF(izq) : {}, der ? tarjetaPDF(der) : {}]], dontBreakRows: true },
-        layout: { hLineWidth: () => 0, vLineWidth: () => 0, paddingLeft: () => 0, paddingRight: (ci) => ci === 0 ? 10 : 0, paddingTop: () => 0, paddingBottom: () => 14 }
+        table: { widths: [ANCHO_TARJETA + 7, ANCHO_TARJETA + 7], body: [[izq ? tarjetaPDF(izq) : {}, der ? tarjetaPDF(der) : {}]], dontBreakRows: true },
+        layout: { hLineWidth: () => 0, vLineWidth: () => 0, paddingLeft: (ci) => (ci === 1 ? 7 : 0), paddingRight: (ci) => (ci === 0 ? 7 : 0), paddingTop: () => 0, paddingBottom: () => 16 }
       });
     }
   });
@@ -214,22 +359,21 @@ async function exportarInformePDF(reportes, desde, hasta, perfilAdmin) {
           : { text: EMPRESA_CONFIG.nombre, bold: true, fontSize: 11 },
         {
           stack: [
-            { text: EMPRESA_CONFIG.codigoFormulario, alignment: "right", fontSize: 8 },
-            { text: EMPRESA_CONFIG.revisionFormulario, alignment: "right", fontSize: 8 }
+            { text: EMPRESA_CONFIG.codigoFormulario, alignment: "right", fontSize: 8, color: INF.gris },
+            { text: EMPRESA_CONFIG.revisionFormulario, alignment: "right", fontSize: 8, color: INF.gris }
           ]
         }
       ]
     },
-    content: [
-      { text: EMPRESA_CONFIG.tituloInforme.toUpperCase(), style: "titulo" },
-      ...bloquesTarjetas
-    ],
-    styles: {
-      titulo: { fontSize: 14, bold: true, alignment: "center", margin: [0, 6, 0, 16] },
-      tituloProceso: { fontSize: 13, bold: true, alignment: "center", color: "#2b2262", margin: [0, 0, 0, 12] },
-      meta: { fontSize: 9, alignment: "center", color: "#555" }
-    },
-    defaultStyle: { fontSize: 9 }
+    footer: (pagina, total) => ({
+      margin: [50, 0, 50, 0],
+      columns: [
+        { text: EMPRESA_CONFIG.sistema, fontSize: 7, color: "#B0B0B0" },
+        { text: `${pagina} / ${total}`, fontSize: 7, color: "#B0B0B0", alignment: "right" }
+      ]
+    }),
+    content: [...hojaResumen, ...bloquesTarjetas],
+    defaultStyle: { fontSize: 9, color: INF.tinta }
   };
 
   pdfMake.createPdf(docDefinicion).download(`Reporte_Semanal_Inocuidad_COGUSA_${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -241,19 +385,11 @@ async function exportarInformePDF(reportes, desde, hasta, perfilAdmin) {
 async function exportarInformeWord(reportes, desde, hasta, perfilAdmin) {
   if (!reportes.length) { mostrarAvisoGlobal("No hay reportes en el período seleccionado.", "advertencia"); return; }
 
-  const { Document, Packer, Paragraph, HeadingLevel, Table, TableRow, TableCell, TextRun, AlignmentType, ImageRun, WidthType, Header, BorderStyle, VerticalAlign, PageBreak } = docx;
+  const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, AlignmentType, ImageRun, WidthType, Header, Footer, PageNumber, BorderStyle, VerticalAlign, PageBreak, ShadingType } = docx;
+  const sinHex = (c) => c.replace("#", "");
 
   // Ancho útil de página Carta con márgenes de 1": 9360 DXA
   const ANCHO_TABLA = 9360;
-  const ANCHO_COL = 4680; // dos columnas iguales (cuadrícula 2x2 de tarjetas)
-
-  function parrafo(texto, opciones = {}) {
-    return new Paragraph({
-      alignment: opciones.centrado ? AlignmentType.CENTER : AlignmentType.LEFT,
-      spacing: opciones.spacing,
-      children: [new TextRun({ text: texto, bold: !!opciones.negrita, italics: !!opciones.cursiva, size: opciones.size, color: opciones.color })]
-    });
-  }
 
   // --- Logo para el encabezado (si no se puede cargar, el Word se genera sin él) ---
   let logoBytes = null;
@@ -264,7 +400,7 @@ async function exportarInformeWord(reportes, desde, hasta, perfilAdmin) {
     console.warn("No se pudo cargar el logo para el encabezado del Word:", e);
   }
 
-  /** Convierte un dataURL (png) a Uint8Array, para usarlo en un ImageRun. */
+  /** Convierte un dataURL a Uint8Array, para usarlo en un ImageRun. */
   function dataUrlABytes(dataUrl) {
     const base64 = dataUrl.split(",")[1];
     const binario = atob(base64);
@@ -273,30 +409,12 @@ async function exportarInformeWord(reportes, desde, hasta, perfilAdmin) {
     return bytes;
   }
 
-  /** Lee el ancho/alto natural de un dataURL de imagen (para no deformar la
-   * foto en el Word: docx exige medidas explícitas, así que las calculamos
-   * conservando la proporción, igual que el "fit" del PDF). */
-  function dimensionesDataUrl(dataUrl) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-      img.onerror = () => resolve({ w: 0, h: 0 });
-      img.src = dataUrl;
-    });
-  }
+  const iconoUsuarioBytes = dataUrlABytes(await svgAImagenBase64(ICONO_USUARIO_SVG, INF.gris));
+  const iconoRelojBytes = dataUrlABytes(await svgAImagenBase64(ICONO_RELOJ_SVG, INF.gris));
 
-  /** Escala (natW × natH) para que quepa dentro de (maxW × maxH) sin deformar. */
-  function ajustarDentro(natW, natH, maxW, maxH) {
-    if (!natW || !natH) return { width: maxW, height: maxH };
-    const escala = Math.min(maxW / natW, maxH / natH);
-    return { width: Math.round(natW * escala), height: Math.round(natH * escala) };
-  }
-
-  // Íconos de usuario/reloj, igual que la tarjeta real de la app (color #666)
-  const iconoUsuarioBytes = dataUrlABytes(await svgAImagenBase64(ICONO_USUARIO_SVG, "#666666"));
-  const iconoRelojBytes = dataUrlABytes(await svgAImagenBase64(ICONO_RELOJ_SVG, "#666666"));
-
-  const sinBordes = { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, insideHorizontal: { style: BorderStyle.NONE }, insideVertical: { style: BorderStyle.NONE } };
+  const ninguno = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+  const sinBordes = { top: ninguno, bottom: ninguno, left: ninguno, right: ninguno, insideHorizontal: ninguno, insideVertical: ninguno };
+  const sinBordeCelda = { top: ninguno, bottom: ninguno, left: ninguno, right: ninguno };
 
   const encabezadoDocx = new Header({
     children: [
@@ -309,15 +427,17 @@ async function exportarInformeWord(reportes, desde, hasta, perfilAdmin) {
             children: [
               new TableCell({
                 width: { size: 7000, type: WidthType.DXA },
+                borders: sinBordeCelda,
                 children: logoBytes
                   ? [new Paragraph({ children: [new ImageRun({ data: logoBytes, type: "png", transformation: { width: 220, height: 40 } })] })]
                   : [new Paragraph({ children: [new TextRun({ text: EMPRESA_CONFIG.nombre, bold: true })] })]
               }),
               new TableCell({
                 width: { size: 2360, type: WidthType.DXA },
+                borders: sinBordeCelda,
                 children: [
-                  new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: EMPRESA_CONFIG.codigoFormulario, size: 16 })] }),
-                  new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: EMPRESA_CONFIG.revisionFormulario, size: 16 })] })
+                  new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: EMPRESA_CONFIG.codigoFormulario, size: 16, color: sinHex(INF.gris) })] }),
+                  new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: EMPRESA_CONFIG.revisionFormulario, size: 16, color: sinHex(INF.gris) })] })
                 ]
               })
             ]
@@ -327,116 +447,166 @@ async function exportarInformeWord(reportes, desde, hasta, perfilAdmin) {
     ]
   });
 
-  const bordeTarjeta = { style: BorderStyle.SINGLE, size: 4, color: "D9D9E3" };
-  // Borde de los 4 lados aplicado a CADA celda-tarjeta (no a la tabla), para
-  // que las tarjetas se vean como cajas separadas —igual que en el PDF— en
-  // lugar de una cuadrícula pegada tipo hoja de cálculo.
-  const bordesCeldaTarjeta = { top: bordeTarjeta, bottom: bordeTarjeta, left: bordeTarjeta, right: bordeTarjeta };
-  const sinBordeCelda = { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } };
-  // Anchos: dos tarjetas con un pequeño espaciador al centro (columna vacía).
-  const ANCHO_ESPACIADOR = 280;
-  const ANCHO_TARJETA = (ANCHO_TABLA - ANCHO_ESPACIADOR) / 2; // 4540
+  const pieDocx = new Footer({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        children: [
+          new TextRun({ text: EMPRESA_CONFIG.sistema + "  ·  ", size: 14, color: "B0B0B0" }),
+          new TextRun({ children: [PageNumber.CURRENT], size: 14, color: "B0B0B0" })
+        ]
+      })
+    ]
+  });
 
-  /** Contenido de una tarjeta (una celda de la cuadrícula 2x2): foto única,
-   * chip de gravedad, título "Categoría — Proceso", zona, descripción y
-   * metadatos (autor, revisado por, fecha/hora, turno). */
+  // --- Hoja de resumen --------------------------------------------------------
+  const paginas = construirPaginasDeTarjetas(reportes);
+  const resumen = resumenInforme(reportes);
+  const blanco = { style: BorderStyle.SINGLE, size: 24, color: "FFFFFF" };
+
+  const celdaKpi = (valor, etiqueta) => new TableCell({
+    width: { size: ANCHO_TABLA / 4, type: WidthType.DXA },
+    borders: { top: blanco, bottom: blanco, left: blanco, right: blanco },
+    shading: { type: ShadingType.CLEAR, fill: sinHex(INF.suave), color: "auto" },
+    margins: { top: 140, bottom: 140, left: 200, right: 200 },
+    children: [
+      new Paragraph({ children: [new TextRun({ text: String(valor), bold: true, size: 44, color: sinHex(INF.tinta) })] }),
+      new Paragraph({ children: [new TextRun({ text: etiqueta, size: 16, color: sinHex(INF.gris) })] })
+    ]
+  });
+
+  const lineaFina = { style: BorderStyle.SINGLE, size: 4, color: sinHex(INF.linea) };
+  const celdaTabla = (texto, ancho, opts = {}) => new TableCell({
+    width: { size: ancho, type: WidthType.DXA },
+    borders: { top: ninguno, left: ninguno, right: ninguno, bottom: opts.encabezado ? { style: BorderStyle.SINGLE, size: 8, color: "DDDDDD" } : lineaFina },
+    margins: { top: 90, bottom: 90, left: 40, right: 40 },
+    children: [new Paragraph({
+      alignment: opts.derecha ? AlignmentType.RIGHT : AlignmentType.LEFT,
+      children: [new TextRun({
+        text: opts.encabezado ? texto.toUpperCase() : texto,
+        bold: !!opts.negrita || !!opts.encabezado,
+        size: opts.encabezado ? 14 : 18,
+        color: opts.color || (opts.encabezado ? sinHex(INF.gris) : sinHex(INF.tinta))
+      })]
+    })]
+  });
+
+  const ANCHOS_PROC = [5160, 1400, 1400, 1400];
+  const filaEncabezadoProc = new TableRow({
+    tableHeader: true,
+    children: [celdaTabla("Proceso", ANCHOS_PROC[0], { encabezado: true }), celdaTabla("Reportes", ANCHOS_PROC[1], { encabezado: true, derecha: true }), celdaTabla("Pendientes", ANCHOS_PROC[2], { encabezado: true, derecha: true }), celdaTabla("Críticos", ANCHOS_PROC[3], { encabezado: true, derecha: true })]
+  });
+  const filasProc = resumen.procesos.map((p) => new TableRow({
+    children: [
+      celdaTabla(p.proceso, ANCHOS_PROC[0]),
+      celdaTabla(String(p.total), ANCHOS_PROC[1], { derecha: true, negrita: true }),
+      celdaTabla(String(p.pendientes), ANCHOS_PROC[2], { derecha: true }),
+      celdaTabla(String(p.criticos), ANCHOS_PROC[3], { derecha: true, negrita: p.criticos > 0, color: p.criticos > 0 ? sinHex(colorPuntoGravedad("Crítico")) : undefined })
+    ]
+  }));
+
+  const hojaResumen = [
+    new Paragraph({ spacing: { before: 200, after: 80 }, children: [new TextRun({ text: EMPRESA_CONFIG.tituloInforme, bold: true, size: 44, color: sinHex(INF.tinta) })] }),
+    new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: textoPeriodoInforme(desde, hasta), size: 24, color: sinHex(INF.gris) })] }),
+    new Paragraph({
+      spacing: { after: 400 },
+      children: [new TextRun({ text: `Generado el ${new Date().toLocaleDateString("es-GT", { day: "numeric", month: "long", year: "numeric" })}${perfilAdmin ? " por " + (perfilAdmin.nombre || perfilAdmin.correo) : ""}`, size: 16, color: sinHex(INF.gris) })]
+    }),
+    new Table({
+      width: { size: ANCHO_TABLA, type: WidthType.DXA },
+      columnWidths: [2340, 2340, 2340, 2340],
+      borders: sinBordes,
+      rows: [new TableRow({ children: [celdaKpi(resumen.total, "Reportes"), celdaKpi(resumen.pendientes, "Pendientes"), celdaKpi(resumen.validados, "Validados"), celdaKpi(resumen.criticos, "Críticos")] })]
+    }),
+    new Paragraph({ spacing: { before: 440, after: 160 }, children: [new TextRun({ text: "Hallazgos por proceso", bold: true, size: 26, color: sinHex(INF.tinta) })] }),
+    new Table({
+      width: { size: ANCHO_TABLA, type: WidthType.DXA },
+      columnWidths: ANCHOS_PROC,
+      borders: sinBordes,
+      rows: [filaEncabezadoProc, ...filasProc]
+    })
+  ];
+
+  // --- Tarjetas: dos por fila, sin marco, con un espaciador al centro --------
+  const ANCHO_ESPACIADOR = 360;
+  const ANCHO_TARJETA = (ANCHO_TABLA - ANCHO_ESPACIADOR) / 2; // 4500
+  // Foto: 4500 DXA = 225pt = 300px de ancho útil menos márgenes de celda.
+  const FOTO_WORD = { width: 292, height: Math.round(292 * FOTO_PX.h / FOTO_PX.w) };
+
+  /** Contenido de una tarjeta: foto con insignia de gravedad, título,
+   * categoría, descripción y metadatos. */
   async function contenidoTarjetaWord(r) {
     const hijos = [];
-    if (r.fotos && r.fotos.length) {
-      const dataUrl = await urlAImagenBase64(r.fotos[0]);
-      if (dataUrl) {
-        const dim = await dimensionesDataUrl(dataUrl);
-        const ajuste = ajustarDentro(dim.w, dim.h, 225, 125);
-        const tipoImg = dataUrl.startsWith("data:image/png") ? "png" : "jpg";
-        hijos.push(new Paragraph({
-          alignment: AlignmentType.CENTER,
-          children: [new ImageRun({ data: dataUrlABytes(dataUrl), type: tipoImg, transformation: ajuste })],
-          spacing: { after: 120 }
-        }));
-      }
-    }
-    if (!hijos.length) {
-      hijos.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 120 }, children: [new TextRun({ text: "(sin fotografía)", italics: true, color: "999999" })] }));
-    }
-
-    // Chip de gravedad: igual que la tarjeta de la app, solo si ya fue validado
-    if (r.gravedad) {
-      const colores = coloresGravedad(r.gravedad);
+    const foto = await fotoTarjeta(r.fotos && r.fotos.length ? r.fotos[0] : null, r.gravedad);
+    if (foto) {
       hijos.push(new Paragraph({
-        shading: { fill: colores.bg.replace("#", "") },
-        spacing: { after: 120 },
-        children: [new TextRun({ text: r.gravedad.toUpperCase(), bold: true, color: colores.fg.replace("#", ""), size: 16 })]
+        spacing: { after: 140 },
+        children: [new ImageRun({ data: dataUrlABytes(foto), type: "jpg", transformation: FOTO_WORD })]
       }));
     }
 
-    // Título igual que la tarjeta de la app: Zona — Proceso
-    hijos.push(new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${r.zona} — ${r.proceso}`, bold: true, color: "2B2262", size: 22 })] }));
-    hijos.push(new Paragraph({ spacing: { after: 120 }, children: [new TextRun({ text: textoCategoria(r), color: "888888", size: 16 })] }));
-    hijos.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: r.descripcion, size: 18 })] }));
-
-    // Meta: ícono de usuario + nombre; ícono de reloj + fecha · turno
+    hijos.push(new Paragraph({ spacing: { after: 20 }, children: [new TextRun({ text: `${r.zona} — ${r.proceso}`, bold: true, color: sinHex(INF.tinta), size: 22 })] }));
+    hijos.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: textoCategoria(r), color: sinHex(INF.gris), size: 16 })] }));
+    // Los saltos de línea de la descripción (Transporte, Piloto, Placa…) se
+    // conservan como saltos reales; un "\n" dentro de un TextRun no los genera.
+    const lineasDescripcion = String(r.descripcion || "").split(/\r?\n/);
     hijos.push(new Paragraph({
-      spacing: { after: 80 },
+      spacing: { after: 140, line: 270 },
+      children: lineasDescripcion.map((linea, i) => new TextRun({ text: linea, size: 17, color: sinHex(INF.tinta), break: i > 0 ? 1 : 0 }))
+    }));
+
+    hijos.push(new Paragraph({
+      spacing: { after: 60 },
       children: [
         new ImageRun({ data: iconoUsuarioBytes, type: "png", transformation: { width: 11, height: 11 } }),
-        new TextRun({ text: " " + r.inspectorNombre + (r.inspectorPuesto ? ` (${r.inspectorPuesto})` : ""), size: 16 })
+        new TextRun({ text: " " + r.inspectorNombre + (r.inspectorPuesto ? ` (${r.inspectorPuesto})` : ""), size: 15, color: sinHex(INF.tinta) })
       ]
     }));
     hijos.push(new Paragraph({
-      spacing: { after: 120 },
+      spacing: { after: 100 },
       children: [
         new ImageRun({ data: iconoRelojBytes, type: "png", transformation: { width: 11, height: 11 } }),
-        new TextRun({ text: ` ${formatearFechaHora(r.fechaHora)}${r.turno ? " · " + r.turno : ""}`, size: 16 })
+        new TextRun({ text: ` ${formatearFechaHora(r.fechaHora)}${r.turno ? " · " + r.turno : ""}`, size: 15, color: sinHex(INF.tinta) })
       ]
     }));
     hijos.push(new Paragraph({ children: [
-      new TextRun({ text: "Revisado por: ", bold: true, size: 14, color: "888888" }),
-      new TextRun({ text: (r.validadoPorNombre || "Pendiente de validación") + (r.validadoPorNombre && r.validadoPorPuesto ? ` (${r.validadoPorPuesto})` : ""), size: 14, color: "888888" })
+      new TextRun({ text: "Revisado por ", size: 14, color: sinHex(INF.gris) }),
+      new TextRun({ text: textoRevisadoPor(r), bold: true, size: 14, color: sinHex(INF.tinta) })
     ] }));
 
     return hijos;
   }
 
-  // --- Cuadrícula de tarjetas, 4 por página (2x2) ---
   const bloquesTarjetas = [];
-  const paginas = construirPaginasDeTarjetas(reportes);
+  for (const pagina of paginas) {
+    const totalProceso = resumen.procesos.find((p) => p.proceso === pagina.proceso)?.total;
 
-  for (let indicePagina = 0; indicePagina < paginas.length; indicePagina++) {
-    const pagina = paginas[indicePagina];
-
-    // Salto de página + título del proceso al inicio de cada hoja (excepto la
-    // primera, que va justo debajo del título general del informe).
-    if (indicePagina > 0) {
-      bloquesTarjetas.push(new Paragraph({ children: [new PageBreak()] }));
-    }
+    // Cada proceso (y cada hoja de continuación) abre en página nueva, con su
+    // título y una línea fina debajo.
+    bloquesTarjetas.push(new Paragraph({ children: [new PageBreak()] }));
     bloquesTarjetas.push(new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 160 },
-      children: [new TextRun({ text: `— ${pagina.proceso} —`, bold: true, color: "2B2262", size: 26 })]
+      spacing: { after: 260 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: sinHex(INF.linea), space: 6 } },
+      children: [
+        new TextRun({ text: pagina.proceso, bold: true, color: sinHex(INF.tinta), size: 32 }),
+        new TextRun({ text: totalProceso ? `    ${totalProceso} reporte${totalProceso === 1 ? "" : "s"}` : "", color: sinHex(INF.gris), size: 18 })
+      ]
     }));
 
-    // Cada fila de 2 tarjetas es su PROPIA tabla (sin bordes de tabla): así,
-    // igual que en el PDF, las tarjetas quedan como cajas separadas con un
-    // espacio entre ellas y un espacio en blanco debajo, en vez de pegadas.
+    // Cada fila de 2 tarjetas es su PROPIA tabla, sin bordes: las tarjetas
+    // quedan separadas solo por espacio en blanco.
     for (let i = 0; i < pagina.tarjetas.length; i += 2) {
       const izq = pagina.tarjetas[i], der = pagina.tarjetas[i + 1];
 
       const celdaTarjeta = (contenido) => new TableCell({
         width: { size: ANCHO_TARJETA, type: WidthType.DXA },
-        borders: bordesCeldaTarjeta,
+        borders: sinBordeCelda,
         verticalAlign: VerticalAlign.TOP,
-        margins: { top: 110, bottom: 110, left: 140, right: 140 },
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
         children: contenido
       });
-      // Celda vacía (cuando la hoja termina en número impar de tarjetas): sin
-      // borde, para que quede invisible como el hueco del PDF.
-      const celdaVacia = new TableCell({
-        width: { size: ANCHO_TARJETA, type: WidthType.DXA },
-        borders: sinBordeCelda,
-        children: [new Paragraph({ text: "" })]
-      });
-      const celdaEspaciador = new TableCell({
-        width: { size: ANCHO_ESPACIADOR, type: WidthType.DXA },
+      const celdaVacia = (ancho) => new TableCell({
+        width: { size: ancho, type: WidthType.DXA },
         borders: sinBordeCelda,
         children: [new Paragraph({ text: "" })]
       });
@@ -446,42 +616,33 @@ async function exportarInformeWord(reportes, desde, hasta, perfilAdmin) {
         columnWidths: [ANCHO_TARJETA, ANCHO_ESPACIADOR, ANCHO_TARJETA],
         borders: sinBordes,
         rows: [new TableRow({
-          // Evita que Word parta una tarjeta entre dos páginas: si no cabe
-          // completa, la fila pasa entera a la siguiente hoja.
-          cantSplit: false,
+          cantSplit: true, // si la fila no cabe completa, pasa entera a la hoja siguiente
           children: [
             celdaTarjeta(await contenidoTarjetaWord(izq)),
-            celdaEspaciador,
-            der ? celdaTarjeta(await contenidoTarjetaWord(der)) : celdaVacia
+            celdaVacia(ANCHO_ESPACIADOR),
+            der ? celdaTarjeta(await contenidoTarjetaWord(der)) : celdaVacia(ANCHO_TARJETA)
           ]
         })]
       }));
 
-      // Espacio en blanco entre una fila de tarjetas y la siguiente.
-      bloquesTarjetas.push(new Paragraph({ text: "", spacing: { after: 160 } }));
+      bloquesTarjetas.push(new Paragraph({ text: "", spacing: { after: 200 } }));
     }
   }
 
   const documento = new Document({
     styles: {
-      default: { document: { run: { font: "Arial", size: 20 } } } // 10pt, como el formato original
+      default: { document: { run: { font: "Arial", size: 20 } } }
     },
     sections: [{
       properties: {
         page: {
           size: { width: 12240, height: 15840 },
-          margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+          margin: { top: 1440, right: 1440, bottom: 1200, left: 1440 }
         }
       },
       headers: { default: encabezadoDocx },
-      children: [
-        new Paragraph({
-          alignment: AlignmentType.CENTER,
-          spacing: { before: 200, after: 300 },
-          children: [new TextRun({ text: EMPRESA_CONFIG.tituloInforme.toUpperCase(), bold: true, size: 28 })]
-        }),
-        ...bloquesTarjetas
-      ]
+      footers: { default: pieDocx },
+      children: [...hojaResumen, ...bloquesTarjetas]
     }]
   });
 
