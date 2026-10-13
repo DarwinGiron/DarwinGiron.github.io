@@ -2809,44 +2809,91 @@ body.tema-hub .valor-resultado--pendiente {
   border: 1px dashed var(--estado-alerta-mark);
 }
 
-/* Tabla de muestreo de hisopados con el diseño del formato en papel
-   (hisopado-tabla.js): cuadrícula completa, tipo de muestra combinado con su
-   rango en vertical, meses en vertical y solo los resultados en cada mes. */
+/* Tabla de muestreo de hisopados con el diseño del formato en Excel
+   (hisopado-tabla.js): encabezado con logo y código, tipo de muestra con su
+   rango combinado en vertical, meses en vertical, una franja de color por
+   turno dentro de cada mes y, al pie, el conteo de análisis por turno. */
 body.tema-hub .tabla-papel {
-  border-collapse: collapse;
+  --tp-linea: #cfd8e6;
+  --tp-t1: rgba(66, 133, 244, 0.20);
+  --tp-t2: rgba(244, 133, 66, 0.24);
+  --tp-t3: rgba(250, 204, 21, 0.30);
+  --tp-t1-fuerte: #9cc2f0;
+  --tp-t2-fuerte: #f5b48c;
+  --tp-t3-fuerte: #f7da6a;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
-  min-width: 760px;
+  min-width: 860px;
   font-size: var(--txt-sm);
   color: var(--tinta);
 }
 
 body.tema-hub .tabla-papel th,
 body.tema-hub .tabla-papel td {
-  border: 1px solid var(--tinta-3);
-  padding: 4px 6px;
+  border-right: 1px solid var(--tp-linea);
+  border-bottom: 1px solid var(--tp-linea);
+  padding: 6px 8px;
   text-align: center;
   vertical-align: middle;
   white-space: normal;
 }
 
+body.tema-hub .tabla-papel tr > :last-child { border-right: none; }
+
+/* Encabezado: logo + código, título y cabeceras de columna */
 body.tema-hub .tabla-papel thead th {
   position: static;
-  background: var(--superficie-2, var(--superficie));
-  font-weight: 800;
+  background: var(--marino-700);
+  color: #fff;
+  font-weight: 700;
+  font-size: var(--txt-xs);
+  letter-spacing: 0.03em;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+body.tema-hub .tabla-papel thead .tp-cabecera {
+  background: var(--superficie);
   color: var(--tinta);
+  border: none;
+  padding: var(--e3) var(--e4) var(--e2);
 }
 
-body.tema-hub .tabla-papel .tp-titulo {
+body.tema-hub .tabla-papel .tp-cabecera__fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+}
+
+body.tema-hub .tabla-papel .tp-logo { height: 40px; width: auto; max-width: 60%; object-fit: contain; }
+
+body.tema-hub .tabla-papel .tp-cabecera__codigo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: var(--txt-2xs, 11px);
+  font-weight: 600;
+  color: var(--tinta-2);
+}
+
+body.tema-hub .tabla-papel thead .tp-titulo {
+  background: var(--superficie);
+  color: var(--tinta);
   font-size: var(--txt-md);
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: var(--e2);
+  letter-spacing: 0.05em;
+  padding: var(--e2) var(--e3) var(--e3);
+  border: none;
+  border-bottom: 3px solid var(--dorado-500);
 }
 
-body.tema-hub .tabla-papel .tp-cantidad { width: 64px; font-weight: 700; }
-body.tema-hub .tabla-papel .tp-zona { min-width: 150px; font-weight: 600; }
+body.tema-hub .tabla-papel .tp-cantidad { width: 64px; font-weight: 800; font-size: var(--txt-md); }
+body.tema-hub .tabla-papel thead .tp-cantidad { font-size: var(--txt-xs); }
+body.tema-hub .tabla-papel .tp-zona { min-width: 150px; font-weight: 700; text-align: left; padding-left: var(--e3); }
 
-body.tema-hub .tabla-papel .tp-tipo { width: 88px; background: var(--superficie-2, var(--superficie)); }
+body.tema-hub .tabla-papel .tp-tipo { width: 92px; background: var(--superficie-2, var(--superficie)); }
 
 body.tema-hub .tabla-papel .tp-tipo__texto {
   writing-mode: vertical-rl;
@@ -2857,37 +2904,64 @@ body.tema-hub .tabla-papel .tp-tipo__texto {
   justify-content: center;
   gap: 2px;
   margin: 0 auto;
-  max-height: 150px;
+  max-height: 170px;
   text-transform: uppercase;
   font-size: var(--txt-xs);
   line-height: 1.25;
+  letter-spacing: 0.03em;
 }
 
+body.tema-hub .tabla-papel .tp-tipo__texto strong { color: var(--marino-700); }
 body.tema-hub .tabla-papel .tp-tipo__texto span { font-weight: 600; color: var(--tinta-2); }
 
-body.tema-hub .tabla-papel .tp-mes { width: 44px; padding: 8px 2px; }
+body.tema-hub .tabla-papel .tp-mes { width: 50px; padding: 10px 2px; }
 
 body.tema-hub .tabla-papel .tp-mes span {
   display: inline-block;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  font-size: var(--txt-xs);
 }
 
-body.tema-hub .tabla-papel td.tp-celda { min-width: 44px; height: 56px; padding: 3px; }
+/* Celda del mes: las franjas ocupan toda la celda, una por turno */
+body.tema-hub .tabla-papel td.tp-celda { min-width: 50px; padding: 0; vertical-align: top; height: 1px; }
 
+/* Las franjas se reparten toda la altura de la fila (como en el Excel). */
+body.tema-hub .tabla-papel .tp-franjas { display: flex; flex-direction: column; height: 100%; }
+
+body.tema-hub .tabla-papel .tp-franja {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 0;
+  min-height: 30px;
+  padding: 3px 4px;
+}
+
+body.tema-hub .tabla-papel .tp-franja + .tp-franja { border-top: 1px solid rgba(255, 255, 255, 0.75); }
+body.tema-hub .tabla-papel .tp-t1 { background: var(--tp-t1); }
+body.tema-hub .tabla-papel .tp-t2 { background: var(--tp-t2); }
+body.tema-hub .tabla-papel .tp-t3 { background: var(--tp-t3); }
+body.tema-hub .tabla-papel .tp-tx { background: var(--superficie-2, transparent); }
+
+body.tema-hub .tabla-papel tbody tr:hover .tp-zona,
+body.tema-hub .tabla-papel tbody tr:hover .tp-cantidad { background: var(--superficie-2, transparent); }
+
+/* Resultados: verde dentro del límite, rojo fuera */
 body.tema-hub .tabla-papel .valor-resultado {
   display: block;
-  min-width: 0;
-  margin: 2px auto;
-  padding: 2px 4px;
-  border-radius: var(--r-sm, 6px);
+  min-width: 36px;
+  margin: 0;
+  padding: 2px 6px;
+  border-radius: var(--r-full);
   font-size: var(--txt-xs);
+  font-weight: 800;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
-body.tema-hub .tabla-papel .valor-resultado + .valor-resultado { margin-left: auto; }
+body.tema-hub .tabla-papel .valor-resultado + .valor-resultado { margin-left: 0; }
 
-/* Resultados con color pleno para leer el cumplimiento de un vistazo. */
 body.tema-hub .tabla-papel .valor-resultado--conforme,
 body.tema-hub .leyenda-resultados .valor-resultado--conforme {
   background: var(--estado-bien-mark);
@@ -2899,6 +2973,30 @@ body.tema-hub .leyenda-resultados .valor-resultado--fuera {
   background: var(--estado-critico-mark);
   color: #fff;
 }
+
+/* Pie: análisis por turno cada mes */
+body.tema-hub .tabla-papel tfoot td,
+body.tema-hub .tabla-papel tfoot th {
+  font-size: var(--txt-sm);
+  font-weight: 700;
+  padding: 7px 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+body.tema-hub .tabla-papel tfoot tr:first-child > * { border-top: 3px solid var(--marino-700); }
+body.tema-hub .tabla-papel tfoot .tp-cero { color: var(--tinta-3); font-weight: 500; }
+
+body.tema-hub .tabla-papel .tp-turno {
+  text-align: left;
+  padding-left: var(--e4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #1f2937;
+}
+
+body.tema-hub .tabla-papel .tp-turno.tp-t1 { background: var(--tp-t1-fuerte); }
+body.tema-hub .tabla-papel .tp-turno.tp-t2 { background: var(--tp-t2-fuerte); }
+body.tema-hub .tabla-papel .tp-turno.tp-t3 { background: var(--tp-t3-fuerte); }
 
 body.tema-hub .pestana { display: none; }
 
