@@ -4,10 +4,12 @@
 // de contenedores: se alimenta de las inspecciones ya guardadas
 // (verificaciones_transporte), así que no hay catálogo nuevo que mantener.
 //
-// Lecturas: UNA consulta por sesión (las últimas LIMITE inspecciones) y el
-// resultado se guarda en localStorage por 12 h; abrir el formulario varias
-// veces al día no vuelve a leer nada. Si falla, los campos siguen siendo
-// texto libre.
+// Lecturas: la consulta NO se hace al abrir el formulario, sino la primera
+// vez que se escribe lo suficiente para sugerir (3 caracteres en placa y TC;
+// nombre + espacio en piloto). Trae como máximo LIMITE inspecciones, solo del
+// mes anterior y el actual, y se guarda 24 h en localStorage. Al guardar una
+// inspección con datos nuevos, esa copia se actualiza sin volver a leer.
+// Si falla, los campos siguen siendo texto libre.
 //
 // Al elegir una placa se completan el piloto y la TC de su última
 // inspección (solo si esos campos están vacíos).
@@ -19,14 +21,15 @@ import {
   getDocs,
   query,
   orderBy,
+  where,
   limit,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { configurarAutocompletado } from "./autocompletado.js";
 import { formatearPlaca } from "./utils.js";
 
-const LIMITE = 400;
-const CLAVE_CACHE = "historialCamposTransporte.v1";
-const VIGENCIA_MS = 12 * 60 * 60 * 1000;
+const LIMITE = 200;
+const CLAVE_CACHE = "historialCamposTransporte.v2";
+const VIGENCIA_MS = 24 * 60 * 60 * 1000;
 
 const sinTildes = (t) =>
   String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
@@ -34,20 +37,40 @@ const soloAlfanumerico = (t) => String(t || "").toUpperCase().replace(/[^A-Z0-9]
 
 let promesa = null;
 
+/** Primer día del mes anterior en ISO (aaaa-mm-dd): lo anterior no se consulta. */
+function desdeMesAnterior() {
+  const hoy = new Date();
+  const d = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function leerCache() {
+  try {
+    const g = JSON.parse(localStorage.getItem(CLAVE_CACHE) || "null");
+    // Vale si es de hoy-24h y del mismo rango de meses (al cambiar de mes se renueva).
+    if (g && Date.now() - g.en < VIGENCIA_MS && g.desde === desdeMesAnterior()) return g;
+  } catch (_) { /* sin caché */ }
+  return null;
+}
+
+function guardarCache(datos) {
+  try {
+    localStorage.setItem(CLAVE_CACHE, JSON.stringify({ en: Date.now(), desde: desdeMesAnterior(), datos }));
+  } catch (_) { /* sin caché */ }
+}
+
 /** Lee las inspecciones recientes y arma { pilotos, placas, tcs, porPlaca }. */
 function cargarHistorial() {
   if (promesa) return promesa;
   promesa = (async () => {
-    try {
-      const guardado = JSON.parse(localStorage.getItem(CLAVE_CACHE) || "null");
-      if (guardado && Date.now() - guardado.en < VIGENCIA_MS) return guardado.datos;
-    } catch (_) { /* sin caché: se consulta */ }
+    const guardado = leerCache();
+    if (guardado) return guardado.datos;
 
     const datos = { pilotos: [], placas: [], tcs: [], porPlaca: {} };
     try {
       // Ordenadas de la más reciente a la más antigua: la primera vez que
       // aparece una placa es su dato más actual.
-      const snap = await getDocs(query(collection(db, "verificaciones_transporte"), orderBy("fecha", "desc"), limit(LIMITE)));
+      const snap = await getDocs(query(collection(db, "verificaciones_transporte"), where("fecha", ">=", desdeMesAnterior()), orderBy("fecha", "desc"), limit(LIMITE)));
       const pilotos = new Map();
       const placas = new Map();
       const tcs = new Map();
@@ -66,13 +89,39 @@ function cargarHistorial() {
       datos.pilotos = [...pilotos.values()].sort((a, b) => a.localeCompare(b));
       datos.placas = [...placas.values()].sort((a, b) => a.localeCompare(b));
       datos.tcs = [...tcs.values()].sort((a, b) => a.localeCompare(b));
-      try { localStorage.setItem(CLAVE_CACHE, JSON.stringify({ en: Date.now(), datos })); } catch (_) { /* sin caché */ }
+      guardarCache(datos);
     } catch (error) {
       console.warn("No se pudo cargar el historial de piloto/placa/TC:", error);
     }
     return datos;
   })();
   return promesa;
+}
+
+/**
+ * Tras guardar una inspección: suma piloto/placa/TC nuevos a la copia local
+ * para que aparezcan en la próxima apertura sin volver a consultar. Si la
+ * copia aún no existe no hace nada (crearla con un solo dato bloquearía la
+ * consulta real por 24 h).
+ */
+export async function registrarEnHistorial({ piloto, placa, tc }) {
+  const cache = leerCache();
+  const datos = cache ? cache.datos : null;
+  if (!datos) return;
+  const p = String(piloto || "").trim().toUpperCase();
+  const pl = formatearPlaca(placa);
+  const t = String(tc || "").trim().toUpperCase();
+  const agregar = (lista, valor, clave) => {
+    if (valor && !lista.some((v) => clave(v) === clave(valor))) {
+      lista.push(valor);
+      lista.sort((a, b) => a.localeCompare(b));
+    }
+  };
+  agregar(datos.pilotos, p, sinTildes);
+  agregar(datos.placas, pl, soloAlfanumerico);
+  agregar(datos.tcs, t, soloAlfanumerico);
+  if (pl) datos.porPlaca[pl] = { piloto: p, tc: t };
+  guardarCache(datos);
 }
 
 function catalogoDe(lista, clave) {
@@ -87,7 +136,10 @@ function catalogoDe(lista, clave) {
  * @param {(campo: "piloto"|"placa"|"tc", valor: string) => void} o.alCambiar - para guardar en el estado de la página.
  */
 export function configurarHistorialTransporte({ piloto, placa, tc, alCambiar }) {
-  const sugerencias = (el, campo, clave, normalizar, extra) =>
+  // Placa y TC: desde 3 letras o números. Piloto: al terminar el primer nombre (hay un espacio).
+  const tresCaracteres = (t) => soloAlfanumerico(t).length >= 3;
+  const nombreYEspacio = (t) => /\S\s+/.test(String(t || "").trimStart());
+  const sugerencias = (el, campo, clave, normalizar, minimo, extra) =>
     configurarAutocompletado({
       inputEl: el.input,
       dropdownEl: el.lista,
@@ -95,14 +147,16 @@ export function configurarHistorialTransporte({ piloto, placa, tc, alCambiar }) 
       normalizarClave: clave,
       normalizarNombre: normalizar,
       nombreEntidad: "registro",
+      minimoParaSugerir: minimo,
+      cargaDiferida: true,
       fraseSeRegistrara: () => "Se guardará como nuevo al finalizar la inspección",
       fraseSinRegistros: "Aún no hay registros anteriores.",
       onSeleccion: extra,
     });
 
-  sugerencias(piloto, "pilotos", sinTildes, (v) => String(v || "").trim().toUpperCase(), (v) => alCambiar("piloto", v));
-  sugerencias(tc, "tcs", soloAlfanumerico, (v) => String(v || "").trim().toUpperCase(), (v) => alCambiar("tc", v));
-  sugerencias(placa, "placas", soloAlfanumerico, formatearPlaca, async (v) => {
+  sugerencias(piloto, "pilotos", sinTildes, (v) => String(v || "").trim().toUpperCase(), nombreYEspacio, (v) => alCambiar("piloto", v));
+  sugerencias(tc, "tcs", soloAlfanumerico, (v) => String(v || "").trim().toUpperCase(), tresCaracteres, (v) => alCambiar("tc", v));
+  sugerencias(placa, "placas", soloAlfanumerico, formatearPlaca, tresCaracteres, async (v) => {
     alCambiar("placa", v);
     // Completar piloto y TC de la última vez que vino esta placa.
     const previo = (await cargarHistorial()).porPlaca[v];

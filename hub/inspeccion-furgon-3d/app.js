@@ -22,7 +22,7 @@ import {
   registrarProveedorSiNoExiste,
   normalizarNombreProveedor,
 } from "../js/proveedores-transporte.js";
-import { configurarHistorialTransporte } from "../js/historial-campos-transporte.js";
+import { configurarHistorialTransporte, registrarEnHistorial } from "../js/historial-campos-transporte.js";
 import {
   preguntasBase,
   cargarPreguntasLiberacion,
@@ -830,6 +830,7 @@ async function confirmSave() {
   try {
     const docRef = await addDoc(collection(db, 'verificaciones_transporte'), datos);
     datos.firestoreId = docRef.id;
+    registrarEnHistorial({ piloto: datos.nombrePiloto, placa: datos.placaCamion, tc: datos.tc });
   } catch (err) {
     console.error('No se pudo guardar la inspección en Firestore:', err);
     alert(`No se pudo guardar la inspección en la base de datos.\n\nDetalle: ${err.message || err}\n\nLa inspección NO quedó registrada. Verifica tu conexión e intenta de nuevo.`);

@@ -31,6 +31,10 @@
  *   nombreEntidad porque el género gramatical no es automático ("nuevo proveedor" vs "nueva área").
  * @param {string} [opciones.fraseSinRegistros] - mensaje cuando el catálogo está vacío y el campo también.
  * @param {{mapa: Map, lista: string[]}} [opciones.catalogoInicial] - catálogo a usar mientras carga el real (por defecto, vacío).
+ * @param {(texto: string) => boolean} [opciones.minimoParaSugerir] - si se pasa, el desplegable solo
+ *   aparece cuando devuelve true (p. ej. al tener 3 caracteres). Por defecto sugiere siempre.
+ * @param {boolean} [opciones.cargaDiferida] - no consulta el catálogo al configurar: lo hace la primera
+ *   vez que hay algo que sugerir (evita lecturas si el campo nunca llega al mínimo).
  * @param {string} [opciones.claseBadgeBase] - clase base del badge cuando está vacío/oculto.
  * @param {string} [opciones.claseBadgeRegistrado] - clase(s) CSS del badge cuando ya existe (cada página trae su propio estilo de badge).
  * @param {string} [opciones.claseBadgeNuevo] - clase(s) CSS del badge cuando es nuevo.
@@ -51,6 +55,8 @@ export function configurarAutocompletado({
   fraseSeRegistrara = (valor) => `Se registrará como nuevo ${nombreEntidad}`,
   fraseSinRegistros = `Todavía no hay ${nombreEntidad}s registrados.`,
   catalogoInicial = { mapa: new Map(), lista: [] },
+  minimoParaSugerir,
+  cargaDiferida = false,
   claseBadgeBase = "badge",
   claseBadgeRegistrado = "badge badge-exito",
   claseBadgeNuevo = "badge badge-alerta",
@@ -60,13 +66,21 @@ export function configurarAutocompletado({
   let catalogo = catalogoInicial;
   let itemActivoIndex = -1;
 
-  obtenerCatalogo().then((cat) => {
-    catalogo = cat;
-    if (inputEl.value) {
-      inputEl.value = normalizarNombre(inputEl.value, catalogo);
-      actualizarBadge();
-    }
-  });
+  let cargado = false;
+  function cargar() {
+    if (cargado) return;
+    cargado = true;
+    obtenerCatalogo().then((cat) => {
+      catalogo = cat;
+      if (inputEl.value) {
+        inputEl.value = normalizarNombre(inputEl.value, catalogo);
+        actualizarBadge();
+        // Si ya hay algo escrito que merece sugerencias, mostrarlas ahora que llegó el catálogo.
+        if (document.activeElement === inputEl) renderSugerencias(inputEl.value);
+      }
+    });
+  }
+  if (!cargaDiferida) cargar();
 
   function actualizarBadge() {
     if (!badgeEl) return;
@@ -89,6 +103,11 @@ export function configurarAutocompletado({
   }
 
   function renderSugerencias(filtro = "") {
+    if (minimoParaSugerir && !minimoParaSugerir(filtro)) {
+      cerrarDropdown();
+      return;
+    }
+    cargar();
     const terminoClave = normalizarClave(filtro);
     const coincidencias = catalogo.lista.filter((p) =>
       terminoClave ? normalizarClave(p).includes(terminoClave) : true
