@@ -35,7 +35,7 @@ function tituloDeResultado(r, zona) {
     .join(" · ");
 }
 
-const TURNOS = [1, 2, 3];
+export const TURNOS = [1, 2, 3];
 
 /**
  * Turnos de las superficies de 2 muestras, leídos de los colores del Excel
@@ -53,7 +53,7 @@ export const PATRON_DOS_MUESTRAS = [
 ];
 
 /** Turnos (de arriba hacia abajo) que le tocan a una superficie en un mes. */
-function turnosProgramados(zona, mes, posicionDos) {
+export function turnosProgramados(zona, mes, posicionDos) {
   const cantidad = Math.max(Number(zona.cantidad) || 1, 1);
   if (cantidad >= TURNOS.length) return [...TURNOS];
   if (cantidad === 2) return PATRON_DOS_MUESTRAS[posicionDos % PATRON_DOS_MUESTRAS.length][mes % 3];

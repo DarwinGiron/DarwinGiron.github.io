@@ -17,12 +17,17 @@ import {
   listarHisopados,
   listarHisopadosPagina,
   eliminarHisopado,
-  corregirTurnoHisopado,
+  corregirHisopado,
   obtenerTablaHisopado,
 } from "./firestore.js";
 import { zonasConLimite } from "./hisopado-datos.js";
 import { pintarTablaMuestreo } from "./hisopado-tabla.js";
 import { mostrarBloqueError } from "./aviso-carga.js";
+import { crearModalFormulario } from "./modal-formulario.js";
+import { descargarTablaHisopados } from "./hisopado-exportar.js";
+import { registrarAreaMaquinaSiNoExiste } from "./areas-maquina.js";
+import { registrarSupervisorSiNoExiste } from "./supervisores.js";
+import { evaluarResultado } from "./hisopado-datos.js";
 import {
   escaparHtml,
   formatearFechaISOCorta,
@@ -38,6 +43,7 @@ const filtroBusqueda = document.getElementById("filtro-busqueda");
 const lista = document.getElementById("lista-hisopados");
 
 const campoAnio = document.getElementById("campo-anio");
+const btnDescargarTabla = document.getElementById("btn-descargar-tabla");
 const zonaMensaje = document.getElementById("zona-mensaje");
 const zonaTabla = document.getElementById("zona-tabla");
 const tablaResultados = document.getElementById("tabla-resultados");
@@ -63,7 +69,6 @@ protegerPagina({}, async ({ user, perfil }) => {
   textoUsuario.textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;
   avatarUsuario.textContent = iniciales(nombreVisible);
   estado.puedeEliminar = esRolDeGestion(perfil.rol);
-  if (estado.puedeEliminar) document.getElementById("enlace-importar")?.classList.remove("oculto");
   estado.usuario = user;
   estado.perfil = perfil;
 
@@ -83,6 +88,7 @@ async function cargarTabla() {
   zonaTabla.classList.remove("oculto");
   tablaResultados.classList.remove("tabla-papel");
   tablaResultados.innerHTML = `<tbody><tr><td class="texto-suave texto-sm">Cargando resultados…</td></tr></tbody>`;
+  btnDescargarTabla.disabled = true;
 
   try {
     // La tabla de muestreo (zonas y límites) se lee una sola vez.
@@ -108,6 +114,7 @@ async function cargarTabla() {
     }
     const registros = estado.anios.get(estado.anio);
     pintarTablaMuestreo(tablaResultados, { zonas: estado.zonas, registros, anio: estado.anio, encabezado: estado.encabezado });
+    btnDescargarTabla.disabled = false;
   } catch (error) {
     console.error("No se pudo cargar la tabla de hisopados:", error);
     zonaTabla.classList.add("oculto");
@@ -129,6 +136,25 @@ campoAnio.addEventListener("change", () => {
 function vistaActual() {
   return document.querySelector("[data-vista].activo")?.dataset.vista || "tabla";
 }
+
+/* ---------- Descargar la tabla ---------- */
+
+btnDescargarTabla.addEventListener("click", async () => {
+  const registros = estado.anios.get(estado.anio);
+  if (!registros || !estado.zonas) return;
+  btnDescargarTabla.disabled = true;
+  btnDescargarTabla.textContent = "Generando…";
+  try {
+    // Usa lo que ya está en pantalla (el año elegido); no vuelve a consultar.
+    await descargarTablaHisopados({ zonas: estado.zonas, registros, anio: estado.anio, encabezado: estado.encabezado });
+  } catch (error) {
+    console.error("No se pudo generar el Excel:", error);
+    mostrarToast(error.message || "No se pudo generar el Excel.", "error");
+  } finally {
+    btnDescargarTabla.disabled = false;
+    btnDescargarTabla.textContent = "Descargar Excel";
+  }
+});
 
 /* ---------- Cambio de vista ---------- */
 
@@ -308,7 +334,7 @@ function tarjetaDe(registro) {
           <p class="texto-suave texto-sm mb-0">
             ${textoFechaRegistro(registro)}
             ${registro.turno ? ` · Turno ${escaparHtml(String(registro.turno))}` : ""}${
-              registro.turnoAnterior ? ` <span title="El turno se corrigió después de guardar el registro">(corregido, antes ${escaparHtml(String(registro.turnoAnterior))})</span>` : ""
+              registro.correcciones?.length ? ` <span title="Este registro se corrigió después de guardarlo">· corregido</span>` : ""
             }
             · ${escaparHtml(registro.inspectorNombre || "—")}
           </p>
@@ -401,25 +427,21 @@ function tarjetaAgrupadaDe(registro) {
 }
 
 function botonEliminarDe(registro) {
-  // Corregir el turno lo puede hacer el autor o un gestor (las reglas lo
+  // Editar el registro lo puede hacer el autor o un gestor (las reglas lo
   // permiten a ambos); eliminar, solo un gestor. Los registros del formato
   // anterior (con varias muestras adentro) no se editan.
   const puedeCorregir = !Array.isArray(registro.muestras);
   const id = escaparHtml(registro.id);
   return `
     <div class="flex-fin" style="margin-top: var(--e2); gap: var(--e2); flex-wrap: wrap;" data-acciones="${id}">
-      ${puedeCorregir ? `<button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-corregir="${id}">Corregir turno</button>` : ""}
+      ${puedeCorregir ? `<button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-corregir="${id}">Editar registro</button>` : ""}
       ${estado.puedeEliminar ? `<button type="button" class="btn btn-peligro btn-sm btn-ancho-auto" data-eliminar="${id}">Eliminar</button>` : ""}
     </div>`;
 }
 
 lista.addEventListener("click", async (evento) => {
   const corregir = evento.target.closest("[data-corregir]");
-  if (corregir) return abrirCorreccionTurno(corregir.dataset.corregir);
-  const cancelar = evento.target.closest("[data-cancelar-turno]");
-  if (cancelar) return renderizar();
-  const guardar = evento.target.closest("[data-guardar-turno]");
-  if (guardar) return guardarCorreccionTurno(guardar.dataset.guardarTurno, guardar);
+  if (corregir) return abrirEdicion(corregir.dataset.corregir);
 
   const boton = evento.target.closest("[data-eliminar]");
   if (!boton) return;
@@ -441,54 +463,156 @@ lista.addEventListener("click", async (evento) => {
   }
 });
 
-/* ---------- Corregir el turno de un registro ---------- */
+/* ---------- Editar un registro ---------- */
 
-/** Cambia los botones de la tarjeta por un selector de turno con Guardar / Cancelar. */
-function abrirCorreccionTurno(id) {
-  const registro = estado.registros.find((r) => r.id === id);
-  const zona = lista.querySelector(`[data-acciones="${CSS.escape(id)}"]`);
-  if (!registro || !zona) return;
-  zona.innerHTML = `
-    <label class="texto-sm" for="turno-${escaparHtml(id)}" style="align-self:center;">Turno correcto:</label>
-    <select id="turno-${escaparHtml(id)}" style="min-height: 38px;">
-      ${[1, 2, 3].map((t) => `<option value="${t}" ${t === Number(registro.turno) ? "selected" : ""}>Turno ${t}</option>`).join("")}
-    </select>
-    <button type="button" class="btn btn-dorado btn-sm btn-ancho-auto" data-guardar-turno="${escaparHtml(id)}">Guardar</button>
-    <button type="button" class="btn btn-texto btn-sm" data-cancelar-turno>Cancelar</button>`;
+const { abrirModal } = crearModalFormulario({
+  modalFondo: document.getElementById("modal-fondo"),
+  modalTitulo: document.getElementById("modal-titulo"),
+  formModal: document.getElementById("form-modal"),
+  btnCerrarModal: document.getElementById("btn-cerrar-modal"),
+});
+
+/** La tabla de muestreo (superficies y límites); casi siempre ya está cargada. */
+async function asegurarZonas() {
+  if (!estado.zonas) {
+    const tablaCfg = await obtenerTablaHisopado();
+    estado.encabezado = { codigo: tablaCfg?.codigo, revision: tablaCfg?.revision };
+    estado.zonas = zonasConLimite(tablaCfg);
+  }
+  return estado.zonas;
 }
 
-async function guardarCorreccionTurno(id, boton) {
-  const registro = estado.registros.find((r) => r.id === id);
-  const selector = document.getElementById(`turno-${id}`);
-  if (!registro || !selector) return;
-  const turnoNuevo = Number(selector.value);
-  if (turnoNuevo === Number(registro.turno)) return renderizar();
+/** ¿El registro sigue cumpliendo los filtros activos tras editarlo? Si no, sale de la lista. */
+function cumpleFiltros(r) {
+  const f = filtrosServidor();
+  if (f.dia) return r.fecha === f.dia;
+  if (!String(r.fecha || "").startsWith(`${estado.anio}-`)) return false;
+  if (f.turno && Number(r.turno) !== Number(f.turno)) return false;
+  if (f.desviacion !== null && Boolean(r.desviacion) !== f.desviacion) return false;
+  return true;
+}
 
-  boton.disabled = true;
-  boton.textContent = "Guardando…";
+async function abrirEdicion(id) {
+  const registro = estado.registros.find((r) => r.id === id);
+  if (!registro) return;
+
+  let zonas;
   try {
-    await corregirTurnoHisopado(registro, turnoNuevo, estado.usuario.uid);
-    // Se actualiza en pantalla sin volver a consultar. Si hay un filtro por
-    // turno activo y el registro ya no cumple, sale de la lista.
-    const turnoAnterior = registro.turno;
-    registro.turnoAnterior = turnoAnterior;
-    registro.turno = turnoNuevo;
-    const filtroT = filtroTurno.value;
-    if (filtroT && Number(filtroT) !== turnoNuevo) {
-      estado.registros = estado.registros.filter((r) => r.id !== id);
+    zonas = await asegurarZonas();
+  } catch (error) {
+    console.error("No se pudo leer la tabla de muestreo:", error);
+    mostrarToast("No se pudo cargar la lista de superficies. Verifica tu conexión.", "error");
+    return;
+  }
+
+  // Si la superficie del registro ya no está en la tabla, se conserva como opción.
+  const opciones = zonas.map((z) => ({ value: z.id, label: `${z.tipoNombre} · ${z.nombre}` }));
+  if (!zonas.some((z) => z.id === registro.zonaId)) {
+    opciones.unshift({ value: registro.zonaId, label: `${registro.tipoNombre || "—"} · ${registro.zonaNombre || registro.zonaId} (ya no está en la tabla)` });
+  }
+
+  abrirModal({
+    titulo: "Editar registro",
+    campos: [
+      { name: "fecha", label: "Fecha", type: "date", required: true,
+        ayuda: registro.fechaAproximada ? "Este registro se importó solo con el mes. Si pones el día real, deja de ser aproximado." : undefined },
+      { name: "turno", label: "Turno", type: "select", opciones: [1, 2, 3].map((t) => ({ value: String(t), label: `Turno ${t}` })) },
+      { name: "zonaId", label: "Superficie", type: "select", opciones },
+      { name: "areaMaquina", label: "Área / Máquina", type: "text" },
+      { name: "supervisor", label: "Supervisor", type: "text" },
+      { name: "resultado", label: "Resultado (RLU)", type: "number", step: "any", required: true },
+      { name: "observaciones", label: "Acciones inmediatas y observaciones", type: "textarea",
+        ayuda: "Obligatorio si el resultado queda fuera del límite." },
+    ],
+    valores: {
+      fecha: registro.fecha,
+      turno: String(registro.turno ?? "1"),
+      zonaId: registro.zonaId,
+      areaMaquina: registro.areaMaquina || "",
+      supervisor: registro.supervisor || "",
+      resultado: registro.resultado,
+      observaciones: registro.observaciones || "",
+    },
+    alGuardar: (valores) => guardarEdicion(registro, valores, zonas),
+  });
+}
+
+async function guardarEdicion(registro, valores, zonas) {
+  const falla = (mensaje) => { mostrarToast(mensaje, "alerta"); throw new Error(mensaje); };
+
+  if (!valores.fecha) falla("Indica la fecha.");
+  if (!valores.areaMaquina) falla("Indica el área o máquina donde se tomó la muestra.");
+  if (!valores.supervisor) falla("Indica el supervisor que acompañó la toma.");
+  if (valores.resultado === "" || Number.isNaN(valores.resultado) || valores.resultado < 0) falla("Captura un resultado en RLU válido.");
+
+  // La superficie elegida; si no cambió se conserva el límite con que se evaluó
+  // el registro (el límite se congela al guardar), y solo si cambió se toma el
+  // de la tabla actual.
+  const zonaElegida = zonas.find((z) => z.id === valores.zonaId);
+  const cambioZona = valores.zonaId !== registro.zonaId;
+  if (cambioZona && !zonaElegida) falla("Elige una superficie de la tabla de muestreo.");
+  const zona = cambioZona
+    ? zonaElegida
+    : {
+        id: registro.zonaId,
+        nombre: registro.zonaNombre,
+        tipoNombre: registro.tipoNombre,
+        limiteMin: registro.limiteMin ?? zonaElegida?.limiteMin ?? 0,
+        limiteMax: registro.limiteMax ?? zonaElegida?.limiteMax ?? 0,
+        unidad: registro.unidad || zonaElegida?.unidad || "RLU",
+      };
+
+  const fuera = evaluarResultado(zona, valores.resultado);
+  const cambioResultado = Number(registro.resultado) !== valores.resultado;
+  // Igual que al registrar, un resultado fuera de límite necesita sus acciones;
+  // un registro viejo que ya estaba así y no se toca en eso no se bloquea.
+  if (fuera && !valores.observaciones && (cambioResultado || cambioZona || !registro.desviacion)) {
+    falla("El resultado queda fuera del límite: anota qué acciones inmediatas se realizaron.");
+  }
+
+  try {
+    const { cambios, campos } = await corregirHisopado(
+      registro,
+      {
+        fecha: valores.fecha,
+        turno: Number(valores.turno),
+        zona,
+        areaMaquina: valores.areaMaquina,
+        supervisor: valores.supervisor,
+        resultado: valores.resultado,
+        observaciones: valores.observaciones,
+        desviacion: Boolean(fuera),
+      },
+      { uid: estado.usuario.uid, nombre: estado.perfil.nombre || estado.usuario.email }
+    );
+    if (cambios.length === 0) {
+      mostrarToast("No hay cambios que guardar.", "info");
+      return;
     }
-    // La tabla guardada en memoria ya no refleja este turno.
-    estado.tablaDesactualizada = true;
+
+    // Las áreas y supervisores nuevos se dan de alta como al registrar.
+    if (campos.areaMaquina && campos.areaMaquina !== registro.areaMaquina) {
+      await registrarAreaMaquinaSiNoExiste(campos.areaMaquina, estado.usuario.uid).catch(() => {});
+    }
+    if (campos.supervisor && campos.supervisor !== registro.supervisor) {
+      await registrarSupervisorSiNoExiste(campos.supervisor, estado.usuario.uid).catch(() => {});
+    }
+
+    // Se actualiza en pantalla sin volver a consultar.
+    Object.assign(registro, campos, {
+      correcciones: [...(registro.correcciones || []), { cambios }],
+    });
+    if (!cumpleFiltros(registro)) estado.registros = estado.registros.filter((r) => r.id !== registro.id);
+    estado.tablaDesactualizada = true; // la tabla guardada en memoria ya no refleja este cambio
     renderizar();
-    mostrarToast(`Turno corregido: de ${turnoAnterior} a ${turnoNuevo}.`, "exito");
+    mostrarToast(`Registro corregido (${cambios.map((c) => c.campo.toLowerCase()).join(", ")}).`, "exito");
   } catch (error) {
     if (error?.codigo === "duplicado") {
-      mostrarToast(`"${registro.zonaNombre}" ya tiene un análisis ese día en el turno ${turnoNuevo}.`, "error");
+      mostrarToast(`"${zona.nombre}" ya tiene un análisis ese día en el turno ${valores.turno}.`, "error");
     } else {
-      console.error("No se pudo corregir el turno:", error);
-      mostrarToast("No se pudo corregir el turno. Verifica tu conexión.", "error");
+      console.error("No se pudo corregir el registro:", error);
+      mostrarToast("No se pudo guardar la corrección. Verifica tu conexión.", "error");
     }
-    boton.disabled = false;
-    boton.textContent = "Guardar";
+    throw error; // deja el formulario abierto
   }
 }

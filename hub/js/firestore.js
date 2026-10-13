@@ -18,7 +18,7 @@
 
 import {
   addDoc,
-  writeBatch,
+  arrayUnion,
   doc,
   getDoc,
   getDocs,
@@ -405,26 +405,78 @@ export async function buscarHisopadoDuplicado(fecha, turno, zonaId) {
   return snap.docs.length ? { id: snap.docs[0].id, ...snap.docs[0].data() } : null;
 }
 
+/** Nombres legibles de los campos que se pueden corregir (para la constancia). */
+const ETIQUETAS_CORRECCION = {
+  fecha: "Fecha",
+  turno: "Turno",
+  zonaNombre: "Superficie",
+  areaMaquina: "Área/Máquina",
+  supervisor: "Supervisor",
+  resultado: "Resultado",
+  observaciones: "Observaciones",
+};
+
 /**
- * Corrige el turno de un análisis ya guardado. Conserva el id y la autoría y
- * deja constancia (turno anterior, quién y cuándo). Falla si esa superficie ya
- * tiene un análisis ese día en el turno nuevo.
+ * Corrige un análisis ya guardado. `nuevos` trae los valores finales de lo
+ * editable: fecha, turno, zona ({id, nombre, tipoNombre, limiteMin, limiteMax,
+ * unidad}), areaMaquina, supervisor, resultado, observaciones y desviacion
+ * (ya calculada contra el límite que corresponde).
+ *
+ * Conserva el id y la autoría (inspectorUid no se toca; las reglas lo exigen) y
+ * deja constancia en `correcciones`: quién, cuándo y qué cambió (antes/después).
+ * Si cambia la combinación fecha + turno + superficie y otro análisis ya la
+ * ocupa, falla con codigo "duplicado".
+ * Devuelve la lista de cambios (vacía si no cambió nada) y los campos nuevos.
  */
-export async function corregirTurnoHisopado(registro, turnoNuevo, uid) {
-  if (turnoNuevo === registro.turno) return;
-  const repetido = await buscarHisopadoDuplicado(registro.fecha, turnoNuevo, registro.zonaId);
-  if (repetido && repetido.id !== registro.id) {
-    const error = new Error("DUPLICADO");
-    error.codigo = "duplicado";
-    error.registro = repetido;
-    throw error;
+export async function corregirHisopado(registro, nuevos, usuario) {
+  const final = {
+    fecha: nuevos.fecha,
+    turno: nuevos.turno,
+    zonaId: nuevos.zona.id,
+    zonaNombre: nuevos.zona.nombre,
+    tipoNombre: nuevos.zona.tipoNombre,
+    limiteMin: nuevos.zona.limiteMin,
+    limiteMax: nuevos.zona.limiteMax,
+    unidad: nuevos.zona.unidad || "RLU",
+    areaMaquina: nuevos.areaMaquina,
+    supervisor: nuevos.supervisor,
+    resultado: nuevos.resultado,
+    observaciones: nuevos.observaciones,
+    desviacion: nuevos.desviacion,
+  };
+
+  const cambios = Object.keys(ETIQUETAS_CORRECCION)
+    .filter((campo) => String(registro[campo] ?? "") !== String(final[campo] ?? ""))
+    .map((campo) => ({ campo: ETIQUETAS_CORRECCION[campo], antes: registro[campo] ?? "", despues: final[campo] ?? "" }));
+  if (cambios.length === 0) return { cambios, campos: {} };
+
+  const cambioClave =
+    registro.fecha !== final.fecha || Number(registro.turno) !== Number(final.turno) || registro.zonaId !== final.zonaId;
+  if (cambioClave) {
+    const repetido = await buscarHisopadoDuplicado(final.fecha, final.turno, final.zonaId);
+    if (repetido && repetido.id !== registro.id) {
+      const error = new Error("DUPLICADO");
+      error.codigo = "duplicado";
+      error.registro = repetido;
+      throw error;
+    }
   }
+
+  const campos = { ...final };
+  // Si en un registro importado (solo conocía el mes) se pone el día real, deja
+  // de ser aproximado.
+  if (registro.fechaAproximada && registro.fecha !== final.fecha) campos.fechaAproximada = false;
+
   await updateDoc(doc(db, "hisopados", registro.id), {
-    turno: turnoNuevo,
-    turnoAnterior: registro.turno ?? null,
-    corregidoPor: uid,
-    corregidoEn: serverTimestamp(),
+    ...campos,
+    correcciones: arrayUnion({
+      por: usuario.uid,
+      nombre: usuario.nombre || "",
+      en: new Date().toISOString(),
+      cambios,
+    }),
   });
+  return { cambios, campos };
 }
 
 /** Obtiene un registro de hisopado por id, o null si no existe. */
@@ -504,26 +556,6 @@ export async function listarHisopadosPagina(filtros = {}) {
     cursor: snap.docs.length ? snap.docs[snap.docs.length - 1] : filtros.despues || null,
     hayMas: snap.docs.length === limite,
   };
-}
-
-/**
- * Importa resultados históricos de hisopado (de la hoja de Excel). Cada
- * registro lleva su propio id (ver idHisopado) y se escribe en lotes; si el id
- * ya existiera se sobrescribiría, por eso quien llama debe haber descartado
- * antes los que ya estaban. Devuelve cuántos se escribieron.
- */
-export async function importarHisopadosLote(registros) {
-  const TAMANO_LOTE = 400; // Firestore admite 500 por lote
-  let escritos = 0;
-  for (let i = 0; i < registros.length; i += TAMANO_LOTE) {
-    const lote = writeBatch(db);
-    registros.slice(i, i + TAMANO_LOTE).forEach((r) => {
-      lote.set(doc(db, "hisopados", idHisopado(r.fecha, r.turno, r.zonaId)), { ...r, creadoEn: serverTimestamp() });
-    });
-    await lote.commit();
-    escritos += Math.min(TAMANO_LOTE, registros.length - i);
-  }
-  return escritos;
 }
 
 /** Elimina un registro de hisopado (solo gestión, ver firestore.rules). */

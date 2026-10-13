@@ -34,7 +34,6 @@
       <div class="flex-entre mb-2">
         <p class="texto-suave texto-sm mb-0">Tomas de hisopado registradas.</p>
         <div class="flex-entre" style="gap: var(--e2);">
-          <a href="importar.html" id="enlace-importar" class="btn btn-secundario btn-sm btn-ancho-auto oculto">Importar Excel</a>
           <a href="index.html" class="btn btn-dorado btn-sm btn-ancho-auto">+ Nuevo registro</a>
         </div>
       </div>
@@ -55,6 +54,7 @@
             <span><span class="valor-resultado valor-resultado--conforme">RLU</span> Conforme</span>
             <span><span class="valor-resultado valor-resultado--fuera">RLU</span> Fuera del límite</span>
           </div>
+          <button type="button" id="btn-descargar-tabla" class="btn btn-secundario btn-sm btn-ancho-auto" disabled>Descargar Excel</button>
         </div>
         <section id="zona-mensaje" class="tarjeta oculto"></section>
         <div id="zona-tabla" class="tabla-scroll">
@@ -105,6 +105,16 @@
         </p>
       </section>
     </main>
+  </div>
+
+  <div id="modal-fondo" class="modal-fondo oculto">
+    <div class="modal-caja">
+      <div class="modal-caja__cabecera">
+        <h3 id="modal-titulo" style="margin:0;">Editar registro</h3>
+        <button type="button" id="btn-cerrar-modal" class="btn btn-icono btn-secundario">✕</button>
+      </div>
+      <form id="form-modal"></form>
+    </div>
   </div>
 
   <script type="module" src="/hub/js/hisopado-historial.js"></script>
