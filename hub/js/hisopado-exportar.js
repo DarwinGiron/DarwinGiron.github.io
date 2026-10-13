@@ -245,7 +245,7 @@ export async function descargarTablaHisopados({ zonas, registros, anio, encabeza
   // ---------------- Hoja Detalle ----------------
   const detalle = libro.addWorksheet("Detalle", { views: [{ state: "frozen", ySplit: 1 }] });
   detalle.columns = [
-    { header: "Fecha", width: 13 }, { header: "Turno", width: 8 }, { header: "Superficie", width: 28 }, { header: "Tipo de muestra", width: 28 },
+    { header: "Código", width: 16 }, { header: "Fecha", width: 13 }, { header: "Turno", width: 8 }, { header: "Superficie", width: 28 }, { header: "Tipo de muestra", width: 28 },
     { header: "Resultado", width: 11 }, { header: "Unidad", width: 8 }, { header: "Límite mín.", width: 11 }, { header: "Límite máx.", width: 11 },
     { header: "Estado", width: 16 }, { header: "Programado ese mes", width: 18 }, { header: "Área / Máquina", width: 24 }, { header: "Supervisor", width: 22 },
     { header: "Registró", width: 26 }, { header: "Observaciones", width: 44 },
@@ -256,12 +256,13 @@ export async function descargarTablaHisopados({ zonas, registros, anio, encabeza
     const mes = Number(r.fecha.slice(5, 7)) - 1;
     const programado = zona ? turnosProgramados(zona, mes, posicionDos.get(zona.id) ?? 0).includes(Number(r.turno)) : null;
     const filaD = detalle.addRow([
+      r.codigo || "",
       r.fechaAproximada ? `${r.fecha.slice(0, 7)} (día no registrado)` : r.fecha,
       Number(r.turno) || "", r.zonaNombre || "", r.tipoNombre || "", Number(r.resultado), r.unidad || "RLU",
       r.limiteMin ?? "", r.limiteMax ?? "", r.desviacion ? "Fuera del límite" : "Conforme",
       programado === null ? "—" : programado ? "Sí" : "No", r.areaMaquina || "", r.supervisor || "", r.inspectorNombre || "", r.observaciones || "",
     ]);
-    const estado = filaD.getCell(9);
+    const estado = filaD.getCell(10);
     estado.font = { bold: true, color: { argb: r.desviacion ? "FF9C0006" : "FF006100" } };
     estado.fill = relleno(r.desviacion ? "FFFDE3E1" : "FFE3F4E8");
   });
@@ -270,7 +271,7 @@ export async function descargarTablaHisopados({ zonas, registros, anio, encabeza
   cab.fill = relleno(MARINO);
   cab.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   cab.height = 28;
-  detalle.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 14 } };
+  detalle.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 15 } };
 
   // ---------------- Descarga ----------------
   const buffer = await libro.xlsx.writeBuffer();

@@ -77,6 +77,10 @@
             <input type="date" id="filtro-dia" />
           </div>
           <div class="campo mb-0">
+            <label for="filtro-codigo">Código</label>
+            <input type="text" id="filtro-codigo" placeholder="2026-10-13-03" autocomplete="off" />
+          </div>
+          <div class="campo mb-0">
             <label for="filtro-turno">Turno</label>
             <select id="filtro-turno">
               <option value="">Todos</option>
@@ -89,6 +93,7 @@
         <div class="flex-entre mb-2" style="flex-wrap: wrap; gap: var(--e2);">
           <p id="texto-filtros" class="texto-suave texto-xs mb-0"></p>
           <button type="button" id="btn-limpiar-filtros" class="btn btn-texto btn-sm oculto">Quitar filtros</button>
+          <button type="button" id="btn-numerar" class="btn btn-secundario btn-sm btn-ancho-auto oculto" title="Asigna el código de registro a los análisis que se guardaron antes de que existiera">Numerar registros anteriores</button>
         </div>
 
         <div class="campo mb-2">

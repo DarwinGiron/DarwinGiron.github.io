@@ -24,6 +24,7 @@ import { escaparHtml, formatearFechaISOCorta } from "./utils.js";
 
 function tituloDeResultado(r, zona) {
   return [
+    r.codigo ? `Registro ${r.codigo}` : "",
     formatearFechaISOCorta(r.fecha),
     r.turno ? `Turno ${r.turno}` : "",
     r.areaMaquina || "",

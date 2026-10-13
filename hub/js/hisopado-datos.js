@@ -103,3 +103,11 @@ export function evaluarResultado(zona, resultado) {
   if (resultado === "" || resultado === null || Number.isNaN(valor)) return null;
   return valor < zona.limiteMin || valor > zona.limiteMax;
 }
+
+/**
+ * Código de registro: "aaaa-mm-dd-NN". El día es el del análisis y NN es un
+ * número corrido que se reinicia cada mes, de 2 dígitos (el 100 sería "100").
+ */
+export function codigoHisopado(fecha, numero) {
+  return `${fecha}-${String(numero).padStart(2, "0")}`;
+}

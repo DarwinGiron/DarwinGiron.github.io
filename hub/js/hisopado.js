@@ -237,7 +237,7 @@ btnGuardar.addEventListener("click", async () => {
 
     // El límite se congela en el registro: si mañana cambia la tabla, el
     // documento sigue diciendo contra qué rango se evaluó ese día.
-    await crearHisopado({
+    const { codigo } = await crearHisopado({
       fecha,
       turno,
       areaMaquina,
@@ -254,8 +254,9 @@ btnGuardar.addEventListener("click", async () => {
       inspectorUid: estado.usuario.uid,
       inspectorNombre: estado.perfil.nombre || estado.usuario.email,
     });
-    mostrarToast("Análisis de hisopado guardado.", "exito");
-    window.location.href = "historial.html";
+    mostrarToast(codigo ? `Análisis de hisopado guardado. Código de registro: ${codigo}` : "Análisis de hisopado guardado (sin código por ahora).", "exito");
+    // Una pausa corta para que alcance a leerse el código antes de ir al historial.
+    setTimeout(() => { window.location.href = "historial.html"; }, 2200);
   } catch (error) {
     btnGuardar.disabled = false;
     btnGuardar.textContent = "Guardar registro";

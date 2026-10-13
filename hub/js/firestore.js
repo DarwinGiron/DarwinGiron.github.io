@@ -19,6 +19,8 @@
 import {
   addDoc,
   arrayUnion,
+  runTransaction,
+  writeBatch,
   doc,
   getDoc,
   getDocs,
@@ -35,6 +37,7 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+import { codigoHisopado } from "./hisopado-datos.js";
 
 /* ---------------------------------------------------------
    Usuarios
@@ -387,8 +390,29 @@ export async function crearHisopado(datos) {
   let referencia = doc(db, "hisopados", idHisopado(datos.fecha, datos.turno, datos.zonaId));
   if ((await getDoc(referencia)).exists()) referencia = doc(collection(db, "hisopados"));
 
-  await setDoc(referencia, { ...datos, creadoEn: serverTimestamp() });
-  return referencia.id;
+  // Código de registro: fecha del análisis + número corrido del mes (ver
+  // codigoHisopado). El contador y el registro se escriben en la MISMA
+  // transacción, así dos personas que guardan a la vez no reciben el mismo número.
+  let codigo = null;
+  try {
+    codigo = await runTransaction(db, async (transaccion) => {
+      const referenciaContador = doc(db, "hisopadoContadores", datos.fecha.slice(0, 7));
+      const contador = await transaccion.get(referenciaContador);
+      const numero = (contador.exists() ? Number(contador.data().ultimo) || 0 : 0) + 1;
+      const nuevoCodigo = codigoHisopado(datos.fecha, numero);
+      transaccion.set(referenciaContador, { ultimo: numero });
+      transaccion.set(referencia, { ...datos, codigo: nuevoCodigo, creadoEn: serverTimestamp() });
+      return nuevoCodigo;
+    });
+  } catch (error) {
+    // Si las reglas de hisopadoContadores todavía no están publicadas, el
+    // análisis se guarda igual (sin código) en vez de perderse; el botón
+    // "Numerar registros anteriores" del historial le asigna su código después.
+    if (error?.code !== "permission-denied") throw error;
+    console.warn("Sin permiso para el contador de códigos; se guarda sin código.", error);
+    await setDoc(referencia, { ...datos, creadoEn: serverTimestamp() });
+  }
+  return { id: referencia.id, codigo };
 }
 
 /** El registro que ya cubre esa superficie, ese día y ese turno, o null. */
@@ -532,6 +556,15 @@ export async function listarHisopadosPagina(filtros = {}) {
   const limite = filtros.limite || 10;
   const condiciones = [];
   if (filtros.inspectorUid) condiciones.push(where("inspectorUid", "==", filtros.inspectorUid));
+  if (filtros.codigo) {
+    // Buscar un código exacto: es un solo registro, sin los demás filtros ni orden.
+    const snapCodigo = await getDocs(query(collection(db, "hisopados"), ...condiciones, where("codigo", "==", filtros.codigo), limitarA(limite)));
+    return {
+      registros: snapCodigo.docs.map((d) => ({ id: d.id, ...d.data() })),
+      cursor: null,
+      hayMas: false,
+    };
+  }
   if (filtros.dia) {
     condiciones.push(where("fecha", "==", filtros.dia)); // un día exacto
   } else {
@@ -556,6 +589,42 @@ export async function listarHisopadosPagina(filtros = {}) {
     cursor: snap.docs.length ? snap.docs[snap.docs.length - 1] : filtros.despues || null,
     hayMas: snap.docs.length === limite,
   };
+}
+
+/**
+ * Lee TODOS los hisopados (de 500 en 500). Solo para la numeración de los
+ * registros anteriores, que se hace una vez.
+ */
+export async function leerTodosLosHisopados() {
+  const todos = [];
+  let cursor = null;
+  for (;;) {
+    const snap = await getDocs(
+      query(collection(db, "hisopados"), orderBy("fecha"), ...(cursor ? [startAfter(cursor)] : []), limitarA(500))
+    );
+    snap.docs.forEach((d) => todos.push({ id: d.id, ...d.data() }));
+    if (snap.docs.length < 500) break;
+    cursor = snap.docs[snap.docs.length - 1];
+  }
+  return todos;
+}
+
+/**
+ * Guarda los códigos asignados a registros anteriores y deja cada contador
+ * mensual en el último número usado, para que los registros nuevos sigan la
+ * cuenta. asignaciones: [{id, codigo}]; contadores: { "aaaa-mm": ultimo }.
+ */
+export async function guardarCodigosHisopados(asignaciones, contadores) {
+  const TAMANO_LOTE = 400;
+  const trabajos = [
+    ...Object.entries(contadores).map(([mes, ultimo]) => ({ ref: doc(db, "hisopadoContadores", mes), datos: { ultimo }, fusionar: false })),
+    ...asignaciones.map((a) => ({ ref: doc(db, "hisopados", a.id), datos: { codigo: a.codigo }, fusionar: true })),
+  ];
+  for (let i = 0; i < trabajos.length; i += TAMANO_LOTE) {
+    const lote = writeBatch(db);
+    trabajos.slice(i, i + TAMANO_LOTE).forEach((t) => lote.set(t.ref, t.datos, { merge: t.fusionar }));
+    await lote.commit();
+  }
 }
 
 /** Elimina un registro de hisopado (solo gestión, ver firestore.rules). */

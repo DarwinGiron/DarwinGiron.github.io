@@ -19,12 +19,15 @@ import {
   eliminarHisopado,
   corregirHisopado,
   obtenerTablaHisopado,
+  leerTodosLosHisopados,
+  guardarCodigosHisopados,
 } from "./firestore.js";
 import { zonasConLimite } from "./hisopado-datos.js";
 import { pintarTablaMuestreo } from "./hisopado-tabla.js";
 import { mostrarBloqueError } from "./aviso-carga.js";
 import { crearModalFormulario } from "./modal-formulario.js";
 import { descargarTablaHisopados } from "./hisopado-exportar.js";
+import { planificarCodigos } from "./hisopado-codigos.js";
 import { registrarAreaMaquinaSiNoExiste } from "./areas-maquina.js";
 import { registrarSupervisorSiNoExiste } from "./supervisores.js";
 import { evaluarResultado } from "./hisopado-datos.js";
@@ -71,6 +74,7 @@ protegerPagina({}, async ({ user, perfil }) => {
   estado.puedeEliminar = esRolDeGestion(perfil.rol);
   estado.usuario = user;
   estado.perfil = perfil;
+  if (estado.puedeEliminar) document.getElementById("btn-numerar")?.classList.remove("oculto");
 
   const actual = new Date().getFullYear();
   campoAnio.innerHTML = [actual, actual - 1, actual - 2, actual - 3, actual - 4]
@@ -183,12 +187,14 @@ const btnMasTarjetas = document.getElementById("btn-mas-tarjetas");
 const filtroResultado = document.getElementById("filtro-resultado");
 const filtroDia = document.getElementById("filtro-dia");
 const filtroTurno = document.getElementById("filtro-turno");
+const filtroCodigo = document.getElementById("filtro-codigo");
 const btnLimpiarFiltros = document.getElementById("btn-limpiar-filtros");
 const textoFiltros = document.getElementById("texto-filtros");
 
 /** Filtros que se mandan al servidor (el buscador de texto es aparte, sobre lo cargado). */
 function filtrosServidor() {
   return {
+    codigo: filtroCodigo.value.trim() || null,
     dia: filtroDia.value || null,
     turno: filtroTurno.value || null,
     desviacion: filtroResultado.value === "fuera" ? true : filtroResultado.value === "conforme" ? false : null,
@@ -198,6 +204,11 @@ function filtrosServidor() {
 function actualizarTextoFiltros() {
   const f = filtrosServidor();
   const partes = [];
+  if (f.codigo) {
+    textoFiltros.textContent = `Mostrando: el registro ${f.codigo}`;
+    btnLimpiarFiltros.classList.remove("oculto");
+    return;
+  }
   if (f.desviacion !== null) partes.push(f.desviacion ? "fuera del límite" : "conformes");
   if (f.turno) partes.push(`turno ${f.turno}`);
   partes.push(f.dia ? `del día ${formatearFechaISOCorta(f.dia)}` : `de ${estado.anio}`);
@@ -206,10 +217,13 @@ function actualizarTextoFiltros() {
 }
 
 [filtroResultado, filtroDia, filtroTurno].forEach((el) => el.addEventListener("change", () => cargarTarjetas()));
+// El código se busca al terminar de escribir (Enter o salir del campo), no en cada tecla.
+filtroCodigo.addEventListener("change", () => cargarTarjetas());
 btnLimpiarFiltros.addEventListener("click", () => {
   filtroResultado.value = "";
   filtroDia.value = "";
   filtroTurno.value = "";
+  filtroCodigo.value = "";
   cargarTarjetas();
 });
 const notaBusqueda = document.getElementById("nota-busqueda");
@@ -273,7 +287,7 @@ filtroBusqueda.addEventListener("input", () => {
 
 /** Texto donde busca el filtro: todo lo que el usuario podría teclear de memoria. */
 function textoBuscable(registro) {
-  return `${registro.zonaNombre || ""} ${registro.tipoNombre || ""} ${
+  return `${registro.codigo || ""} ${registro.zonaNombre || ""} ${registro.tipoNombre || ""} ${
     registro.areaMaquina || ""
   } ${registro.supervisor || ""} ${registro.inspectorNombre || ""} ${registro.resultado}`.toLowerCase();
 }
@@ -331,6 +345,7 @@ function tarjetaDe(registro) {
       <div class="flex-entre mb-1">
         <div>
           <h2 class="tarjeta__titulo mb-0">${escaparHtml(registro.zonaNombre || "—")}</h2>
+          ${registro.codigo ? `<span class="badge badge-neutro" style="font-family: ui-monospace, monospace; margin: 2px 0 4px;" title="Código de registro">${escaparHtml(registro.codigo)}</span>` : ""}
           <p class="texto-suave texto-sm mb-0">
             ${textoFechaRegistro(registro)}
             ${registro.turno ? ` · Turno ${escaparHtml(String(registro.turno))}` : ""}${
@@ -485,6 +500,7 @@ async function asegurarZonas() {
 /** ¿El registro sigue cumpliendo los filtros activos tras editarlo? Si no, sale de la lista. */
 function cumpleFiltros(r) {
   const f = filtrosServidor();
+  if (f.codigo) return r.codigo === f.codigo;
   if (f.dia) return r.fecha === f.dia;
   if (!String(r.fecha || "").startsWith(`${estado.anio}-`)) return false;
   if (f.turno && Number(r.turno) !== Number(f.turno)) return false;
@@ -616,3 +632,49 @@ async function guardarEdicion(registro, valores, zonas) {
     throw error; // deja el formulario abierto
   }
 }
+
+/* ---------- Numerar los registros anteriores al código ---------- */
+// Se hace una sola vez, por un gestor: lee todos los hisopados, calcula el
+// código de los que no lo tienen (ver hisopado-codigos.js), pide confirmación
+// con el resumen y los guarda en lotes. Volver a pulsarlo no repite nada: solo
+// numera lo que siga sin código.
+
+document.getElementById("btn-numerar")?.addEventListener("click", async (evento) => {
+  const boton = evento.currentTarget;
+  boton.disabled = true;
+  boton.textContent = "Revisando…";
+  try {
+    const [todos, zonas] = await Promise.all([leerTodosLosHisopados(), asegurarZonas()]);
+    const { asignaciones, contadores } = planificarCodigos(todos, zonas);
+    if (asignaciones.length === 0) {
+      mostrarToast("Todos los registros ya tienen código.", "info");
+      return;
+    }
+    const meses = Object.keys(contadores).sort();
+    if (
+      !confirm(
+        `Se asignará código a ${asignaciones.length} registros anteriores (de ${meses[0]} a ${meses[meses.length - 1]}).\n\n` +
+          "Los importados del Excel llevan el día 01 y van primero en cada mes, en el orden de la tabla; después los demás, por fecha.\n\n¿Continuar?"
+      )
+    ) {
+      return;
+    }
+    boton.textContent = "Guardando…";
+    await guardarCodigosHisopados(asignaciones, contadores);
+    estado.anios.clear();
+    mostrarToast(`Listo: ${asignaciones.length} registros numerados.`, "exito");
+    if (vistaActual() === "tarjetas") cargarTarjetas();
+    else cargarTabla();
+  } catch (error) {
+    console.error("No se pudieron numerar los registros:", error);
+    mostrarToast(
+      error?.code === "permission-denied"
+        ? "Sin permiso: falta publicar las reglas de Firestore nuevas (hisopadoContadores)."
+        : "No se pudo numerar. Verifica tu conexión e inténtalo de nuevo.",
+      "error"
+    );
+  } finally {
+    boton.disabled = false;
+    boton.textContent = "Numerar registros anteriores";
+  }
+});
