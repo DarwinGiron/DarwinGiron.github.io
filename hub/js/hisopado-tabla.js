@@ -45,7 +45,7 @@ const TURNOS = [1, 2, 3];
  * dentro del ciclo de 3 (ene/abr/jul/oct, feb/may/ago/nov, mar/jun/sep/dic).
  * Si hay más de cuatro superficies de 2 muestras, el patrón se vuelve a usar.
  */
-const PATRON_DOS_MUESTRAS = [
+export const PATRON_DOS_MUESTRAS = [
   [[1, 3], [2, 3], [2, 1]],
   [[1, 2], [1, 3], [2, 3]],
   [[3, 2], [1, 2], [1, 3]],

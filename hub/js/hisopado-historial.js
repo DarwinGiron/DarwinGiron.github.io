@@ -53,6 +53,7 @@ protegerPagina({}, async ({ user, perfil }) => {
   textoUsuario.textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;
   avatarUsuario.textContent = iniciales(nombreVisible);
   estado.puedeEliminar = esRolDeGestion(perfil.rol);
+  if (estado.puedeEliminar) document.getElementById("enlace-importar")?.classList.remove("oculto");
   estado.usuario = user;
   estado.perfil = perfil;
 
@@ -181,6 +182,14 @@ function textoLimiteRegistro(r) {
   return "—";
 }
 
+/** Los registros importados del Excel solo conocen el mes, no el día exacto. */
+function textoFechaRegistro(registro) {
+  if (!registro.fechaAproximada) return formatearFechaISOCorta(registro.fecha);
+  const [anio, mes] = String(registro.fecha).split("-");
+  const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  return `${meses[Number(mes) - 1] || mes} ${anio} (día no registrado)`;
+}
+
 function tarjetaDe(registro) {
   // Los registros anteriores agrupaban varias muestras en un documento; se
   // muestran expandidos para que el historial no pierda nada.
@@ -195,7 +204,7 @@ function tarjetaDe(registro) {
         <div>
           <h2 class="tarjeta__titulo mb-0">${escaparHtml(registro.zonaNombre || "—")}</h2>
           <p class="texto-suave texto-sm mb-0">
-            ${formatearFechaISOCorta(registro.fecha)}
+            ${textoFechaRegistro(registro)}
             ${registro.turno ? ` · Turno ${escaparHtml(String(registro.turno))}` : ""}
             · ${escaparHtml(registro.inspectorNombre || "—")}
           </p>

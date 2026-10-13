@@ -18,6 +18,7 @@
 
 import {
   addDoc,
+  writeBatch,
   doc,
   getDoc,
   getDocs,
@@ -422,6 +423,26 @@ export async function listarHisopados(filtros = {}) {
   );
   const snap = await getDocs(consulta);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Importa resultados históricos de hisopado (de la hoja de Excel). Cada
+ * registro lleva su propio id (ver idHisopado) y se escribe en lotes; si el id
+ * ya existiera se sobrescribiría, por eso quien llama debe haber descartado
+ * antes los que ya estaban. Devuelve cuántos se escribieron.
+ */
+export async function importarHisopadosLote(registros) {
+  const TAMANO_LOTE = 400; // Firestore admite 500 por lote
+  let escritos = 0;
+  for (let i = 0; i < registros.length; i += TAMANO_LOTE) {
+    const lote = writeBatch(db);
+    registros.slice(i, i + TAMANO_LOTE).forEach((r) => {
+      lote.set(doc(db, "hisopados", idHisopado(r.fecha, r.turno, r.zonaId)), { ...r, creadoEn: serverTimestamp() });
+    });
+    await lote.commit();
+    escritos += Math.min(TAMANO_LOTE, registros.length - i);
+  }
+  return escritos;
 }
 
 /** Elimina un registro de hisopado (solo gestión, ver firestore.rules). */
