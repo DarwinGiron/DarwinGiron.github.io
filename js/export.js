@@ -87,22 +87,27 @@ function construirPaginasDeTarjetas(reportes) {
   return paginas;
 }
 
-/** Totales del período y detalle por proceso, para la hoja de resumen. */
+/** Cantidad de reportes por gravedad (Menor, Mayor, Crítico) del período y detalle por proceso. */
 function resumenInforme(reportes) {
   const porProceso = new Map();
   reportes.forEach((r) => {
     const clave = r.proceso || "Sin proceso";
-    const f = porProceso.get(clave) || { proceso: clave, total: 0, pendientes: 0, criticos: 0 };
+    const f = porProceso.get(clave) || { proceso: clave, total: 0, menores: 0, mayores: 0, criticos: 0 };
     f.total++;
-    if (r.estado !== "validado") f.pendientes++;
+    if (r.gravedad === "Menor") f.menores++;
+    if (r.gravedad === "Mayor") f.mayores++;
     if (r.gravedad === "Crítico") f.criticos++;
     porProceso.set(clave, f);
   });
+  const menores = reportes.filter((r) => r.gravedad === "Menor").length;
+  const mayores = reportes.filter((r) => r.gravedad === "Mayor").length;
+  const criticos = reportes.filter((r) => r.gravedad === "Crítico").length;
   return {
     total: reportes.length,
-    pendientes: reportes.filter((r) => r.estado !== "validado").length,
-    validados: reportes.filter((r) => r.estado === "validado").length,
-    criticos: reportes.filter((r) => r.gravedad === "Crítico").length,
+    menores, mayores, criticos,
+    // Reportes que no entran en las tres cantidades: Observación o sin gravedad
+    // todavía (la gravedad se asigna al validar el reporte).
+    sinContar: reportes.length - menores - mayores - criticos,
     procesos: [...porProceso.values()].sort((a, b) => a.proceso.localeCompare(b.proceso, "es"))
   };
 }
@@ -279,10 +284,17 @@ async function exportarInformePDF(reportes, desde, hasta, perfilAdmin) {
   }
 
   // --- Hoja de resumen: título, período, totales y detalle por proceso -----
-  const celdaKpi = (valor, etiqueta) => ({
+  const celdaKpi = (valor, etiqueta, gravedad) => ({
     stack: [
-      { text: String(valor), fontSize: 22, bold: true, color: INF.tinta },
-      { text: etiqueta, fontSize: 8, color: INF.gris, margin: [0, 2, 0, 0] }
+      { text: String(valor), fontSize: 26, bold: true, color: INF.tinta },
+      // El punto se dibuja (la fuente del PDF no trae el carácter "●").
+      {
+        columns: [
+          { width: 11, canvas: [{ type: "ellipse", x: 4, y: 8, r1: 3.5, r2: 3.5, color: colorPuntoGravedad(gravedad) }] },
+          { width: "*", text: etiqueta, fontSize: 9, color: INF.gris, margin: [0, 3, 0, 0] }
+        ],
+        margin: [0, 0, 0, 0]
+      }
     ],
     fillColor: INF.suave,
     margin: [12, 10, 12, 10]
@@ -292,25 +304,32 @@ async function exportarInformePDF(reportes, desde, hasta, perfilAdmin) {
   const filasProceso = resumen.procesos.map((p) => [
     { text: p.proceso, fontSize: 9, color: INF.tinta },
     { text: String(p.total), fontSize: 9, bold: true, alignment: "right" },
-    { text: String(p.pendientes), fontSize: 9, alignment: "right" },
+    { text: String(p.menores), fontSize: 9, alignment: "right" },
+    { text: String(p.mayores), fontSize: 9, alignment: "right" },
     { text: String(p.criticos), fontSize: 9, alignment: "right", bold: p.criticos > 0, color: p.criticos > 0 ? colorPuntoGravedad("Crítico") : INF.tinta }
   ]);
+
+  // Aclaración solo cuando algún reporte no entra en las tres cantidades.
+  const notaSinContar = resumen.sinContar > 0
+    ? `Total: ${resumen.total} reportes. ${resumen.sinContar} no se cuentan arriba por ser Observación o no tener gravedad asignada todavía.`
+    : `Total: ${resumen.total} reportes.`;
 
   const hojaResumen = [
     { text: EMPRESA_CONFIG.tituloInforme, fontSize: 22, bold: true, color: INF.tinta, margin: [0, 14, 0, 4] },
     { text: textoPeriodoInforme(desde, hasta), fontSize: 12, color: INF.gris, margin: [0, 0, 0, 2] },
     { text: `Generado el ${new Date().toLocaleDateString("es-GT", { day: "numeric", month: "long", year: "numeric" })}${perfilAdmin ? " por " + (perfilAdmin.nombre || perfilAdmin.correo) : ""}`, fontSize: 8, color: INF.gris, margin: [0, 0, 0, 22] },
     {
-      table: { widths: ["*", "*", "*", "*"], body: [[celdaKpi(resumen.total, "Reportes"), celdaKpi(resumen.pendientes, "Pendientes"), celdaKpi(resumen.validados, "Validados"), celdaKpi(resumen.criticos, "Críticos")]] },
-      layout: { hLineWidth: () => 0, vLineWidth: (i) => (i === 0 || i === 4 ? 0 : 8), vLineColor: () => "#FFFFFF" },
-      margin: [0, 0, 0, 28]
+      table: { widths: ["*", "*", "*"], body: [[celdaKpi(resumen.menores, "Menores", "Menor"), celdaKpi(resumen.mayores, "Mayores", "Mayor"), celdaKpi(resumen.criticos, "Críticos", "Crítico")]] },
+      layout: { hLineWidth: () => 0, vLineWidth: (i) => (i === 0 || i === 3 ? 0 : 8), vLineColor: () => "#FFFFFF" },
+      margin: [0, 0, 0, 6]
     },
+    { text: notaSinContar, fontSize: 8, color: INF.gris, margin: [0, 0, 0, 22] },
     { text: "Hallazgos por proceso", fontSize: 13, bold: true, color: INF.tinta, margin: [0, 0, 0, 8] },
     {
       table: {
         headerRows: 1,
-        widths: ["*", 60, 60, 60],
-        body: [[encabezadoTabla("Proceso"), encabezadoTabla("Reportes", "right"), encabezadoTabla("Pendientes", "right"), encabezadoTabla("Críticos", "right")], ...filasProceso]
+        widths: ["*", 52, 52, 52, 52],
+        body: [[encabezadoTabla("Proceso"), encabezadoTabla("Reportes", "right"), encabezadoTabla("Menores", "right"), encabezadoTabla("Mayores", "right"), encabezadoTabla("Críticos", "right")], ...filasProceso]
       },
       layout: {
         hLineWidth: (i, nodo) => (i === 0 || i === nodo.table.body.length ? 0 : i === 1 ? 1 : 0.5),
@@ -463,15 +482,22 @@ async function exportarInformeWord(reportes, desde, hasta, perfilAdmin) {
   const paginas = construirPaginasDeTarjetas(reportes);
   const resumen = resumenInforme(reportes);
   const blanco = { style: BorderStyle.SINGLE, size: 24, color: "FFFFFF" };
+  // Aclaración solo cuando algún reporte no entra en las tres cantidades.
+  const notaSinContar = resumen.sinContar > 0
+    ? `Total: ${resumen.total} reportes. ${resumen.sinContar} no se cuentan arriba por ser Observación o no tener gravedad asignada todavía.`
+    : `Total: ${resumen.total} reportes.`;
 
-  const celdaKpi = (valor, etiqueta) => new TableCell({
-    width: { size: ANCHO_TABLA / 4, type: WidthType.DXA },
+  const celdaKpi = (valor, etiqueta, gravedad) => new TableCell({
+    width: { size: ANCHO_TABLA / 3, type: WidthType.DXA },
     borders: { top: blanco, bottom: blanco, left: blanco, right: blanco },
     shading: { type: ShadingType.CLEAR, fill: sinHex(INF.suave), color: "auto" },
     margins: { top: 140, bottom: 140, left: 200, right: 200 },
     children: [
-      new Paragraph({ children: [new TextRun({ text: String(valor), bold: true, size: 44, color: sinHex(INF.tinta) })] }),
-      new Paragraph({ children: [new TextRun({ text: etiqueta, size: 16, color: sinHex(INF.gris) })] })
+      new Paragraph({ children: [new TextRun({ text: String(valor), bold: true, size: 52, color: sinHex(INF.tinta) })] }),
+      new Paragraph({ children: [
+        new TextRun({ text: "● ", size: 18, color: sinHex(colorPuntoGravedad(gravedad)) }),
+        new TextRun({ text: etiqueta, size: 18, color: sinHex(INF.gris) })
+      ] })
     ]
   });
 
@@ -491,17 +517,18 @@ async function exportarInformeWord(reportes, desde, hasta, perfilAdmin) {
     })]
   });
 
-  const ANCHOS_PROC = [5160, 1400, 1400, 1400];
+  const ANCHOS_PROC = [4360, 1250, 1250, 1250, 1250];
   const filaEncabezadoProc = new TableRow({
     tableHeader: true,
-    children: [celdaTabla("Proceso", ANCHOS_PROC[0], { encabezado: true }), celdaTabla("Reportes", ANCHOS_PROC[1], { encabezado: true, derecha: true }), celdaTabla("Pendientes", ANCHOS_PROC[2], { encabezado: true, derecha: true }), celdaTabla("Críticos", ANCHOS_PROC[3], { encabezado: true, derecha: true })]
+    children: [celdaTabla("Proceso", ANCHOS_PROC[0], { encabezado: true }), celdaTabla("Reportes", ANCHOS_PROC[1], { encabezado: true, derecha: true }), celdaTabla("Menores", ANCHOS_PROC[2], { encabezado: true, derecha: true }), celdaTabla("Mayores", ANCHOS_PROC[3], { encabezado: true, derecha: true }), celdaTabla("Críticos", ANCHOS_PROC[4], { encabezado: true, derecha: true })]
   });
   const filasProc = resumen.procesos.map((p) => new TableRow({
     children: [
       celdaTabla(p.proceso, ANCHOS_PROC[0]),
       celdaTabla(String(p.total), ANCHOS_PROC[1], { derecha: true, negrita: true }),
-      celdaTabla(String(p.pendientes), ANCHOS_PROC[2], { derecha: true }),
-      celdaTabla(String(p.criticos), ANCHOS_PROC[3], { derecha: true, negrita: p.criticos > 0, color: p.criticos > 0 ? sinHex(colorPuntoGravedad("Crítico")) : undefined })
+      celdaTabla(String(p.menores), ANCHOS_PROC[2], { derecha: true }),
+      celdaTabla(String(p.mayores), ANCHOS_PROC[3], { derecha: true }),
+      celdaTabla(String(p.criticos), ANCHOS_PROC[4], { derecha: true, negrita: p.criticos > 0, color: p.criticos > 0 ? sinHex(colorPuntoGravedad("Crítico")) : undefined })
     ]
   }));
 
@@ -514,11 +541,12 @@ async function exportarInformeWord(reportes, desde, hasta, perfilAdmin) {
     }),
     new Table({
       width: { size: ANCHO_TABLA, type: WidthType.DXA },
-      columnWidths: [2340, 2340, 2340, 2340],
+      columnWidths: [3120, 3120, 3120],
       borders: sinBordes,
-      rows: [new TableRow({ children: [celdaKpi(resumen.total, "Reportes"), celdaKpi(resumen.pendientes, "Pendientes"), celdaKpi(resumen.validados, "Validados"), celdaKpi(resumen.criticos, "Críticos")] })]
+      rows: [new TableRow({ children: [celdaKpi(resumen.menores, "Menores", "Menor"), celdaKpi(resumen.mayores, "Mayores", "Mayor"), celdaKpi(resumen.criticos, "Críticos", "Crítico")] })]
     }),
-    new Paragraph({ spacing: { before: 440, after: 160 }, children: [new TextRun({ text: "Hallazgos por proceso", bold: true, size: 26, color: sinHex(INF.tinta) })] }),
+    new Paragraph({ spacing: { before: 100, after: 0 }, children: [new TextRun({ text: notaSinContar, size: 16, color: sinHex(INF.gris) })] }),
+    new Paragraph({ spacing: { before: 400, after: 160 }, children: [new TextRun({ text: "Hallazgos por proceso", bold: true, size: 26, color: sinHex(INF.tinta) })] }),
     new Table({
       width: { size: ANCHO_TABLA, type: WidthType.DXA },
       columnWidths: ANCHOS_PROC,
