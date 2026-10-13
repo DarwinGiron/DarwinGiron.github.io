@@ -4953,3 +4953,29 @@ body.tema-sig-fo-101 {
 :root[data-theme="dark"] body.tema-sig-fo-101 .toggle-si-no__opcion[data-valor="si"].activo { color: #04160c; }
 :root[data-theme="dark"] body.tema-sig-fo-101 .toggle-si-no__opcion[data-valor="no"].activo { color: #1d0805; }
 :root[data-theme="dark"] body.tema-sig-fo-101 ::placeholder { color: #A9A596; opacity: 1; }
+
+/* ============================================================================
+   Modo noche del hub: legibilidad (WCAG AA) — resto de pantallas
+   ----------------------------------------------------------------------------
+   - El encabezado iba de negro a dorado brillante con texto blanco encima:
+     "Salir", el avatar, "Resultados" y el nombre quedaban blanco sobre dorado
+     (2.3:1). Ahora va de negro a bronce oscuro con filo dorado: el texto
+     blanco se lee en toda la barra (más de 10:1).
+   - El subtítulo del encabezado y los textos pequeños del login usaban un
+     dorado casi transparente (1.4–1.7:1).
+   - Encabezados de tabla de SIG-FO-101 en casi negro sobre dorado oscuro.
+   - Resultados de la tabla de hisopados: blanco sobre verde/rojo (2.4–3.4:1).
+   Solo de noche; el modo día no cambia.
+   ============================================================================ */
+:root[data-theme="dark"] body.tema-hub .app-header {
+  background: linear-gradient(160deg, #0d0c09, #3b2f10);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.4);
+}
+:root[data-theme="dark"] body.tema-hub .app-header__titulos .subtitulo { color: #E8DDB5; }
+:root[data-theme="dark"] body.tema-hub .acceso-marca__nombre,
+:root[data-theme="dark"] body.tema-hub .acceso-pie { color: #D8D4C5; }
+:root[data-theme="dark"] body.tema-sig-fo-101 .tabla-historial th { color: #F1D27A; }
+:root[data-theme="dark"] body.tema-hub .tabla-papel .valor-resultado--conforme,
+:root[data-theme="dark"] body.tema-hub .leyenda-resultados .valor-resultado--conforme { color: #04160c; }
+:root[data-theme="dark"] body.tema-hub .tabla-papel .valor-resultado--fuera,
+:root[data-theme="dark"] body.tema-hub .leyenda-resultados .valor-resultado--fuera { color: #1d0805; }
