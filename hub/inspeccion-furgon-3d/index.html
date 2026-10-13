@@ -171,6 +171,12 @@
     position:relative;
     z-index:25;
   }
+  /* El campo que se está usando pasa al frente: si no, su desplegable de
+     sugerencias queda tapado por el campo de abajo (mismo nivel de capa,
+     gana el que viene después en el HTML). */
+  .ficha-campo--relativo:focus-within{
+    z-index:60;
+  }
   .badge-proveedor{
     display:inline-flex;
     align-items:center;
