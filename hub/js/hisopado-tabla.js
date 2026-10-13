@@ -1,12 +1,15 @@
 // =========================================================
 // hisopado-tabla.js
-// Dibuja la Tabla de muestreo de hisopados (SIG-TA-102) con el mismo diseño
-// del formato en papel y, dentro de cada mes, solo los resultados:
+// Dibuja la Tabla de muestreo de hisopados (SIG-TA-102) con el diseño del
+// formato en Excel:
 //
-//   Cantidad | Tipo de muestra (con su rango) | Superficie | Ene … Dic
+//   Cantidad | Rangos y superficies | Tipo de muestra | Ene … Dic
 //
-// Cada resultado es un número en verde (dentro del límite de su tipo) o en
-// rojo (fuera del límite). Los meses sin análisis quedan en blanco.
+// Dentro de cada mes hay una franja por turno (azul = turno 1, naranja =
+// turno 2, amarillo = turno 3; tantas franjas como indique la cantidad de esa
+// superficie). El resultado de cada toma va en su franja, en verde si está
+// dentro del límite de su tipo y en rojo si lo incumple. Al pie, cuántos
+// análisis hubo por turno cada mes.
 // Lo usan el historial (vista "Tabla") y la pantalla de resultados.
 // =========================================================
 
@@ -26,36 +29,49 @@ function tituloDeResultado(r, zona) {
     .join(" · ");
 }
 
+const TURNOS = [1, 2, 3];
+
 /**
  * @param {HTMLTableElement} tabla elemento <table> donde se dibuja
- * @param {{zonas: Array, registros: Array, anio: number}} datos zonas ya con
- *   límite resuelto (zonasConLimite) y los análisis del año.
+ * @param {{zonas: Array, registros: Array, anio: number, encabezado?: {codigo?: string, revision?: string}}} datos
+ *   zonas ya con límite resuelto (zonasConLimite) y los análisis del año.
  */
-export function pintarTablaMuestreo(tabla, { zonas, registros, anio }) {
-  // Varias tomas de la misma superficie en el mismo mes caben en la misma
-  // celda, una debajo de otra (como las filas de la hoja en papel).
+export function pintarTablaMuestreo(tabla, { zonas, registros, anio, encabezado = {} }) {
   const porZonaMes = new Map();
+  const conteoTurnoMes = new Map(); // "turno|mes" -> cantidad de análisis
+  const zonasConocidas = new Set(zonas.map((z) => z.id));
+
   registros.forEach((r) => {
-    if (!r.fecha || !r.zonaId) return;
+    if (!r.fecha || !r.zonaId || !zonasConocidas.has(r.zonaId)) return;
     const mes = Number(r.fecha.slice(5, 7)) - 1;
     if (Number.isNaN(mes) || mes < 0 || mes > 11) return;
     const clave = `${r.zonaId}|${mes}`;
     if (!porZonaMes.has(clave)) porZonaMes.set(clave, []);
     porZonaMes.get(clave).push(r);
+    const t = Number(r.turno);
+    if (TURNOS.includes(t)) conteoTurnoMes.set(`${t}|${mes}`, (conteoTurnoMes.get(`${t}|${mes}`) || 0) + 1);
   });
 
+  const chip = (r, zona) =>
+    `<span class="valor-resultado ${r.desviacion ? "valor-resultado--fuera" : "valor-resultado--conforme"}" title="${escaparHtml(
+      tituloDeResultado(r, zona)
+    )}">${escaparHtml(String(r.resultado ?? "—"))}</span>`;
+
+  // Una franja por turno (1..cantidad). Una toma sin turno, o de un turno
+  // fuera de ese rango, va en una franja extra sin color para no perderla.
   const celdaMes = (zona, mes) => {
     const delMes = (porZonaMes.get(`${zona.id}|${mes}`) || [])
       .slice()
       .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
-    const chips = delMes
-      .map(
-        (r) => `<span class="valor-resultado ${r.desviacion ? "valor-resultado--fuera" : "valor-resultado--conforme"}" title="${escaparHtml(
-          tituloDeResultado(r, zona)
-        )}">${escaparHtml(String(r.resultado ?? "—"))}</span>`
-      )
-      .join("");
-    return `<td class="tp-celda">${chips}</td>`;
+    const franjas = Math.min(Math.max(Number(zona.cantidad) || 1, 1), TURNOS.length);
+    let html = "";
+    for (let t = 1; t <= franjas; t++) {
+      const deTurno = delMes.filter((r) => Number(r.turno) === t);
+      html += `<div class="tp-franja tp-t${t}">${deTurno.map((r) => chip(r, zona)).join("")}</div>`;
+    }
+    const otras = delMes.filter((r) => !(Number(r.turno) >= 1 && Number(r.turno) <= franjas));
+    if (otras.length) html += `<div class="tp-franja tp-tx">${otras.map((r) => chip(r, zona)).join("")}</div>`;
+    return `<td class="tp-celda"><div class="tp-franjas">${html}</div></td>`;
   };
 
   // Agrupa las zonas por tipo conservando el orden de la tabla.
@@ -90,17 +106,37 @@ export function pintarTablaMuestreo(tabla, { zonas, registros, anio }) {
     )
     .join("");
 
+  const resumen = TURNOS.map(
+    (t) => `<tr class="tp-resumen">
+      <th class="tp-turno tp-t${t}" colspan="3">Turno ${t}</th>
+      ${MESES.map((_, mes) => {
+        const n = conteoTurnoMes.get(`${t}|${mes}`) || 0;
+        return `<td class="${n ? "" : "tp-cero"}">${n}</td>`;
+      }).join("")}
+    </tr>`
+  ).join("");
+
+  const codigo = [encabezado.codigo, encabezado.revision].filter(Boolean);
+
   tabla.classList.add("tabla-papel");
   tabla.innerHTML = `
     <thead>
+      <tr><th class="tp-cabecera" colspan="${3 + MESES.length}">
+        <div class="tp-cabecera__fila">
+          <img src="/assets/logo-empresa.png" alt="Empresas Galindo · Corrugadora Guatemala" class="tp-logo" />
+          <div class="tp-cabecera__codigo">${codigo.map((c) => `<span>${escaparHtml(c)}</span>`).join("")}</div>
+        </div>
+      </th></tr>
       <tr><th class="tp-titulo" colspan="${3 + MESES.length}">Tabla de muestreo de hisopados · ${anio}</th></tr>
       <tr>
         <th class="tp-cantidad" rowspan="2">Cantidad</th>
-        <th rowspan="2" colspan="2">Tipo de muestra</th>
+        <th rowspan="2">Rangos y superficies</th>
+        <th rowspan="2">Tipo de muestra</th>
         <th colspan="${MESES.length}">Meses</th>
       </tr>
       <tr>${MESES.map((m) => `<th class="tp-mes"><span>${escaparHtml(m)}</span></th>`).join("")}</tr>
     </thead>
     <tbody>${cuerpo}</tbody>
+    <tfoot>${resumen}</tfoot>
   `;
 }

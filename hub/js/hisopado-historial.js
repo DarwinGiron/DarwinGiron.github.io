@@ -42,6 +42,7 @@ const estado = {
   usuario: null,
   perfil: null,
   zonas: null,
+  encabezado: {},
   anio: new Date().getFullYear(),
   tarjetasCargadas: false,
   tablaDesactualizada: false, // se eliminó un registro desde las tarjetas
@@ -74,7 +75,11 @@ async function cargarTabla() {
 
   try {
     // La tabla de muestreo (zonas y límites) se lee una sola vez.
-    if (!estado.zonas) estado.zonas = zonasConLimite(await obtenerTablaHisopado());
+    if (!estado.zonas) {
+      const tablaCfg = await obtenerTablaHisopado();
+      estado.encabezado = { codigo: tablaCfg?.codigo, revision: tablaCfg?.revision };
+      estado.zonas = zonasConLimite(tablaCfg);
+    }
     if (estado.zonas.length === 0) {
       zonaTabla.classList.add("oculto");
       zonaMensaje.classList.remove("oculto");
@@ -87,7 +92,7 @@ async function cargarTabla() {
       hasta: `${estado.anio}-12-31`,
       max: 3000,
     });
-    pintarTablaMuestreo(tablaResultados, { zonas: estado.zonas, registros, anio: estado.anio });
+    pintarTablaMuestreo(tablaResultados, { zonas: estado.zonas, registros, anio: estado.anio, encabezado: estado.encabezado });
   } catch (error) {
     console.error("No se pudo cargar la tabla de hisopados:", error);
     zonaTabla.classList.add("oculto");

@@ -33,7 +33,7 @@ const zonaMensaje = document.getElementById("zona-mensaje");
 const zonaTabla = document.getElementById("zona-tabla");
 const tablaResultados = document.getElementById("tabla-resultados");
 
-const estado = { zonas: [], anio: new Date().getFullYear() };
+const estado = { zonas: [], encabezado: {}, anio: new Date().getFullYear() };
 
 protegerPagina({}, async ({ user, perfil }) => {
   const nombreVisible = perfil.nombre || user.email;
@@ -51,7 +51,9 @@ async function cargarTodo() {
   zonaMensaje.classList.add("oculto");
 
   try {
-    estado.zonas = zonasConLimite(await obtenerTablaHisopado());
+    const tablaCfg = await obtenerTablaHisopado();
+    estado.encabezado = { codigo: tablaCfg?.codigo, revision: tablaCfg?.revision };
+    estado.zonas = zonasConLimite(tablaCfg);
   } catch (error) {
     console.error("No se pudo cargar la tabla de muestreo:", error);
     zonaTabla.classList.add("oculto");
@@ -112,5 +114,5 @@ async function cargarAnio(anio) {
    --------------------------------------------------------- */
 
 function renderTabla(registros) {
-  pintarTablaMuestreo(tablaResultados, { zonas: estado.zonas, registros, anio: estado.anio });
+  pintarTablaMuestreo(tablaResultados, { zonas: estado.zonas, registros, anio: estado.anio, encabezado: estado.encabezado });
 }
