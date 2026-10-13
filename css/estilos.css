@@ -3055,6 +3055,76 @@ body.tema-hub .tabla-papel .tp-turno.tp-t1 { background: var(--tp-t1-fuerte); }
 body.tema-hub .tabla-papel .tp-turno.tp-t2 { background: var(--tp-t2-fuerte); }
 body.tema-hub .tabla-papel .tp-turno.tp-t3 { background: var(--tp-t3-fuerte); }
 
+/* Tarjeta compacta de un hisopado (historial): resultado a la izquierda, datos
+   en dos líneas y acciones a la derecha. */
+body.tema-hub .hs-tarjeta {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e2) var(--e3);
+  margin-bottom: 0;
+}
+
+body.tema-hub .hs-resultado {
+  min-width: 78px;
+  padding: 6px 10px;
+  border-radius: var(--r-md);
+  text-align: center;
+  line-height: 1.15;
+}
+
+body.tema-hub .hs-resultado strong { display: block; font-size: var(--txt-lg); font-weight: 800; letter-spacing: -0.02em; }
+body.tema-hub .hs-resultado small { display: block; font-size: var(--txt-2xs, 11px); font-weight: 600; opacity: 0.85; white-space: nowrap; }
+body.tema-hub .hs-resultado--ok { background: var(--estado-bien-suave); color: var(--estado-bien-ink); border: 1px solid var(--estado-bien-mark); }
+body.tema-hub .hs-resultado--fuera { background: var(--estado-critico-suave); color: var(--estado-critico-ink); border: 1px solid var(--estado-critico-mark); }
+
+body.tema-hub .hs-info { min-width: 0; }
+
+body.tema-hub .hs-titulo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px var(--e2);
+  font-size: var(--txt-sm);
+}
+
+body.tema-hub .hs-titulo strong { font-size: var(--txt-md); color: var(--tinta); }
+
+body.tema-hub .hs-codigo {
+  padding: 1px 7px;
+  border-radius: var(--r-full);
+  background: var(--superficie-2, var(--borde));
+  color: var(--tinta-2);
+  font: 600 var(--txt-2xs, 11px) ui-monospace, "JetBrains Mono", monospace;
+}
+
+body.tema-hub .hs-corregido { font-size: var(--txt-2xs, 11px); font-weight: 600; color: var(--tinta-3); }
+
+body.tema-hub .hs-meta {
+  margin-top: 2px;
+  font-size: var(--txt-xs);
+  color: var(--tinta-3);
+  line-height: 1.35;
+}
+
+body.tema-hub .hs-obs {
+  margin-top: 3px;
+  font-size: var(--txt-xs);
+  color: var(--tinta-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.tema-hub .hs-acciones { display: flex; gap: var(--e1); align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+body.tema-hub .hs-acciones .btn { min-height: 32px; padding: 4px 10px; font-size: var(--txt-xs); }
+
+@media (max-width: 560px) {
+  body.tema-hub .hs-tarjeta { grid-template-columns: auto 1fr; }
+  body.tema-hub .hs-acciones { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
 body.tema-hub .pestana { display: none; }
 
 body.tema-hub .pestana.activa { display: block; }

@@ -447,7 +447,7 @@ const ETIQUETAS_CORRECCION = {
  * (ya calculada contra el límite que corresponde).
  *
  * Conserva el id y la autoría (inspectorUid no se toca; las reglas lo exigen) y
- * deja constancia en `correcciones`: quién, cuándo y qué cambió (antes/después).
+ * deja constancia en `historialCorrecciones` (no confundir con `correcciones`, el texto de acciones del formato anterior): quién, cuándo y qué cambió (antes/después).
  * Si cambia la combinación fecha + turno + superficie y otro análisis ya la
  * ocupa, falla con codigo "duplicado".
  * Devuelve la lista de cambios (vacía si no cambió nada) y los campos nuevos.
@@ -493,7 +493,7 @@ export async function corregirHisopado(registro, nuevos, usuario) {
 
   await updateDoc(doc(db, "hisopados", registro.id), {
     ...campos,
-    correcciones: arrayUnion({
+    historialCorrecciones: arrayUnion({
       por: usuario.uid,
       nombre: usuario.nombre || "",
       en: new Date().toISOString(),

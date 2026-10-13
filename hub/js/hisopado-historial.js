@@ -338,47 +338,46 @@ function tarjetaDe(registro) {
   if (Array.isArray(registro.muestras)) return tarjetaAgrupadaDe(registro);
 
   const fuera = Boolean(registro.desviacion);
-  const notas = [registro.correcciones, registro.observaciones].filter(Boolean).join(" · ");
+  // "correcciones" en los registros del formato anterior era un texto de
+  // acciones; en los nuevos no existe (la constancia va en historialCorrecciones).
+  const notas = [typeof registro.correcciones === "string" ? registro.correcciones : "", registro.observaciones]
+    .filter(Boolean)
+    .join(" · ");
+  const meta = [
+    textoFechaRegistro(registro),
+    registro.turno ? `Turno ${registro.turno}` : "",
+    registro.tipoNombre,
+    registro.areaMaquina,
+    registro.supervisor ? `Sup. ${registro.supervisor}` : "",
+    registro.inspectorNombre,
+  ].filter(Boolean);
 
   return `
-    <section class="tarjeta">
-      <div class="flex-entre mb-1">
-        <div>
-          <h2 class="tarjeta__titulo mb-0">${escaparHtml(registro.zonaNombre || "—")}</h2>
-          ${registro.codigo ? `<span class="badge badge-neutro" style="font-family: ui-monospace, monospace; margin: 2px 0 4px;" title="Código de registro">${escaparHtml(registro.codigo)}</span>` : ""}
-          <p class="texto-suave texto-sm mb-0">
-            ${textoFechaRegistro(registro)}
-            ${registro.turno ? ` · Turno ${escaparHtml(String(registro.turno))}` : ""}${
-              registro.correcciones?.length ? ` <span title="Este registro se corrigió después de guardarlo">· corregido</span>` : ""
-            }
-            · ${escaparHtml(registro.inspectorNombre || "—")}
-          </p>
-        </div>
-        <span class="badge ${fuera ? "badge-error" : "badge-exito"}">
-          ${fuera ? "Fuera del límite" : "Conforme"}
-        </span>
+    <section class="tarjeta hs-tarjeta">
+      <div class="hs-resultado ${fuera ? "hs-resultado--fuera" : "hs-resultado--ok"}" title="Límite ${escaparHtml(textoLimiteRegistro(registro))}">
+        <strong>${escaparHtml(String(registro.resultado ?? "—"))}</strong>
+        <small>${escaparHtml(`${registro.unidad || "RLU"} · ${textoLimiteCorto(registro)}`)}</small>
       </div>
 
-      <div class="fichas" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin-top: var(--e3);">
-        <div class="ficha ${fuera ? "ficha--critico" : "ficha--exito"}">
-          <div class="ficha__etiqueta">Resultado · límite ${escaparHtml(textoLimiteRegistro(registro))}</div>
-          <div class="ficha__valor">${escaparHtml(`${registro.resultado ?? "—"} ${registro.unidad || ""}`.trim())}</div>
+      <div class="hs-info">
+        <div class="hs-titulo">
+          <strong>${escaparHtml(registro.zonaNombre || "—")}</strong>
+          ${registro.codigo ? `<span class="hs-codigo" title="Código de registro">${escaparHtml(registro.codigo)}</span>` : ""}
+          <span class="badge ${fuera ? "badge-error" : "badge-exito"}">${fuera ? "Fuera del límite" : "Conforme"}</span>
+          ${registro.historialCorrecciones?.length ? `<span class="hs-corregido" title="Este registro se corrigió después de guardarlo">corregido</span>` : ""}
         </div>
-        ${fichaHtml("Tipo", registro.tipoNombre)}
-        ${registro.areaMaquina ? fichaHtml("Área/Máquina", registro.areaMaquina) : ""}
-        ${fichaHtml("Supervisor", registro.supervisor)}
+        <div class="hs-meta">${meta.map(escaparHtml).join(" · ")}</div>
+        ${notas ? `<div class="hs-obs" title="${escaparHtml(notas)}"><strong>Acciones:</strong> ${escaparHtml(notas)}</div>` : ""}
       </div>
 
-      ${
-        notas
-          ? `<div class="alerta alerta-info" style="margin-top: var(--e2);">
-               <strong>Acciones inmediatas y observaciones:</strong> ${escaparHtml(notas)}
-             </div>`
-          : ""
-      }
       ${botonEliminarDe(registro)}
     </section>
   `;
+}
+
+/** "0–600": el rango de un vistazo, para la pastilla del resultado. */
+function textoLimiteCorto(r) {
+  return r.limiteMin !== undefined && r.limiteMin !== null ? `${r.limiteMin}–${r.limiteMax}` : "—";
 }
 
 /** Una celda de la cuadrícula de fichas (etiqueta + valor grande), mismo orden que usan transporte.js y SIG-FO-101. */
@@ -448,8 +447,8 @@ function botonEliminarDe(registro) {
   const puedeCorregir = !Array.isArray(registro.muestras);
   const id = escaparHtml(registro.id);
   return `
-    <div class="flex-fin" style="margin-top: var(--e2); gap: var(--e2); flex-wrap: wrap;" data-acciones="${id}">
-      ${puedeCorregir ? `<button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-corregir="${id}">Editar registro</button>` : ""}
+    <div class="hs-acciones" data-acciones="${id}">
+      ${puedeCorregir ? `<button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-corregir="${id}">Editar</button>` : ""}
       ${estado.puedeEliminar ? `<button type="button" class="btn btn-peligro btn-sm btn-ancho-auto" data-eliminar="${id}">Eliminar</button>` : ""}
     </div>`;
 }
@@ -616,7 +615,7 @@ async function guardarEdicion(registro, valores, zonas) {
 
     // Se actualiza en pantalla sin volver a consultar.
     Object.assign(registro, campos, {
-      correcciones: [...(registro.correcciones || []), { cambios }],
+      historialCorrecciones: [...(registro.historialCorrecciones || []), { cambios }],
     });
     if (!cumpleFiltros(registro)) estado.registros = estado.registros.filter((r) => r.id !== registro.id);
     estado.tablaDesactualizada = true; // la tabla guardada en memoria ya no refleja este cambio
