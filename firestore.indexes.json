@@ -41,6 +41,22 @@
       ]
     },
     {
+      "collectionGroup": "hisopados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "turno", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "hisopados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "desviacion", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "registrosVidrio",
       "queryScope": "COLLECTION",
       "fields": [

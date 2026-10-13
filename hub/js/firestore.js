@@ -371,19 +371,60 @@ export function idHisopado(fecha, turno, zonaId) {
  * para que valga desde cualquier punto de entrada.
  */
 export async function crearHisopado(datos) {
-  const id = idHisopado(datos.fecha, datos.turno, datos.zonaId);
-  const referencia = doc(db, "hisopados", id);
-
-  const existente = await getDoc(referencia);
-  if (existente.exists()) {
+  // El duplicado se busca por los campos (fecha + turno + superficie) y no solo
+  // por el id: si a un registro se le corrigió el turno, su id conserva el turno
+  // viejo y por id ya no diría la verdad.
+  const repetido = await buscarHisopadoDuplicado(datos.fecha, datos.turno, datos.zonaId);
+  if (repetido) {
     const error = new Error("DUPLICADO");
     error.codigo = "duplicado";
-    error.registro = { id: existente.id, ...existente.data() };
+    error.registro = repetido;
     throw error;
   }
 
+  // Id determinístico (fecha_turno_superficie). Si ya lo ocupa un registro cuyo
+  // turno fue corregido, se usa un id automático para no pisarlo.
+  let referencia = doc(db, "hisopados", idHisopado(datos.fecha, datos.turno, datos.zonaId));
+  if ((await getDoc(referencia)).exists()) referencia = doc(collection(db, "hisopados"));
+
   await setDoc(referencia, { ...datos, creadoEn: serverTimestamp() });
-  return id;
+  return referencia.id;
+}
+
+/** El registro que ya cubre esa superficie, ese día y ese turno, o null. */
+export async function buscarHisopadoDuplicado(fecha, turno, zonaId) {
+  const snap = await getDocs(
+    query(
+      collection(db, "hisopados"),
+      where("fecha", "==", fecha),
+      where("zonaId", "==", zonaId),
+      where("turno", "==", turno),
+      limitarA(1)
+    )
+  );
+  return snap.docs.length ? { id: snap.docs[0].id, ...snap.docs[0].data() } : null;
+}
+
+/**
+ * Corrige el turno de un análisis ya guardado. Conserva el id y la autoría y
+ * deja constancia (turno anterior, quién y cuándo). Falla si esa superficie ya
+ * tiene un análisis ese día en el turno nuevo.
+ */
+export async function corregirTurnoHisopado(registro, turnoNuevo, uid) {
+  if (turnoNuevo === registro.turno) return;
+  const repetido = await buscarHisopadoDuplicado(registro.fecha, turnoNuevo, registro.zonaId);
+  if (repetido && repetido.id !== registro.id) {
+    const error = new Error("DUPLICADO");
+    error.codigo = "duplicado";
+    error.registro = repetido;
+    throw error;
+  }
+  await updateDoc(doc(db, "hisopados", registro.id), {
+    turno: turnoNuevo,
+    turnoAnterior: registro.turno ?? null,
+    corregidoPor: uid,
+    corregidoEn: serverTimestamp(),
+  });
 }
 
 /** Obtiene un registro de hisopado por id, o null si no existe. */
@@ -430,15 +471,25 @@ export async function listarHisopados(filtros = {}) {
  * Una página de hisopados, del más reciente al más antiguo. Trae solo `limite`
  * documentos (no todo el historial): el cursor que devuelve se pasa en
  * `despues` para pedir la página siguiente.
- * Filtros: inspectorUid (obligatorio para un inspector, ver firestore.rules),
- * desde / hasta (fecha ISO).
+ * Filtros (todos en el servidor, para que la paginación siga siendo de `limite`):
+ * inspectorUid (obligatorio para un inspector, ver firestore.rules), desde /
+ * hasta (fecha ISO) o dia (una fecha exacta), turno (1-3) y desviacion
+ * (true = fuera de límite, false = conforme).
  */
 export async function listarHisopadosPagina(filtros = {}) {
-  const limite = filtros.limite || 20;
+  const limite = filtros.limite || 10;
   const condiciones = [];
   if (filtros.inspectorUid) condiciones.push(where("inspectorUid", "==", filtros.inspectorUid));
-  if (filtros.desde) condiciones.push(where("fecha", ">=", filtros.desde));
-  if (filtros.hasta) condiciones.push(where("fecha", "<=", filtros.hasta));
+  if (filtros.dia) {
+    condiciones.push(where("fecha", "==", filtros.dia)); // un día exacto
+  } else {
+    if (filtros.desde) condiciones.push(where("fecha", ">=", filtros.desde));
+    if (filtros.hasta) condiciones.push(where("fecha", "<=", filtros.hasta));
+  }
+  if (filtros.turno) condiciones.push(where("turno", "==", Number(filtros.turno)));
+  if (filtros.desviacion === true || filtros.desviacion === false) {
+    condiciones.push(where("desviacion", "==", filtros.desviacion));
+  }
 
   const consulta = query(
     collection(db, "hisopados"),

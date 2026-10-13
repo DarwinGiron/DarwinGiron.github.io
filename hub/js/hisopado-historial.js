@@ -13,7 +13,13 @@
 // =========================================================
 
 import { protegerPagina, cerrarSesion, esRolDeGestion, etiquetaRol } from "./auth.js";
-import { listarHisopados, listarHisopadosPagina, eliminarHisopado, obtenerTablaHisopado } from "./firestore.js";
+import {
+  listarHisopados,
+  listarHisopadosPagina,
+  eliminarHisopado,
+  corregirTurnoHisopado,
+  obtenerTablaHisopado,
+} from "./firestore.js";
 import { zonasConLimite } from "./hisopado-datos.js";
 import { pintarTablaMuestreo } from "./hisopado-tabla.js";
 import { mostrarBloqueError } from "./aviso-carga.js";
@@ -142,11 +148,44 @@ document.querySelectorAll("[data-vista]").forEach((boton) => {
 });
 
 /* ---------- Vista Tarjetas ---------- */
-// Se piden de 20 en 20 y solo del año elegido. "Cargar 20 más" trae la
+// Se piden de 10 en 10, solo del año elegido (o del día elegido) y con los
+// filtros de resultado y turno aplicados en el servidor. "Cargar 10 más" trae la
 // siguiente página; no se descarga el historial completo de una vez.
 
-const POR_PAGINA = 20;
+const POR_PAGINA = 10;
 const btnMasTarjetas = document.getElementById("btn-mas-tarjetas");
+const filtroResultado = document.getElementById("filtro-resultado");
+const filtroDia = document.getElementById("filtro-dia");
+const filtroTurno = document.getElementById("filtro-turno");
+const btnLimpiarFiltros = document.getElementById("btn-limpiar-filtros");
+const textoFiltros = document.getElementById("texto-filtros");
+
+/** Filtros que se mandan al servidor (el buscador de texto es aparte, sobre lo cargado). */
+function filtrosServidor() {
+  return {
+    dia: filtroDia.value || null,
+    turno: filtroTurno.value || null,
+    desviacion: filtroResultado.value === "fuera" ? true : filtroResultado.value === "conforme" ? false : null,
+  };
+}
+
+function actualizarTextoFiltros() {
+  const f = filtrosServidor();
+  const partes = [];
+  if (f.desviacion !== null) partes.push(f.desviacion ? "fuera del límite" : "conformes");
+  if (f.turno) partes.push(`turno ${f.turno}`);
+  partes.push(f.dia ? `del día ${formatearFechaISOCorta(f.dia)}` : `de ${estado.anio}`);
+  textoFiltros.textContent = `Mostrando: ${partes.join(" · ")}`;
+  btnLimpiarFiltros.classList.toggle("oculto", f.desviacion === null && !f.turno && !f.dia);
+}
+
+[filtroResultado, filtroDia, filtroTurno].forEach((el) => el.addEventListener("change", () => cargarTarjetas()));
+btnLimpiarFiltros.addEventListener("click", () => {
+  filtroResultado.value = "";
+  filtroDia.value = "";
+  filtroTurno.value = "";
+  cargarTarjetas();
+});
 const notaBusqueda = document.getElementById("nota-busqueda");
 
 async function cargarTarjetas() {
@@ -156,6 +195,7 @@ async function cargarTarjetas() {
   mostrarCarga(lista, "Cargando registros…");
   btnMasTarjetas.classList.add("oculto");
   notaBusqueda.classList.add("oculto");
+  actualizarTextoFiltros();
   await cargarPaginaTarjetas();
 }
 
@@ -168,6 +208,7 @@ async function cargarPaginaTarjetas() {
   try {
     const pagina = await listarHisopadosPagina({
       ...(estado.puedeEliminar ? {} : { inspectorUid: estado.usuario.uid }),
+      ...filtrosServidor(),
       desde: `${anio}-01-01`,
       hasta: `${anio}-12-31`,
       limite: POR_PAGINA,
@@ -181,8 +222,12 @@ async function cargarPaginaTarjetas() {
     renderizar();
   } catch (error) {
     console.error("No se pudieron cargar los hisopados:", error);
-    if (!estado.registros.length) lista.innerHTML = "";
-    mostrarToast("No se pudo cargar el historial. Verifica tu conexión.", "error");
+    if (!estado.registros.length) {
+      // Si falta un índice (al combinar filtros por primera vez) el bloque lo explica.
+      mostrarBloqueError(lista, { error, alReintentar: cargarTarjetas });
+    } else {
+      mostrarToast("No se pudo cargar el historial. Verifica tu conexión.", "error");
+    }
   } finally {
     estado.cargandoTarjetas = false;
     btnMasTarjetas.disabled = false;
@@ -217,7 +262,7 @@ function renderizar() {
     lista.innerHTML = `
       <div class="tarjeta">
         <p class="texto-suave texto-sm mb-0">
-          ${termino ? "Ningún análisis coincide con la búsqueda." : "Todavía no hay análisis de hisopado registrados."}
+          ${termino ? "Ningún análisis cargado coincide con la búsqueda." : "No hay análisis de hisopado con estos filtros."}
         </p>
       </div>
     `;
@@ -262,7 +307,9 @@ function tarjetaDe(registro) {
           <h2 class="tarjeta__titulo mb-0">${escaparHtml(registro.zonaNombre || "—")}</h2>
           <p class="texto-suave texto-sm mb-0">
             ${textoFechaRegistro(registro)}
-            ${registro.turno ? ` · Turno ${escaparHtml(String(registro.turno))}` : ""}
+            ${registro.turno ? ` · Turno ${escaparHtml(String(registro.turno))}` : ""}${
+              registro.turnoAnterior ? ` <span title="El turno se corrigió después de guardar el registro">(corregido, antes ${escaparHtml(String(registro.turnoAnterior))})</span>` : ""
+            }
             · ${escaparHtml(registro.inspectorNombre || "—")}
           </p>
         </div>
@@ -354,16 +401,26 @@ function tarjetaAgrupadaDe(registro) {
 }
 
 function botonEliminarDe(registro) {
-  if (!estado.puedeEliminar) return "";
+  // Corregir el turno lo puede hacer el autor o un gestor (las reglas lo
+  // permiten a ambos); eliminar, solo un gestor. Los registros del formato
+  // anterior (con varias muestras adentro) no se editan.
+  const puedeCorregir = !Array.isArray(registro.muestras);
+  const id = escaparHtml(registro.id);
   return `
-    <div class="flex-fin" style="margin-top: var(--e2);">
-      <button type="button" class="btn btn-peligro btn-sm btn-ancho-auto" data-eliminar="${escaparHtml(
-        registro.id
-      )}">Eliminar</button>
+    <div class="flex-fin" style="margin-top: var(--e2); gap: var(--e2); flex-wrap: wrap;" data-acciones="${id}">
+      ${puedeCorregir ? `<button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-corregir="${id}">Corregir turno</button>` : ""}
+      ${estado.puedeEliminar ? `<button type="button" class="btn btn-peligro btn-sm btn-ancho-auto" data-eliminar="${id}">Eliminar</button>` : ""}
     </div>`;
 }
 
 lista.addEventListener("click", async (evento) => {
+  const corregir = evento.target.closest("[data-corregir]");
+  if (corregir) return abrirCorreccionTurno(corregir.dataset.corregir);
+  const cancelar = evento.target.closest("[data-cancelar-turno]");
+  if (cancelar) return renderizar();
+  const guardar = evento.target.closest("[data-guardar-turno]");
+  if (guardar) return guardarCorreccionTurno(guardar.dataset.guardarTurno, guardar);
+
   const boton = evento.target.closest("[data-eliminar]");
   if (!boton) return;
 
@@ -383,3 +440,55 @@ lista.addEventListener("click", async (evento) => {
     boton.disabled = false;
   }
 });
+
+/* ---------- Corregir el turno de un registro ---------- */
+
+/** Cambia los botones de la tarjeta por un selector de turno con Guardar / Cancelar. */
+function abrirCorreccionTurno(id) {
+  const registro = estado.registros.find((r) => r.id === id);
+  const zona = lista.querySelector(`[data-acciones="${CSS.escape(id)}"]`);
+  if (!registro || !zona) return;
+  zona.innerHTML = `
+    <label class="texto-sm" for="turno-${escaparHtml(id)}" style="align-self:center;">Turno correcto:</label>
+    <select id="turno-${escaparHtml(id)}" style="min-height: 38px;">
+      ${[1, 2, 3].map((t) => `<option value="${t}" ${t === Number(registro.turno) ? "selected" : ""}>Turno ${t}</option>`).join("")}
+    </select>
+    <button type="button" class="btn btn-dorado btn-sm btn-ancho-auto" data-guardar-turno="${escaparHtml(id)}">Guardar</button>
+    <button type="button" class="btn btn-texto btn-sm" data-cancelar-turno>Cancelar</button>`;
+}
+
+async function guardarCorreccionTurno(id, boton) {
+  const registro = estado.registros.find((r) => r.id === id);
+  const selector = document.getElementById(`turno-${id}`);
+  if (!registro || !selector) return;
+  const turnoNuevo = Number(selector.value);
+  if (turnoNuevo === Number(registro.turno)) return renderizar();
+
+  boton.disabled = true;
+  boton.textContent = "Guardando…";
+  try {
+    await corregirTurnoHisopado(registro, turnoNuevo, estado.usuario.uid);
+    // Se actualiza en pantalla sin volver a consultar. Si hay un filtro por
+    // turno activo y el registro ya no cumple, sale de la lista.
+    const turnoAnterior = registro.turno;
+    registro.turnoAnterior = turnoAnterior;
+    registro.turno = turnoNuevo;
+    const filtroT = filtroTurno.value;
+    if (filtroT && Number(filtroT) !== turnoNuevo) {
+      estado.registros = estado.registros.filter((r) => r.id !== id);
+    }
+    // La tabla guardada en memoria ya no refleja este turno.
+    estado.tablaDesactualizada = true;
+    renderizar();
+    mostrarToast(`Turno corregido: de ${turnoAnterior} a ${turnoNuevo}.`, "exito");
+  } catch (error) {
+    if (error?.codigo === "duplicado") {
+      mostrarToast(`"${registro.zonaNombre}" ya tiene un análisis ese día en el turno ${turnoNuevo}.`, "error");
+    } else {
+      console.error("No se pudo corregir el turno:", error);
+      mostrarToast("No se pudo corregir el turno. Verifica tu conexión.", "error");
+    }
+    boton.disabled = false;
+    boton.textContent = "Guardar";
+  }
+}
