@@ -2809,6 +2809,97 @@ body.tema-hub .valor-resultado--pendiente {
   border: 1px dashed var(--estado-alerta-mark);
 }
 
+/* Tabla de muestreo de hisopados con el diseño del formato en papel
+   (hisopado-tabla.js): cuadrícula completa, tipo de muestra combinado con su
+   rango en vertical, meses en vertical y solo los resultados en cada mes. */
+body.tema-hub .tabla-papel {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 760px;
+  font-size: var(--txt-sm);
+  color: var(--tinta);
+}
+
+body.tema-hub .tabla-papel th,
+body.tema-hub .tabla-papel td {
+  border: 1px solid var(--tinta-3);
+  padding: 4px 6px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+body.tema-hub .tabla-papel thead th {
+  position: static;
+  background: var(--superficie-2, var(--superficie));
+  font-weight: 800;
+  color: var(--tinta);
+}
+
+body.tema-hub .tabla-papel .tp-titulo {
+  font-size: var(--txt-md);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: var(--e2);
+}
+
+body.tema-hub .tabla-papel .tp-cantidad { width: 64px; font-weight: 700; }
+body.tema-hub .tabla-papel .tp-zona { min-width: 150px; font-weight: 600; }
+
+body.tema-hub .tabla-papel .tp-tipo { width: 88px; background: var(--superficie-2, var(--superficie)); }
+
+body.tema-hub .tabla-papel .tp-tipo__texto {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin: 0 auto;
+  max-height: 150px;
+  text-transform: uppercase;
+  font-size: var(--txt-xs);
+  line-height: 1.25;
+}
+
+body.tema-hub .tabla-papel .tp-tipo__texto span { font-weight: 600; color: var(--tinta-2); }
+
+body.tema-hub .tabla-papel .tp-mes { width: 44px; padding: 8px 2px; }
+
+body.tema-hub .tabla-papel .tp-mes span {
+  display: inline-block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: var(--txt-xs);
+}
+
+body.tema-hub .tabla-papel td.tp-celda { min-width: 44px; height: 56px; padding: 3px; }
+
+body.tema-hub .tabla-papel .valor-resultado {
+  display: block;
+  min-width: 0;
+  margin: 2px auto;
+  padding: 2px 4px;
+  border-radius: var(--r-sm, 6px);
+  font-size: var(--txt-xs);
+}
+
+body.tema-hub .tabla-papel .valor-resultado + .valor-resultado { margin-left: auto; }
+
+/* Resultados con color pleno para leer el cumplimiento de un vistazo. */
+body.tema-hub .tabla-papel .valor-resultado--conforme,
+body.tema-hub .leyenda-resultados .valor-resultado--conforme {
+  background: var(--estado-bien-mark);
+  color: #fff;
+}
+
+body.tema-hub .tabla-papel .valor-resultado--fuera,
+body.tema-hub .leyenda-resultados .valor-resultado--fuera {
+  background: var(--estado-critico-mark);
+  color: #fff;
+}
+
 body.tema-hub .pestana { display: none; }
 
 body.tema-hub .pestana.activa { display: block; }

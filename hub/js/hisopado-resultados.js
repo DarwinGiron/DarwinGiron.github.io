@@ -1,9 +1,9 @@
 // =========================================================
 // hisopado-resultados.js
 // Controlador de hisopado/resultados.html — tabla de cumplimiento anual:
-// cada superficie de la tabla de muestreo (SIG-TA-102) en una fila, cada
-// mes en una columna, y en cada celda el resultado de esa superficie ese
-// mes contra el límite de su tipo (verde conforme, rojo fuera de límite).
+// la tabla de muestreo (SIG-TA-102) con el diseño del formato en papel y, en
+// cada mes, solo los resultados de esa superficie contra el límite de su
+// tipo (verde conforme, rojo fuera de límite).
 //
 // A diferencia del historial (una tarjeta por toma, para revisar o
 // corregir un registro puntual), esta es la vista de cumplimiento: de un
@@ -20,9 +20,10 @@
 
 import { protegerPagina, cerrarSesion, etiquetaRol } from "./auth.js";
 import { obtenerTablaHisopado, listarHisopados } from "./firestore.js";
-import { MESES, zonasConLimite } from "./hisopado-datos.js";
+import { zonasConLimite } from "./hisopado-datos.js";
+import { pintarTablaMuestreo } from "./hisopado-tabla.js";
 import { mostrarBloqueError } from "./aviso-carga.js";
-import { escaparHtml, formatearFechaISOCorta, iniciales } from "./utils.js";
+import { escaparHtml, iniciales } from "./utils.js";
 
 const textoUsuario = document.getElementById("texto-usuario");
 const avatarUsuario = document.getElementById("avatar-usuario");
@@ -107,80 +108,9 @@ async function cargarAnio(anio) {
 }
 
 /* ---------------------------------------------------------
-   Tabla
+   Tabla (mismo diseño que el formato en papel, ver hisopado-tabla.js)
    --------------------------------------------------------- */
 
 function renderTabla(registros) {
-  // Agrupa por "zonaId|mes" (0 = enero): varias tomas de la misma
-  // superficie en el mismo mes (distinto turno o repetición) caben en la
-  // misma celda, una junto a otra.
-  const porZonaMes = new Map();
-  registros.forEach((r) => {
-    if (!r.fecha || !r.zonaId) return;
-    const mes = Number(r.fecha.slice(5, 7)) - 1;
-    if (Number.isNaN(mes) || mes < 0 || mes > 11) return;
-    const clave = `${r.zonaId}|${mes}`;
-    if (!porZonaMes.has(clave)) porZonaMes.set(clave, []);
-    porZonaMes.get(clave).push(r);
-  });
-
-  const hoy = new Date();
-  const anioActual = hoy.getFullYear();
-  const mesActual = hoy.getMonth();
-
-  const filas = estado.zonas
-    .map(
-      (zona) => `
-        <tr>
-          <td>${escaparHtml(zona.tipoNombre)}</td>
-          <td>${escaparHtml(zona.nombre)}</td>
-          ${MESES.map((_, mes) =>
-            celda(zona, mes, porZonaMes.get(`${zona.id}|${mes}`) || [], anioActual, mesActual)
-          ).join("")}
-        </tr>
-      `
-    )
-    .join("");
-
-  tablaResultados.innerHTML = `
-    <thead>
-      <tr>
-        <th>Tipo</th>
-        <th>Superficie</th>
-        ${MESES.map((m) => `<th title="${escaparHtml(m)}">${escaparHtml(m.slice(0, 3))}</th>`).join("")}
-      </tr>
-    </thead>
-    <tbody>${filas}</tbody>
-  `;
-}
-
-function celda(zona, mes, registrosDelMes, anioActual, mesActual) {
-  if (registrosDelMes.length > 0) {
-    const chips = registrosDelMes
-      .slice()
-      .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""))
-      .map((r) => {
-        const fuera = Boolean(r.desviacion);
-        const titulo = `${formatearFechaISOCorta(r.fecha)}${
-          r.turno ? ` · Turno ${r.turno}` : ""
-        }${r.areaMaquina ? ` · ${r.areaMaquina}` : ""}${
-          r.supervisor ? ` · Sup. ${r.supervisor}` : ""
-        } · Límite ${r.limiteMin ?? zona.limiteMin} a ${r.limiteMax ?? zona.limiteMax} ${
-          r.unidad || zona.unidad
-        }`;
-        return `<span class="valor-resultado ${fuera ? "valor-resultado--fuera" : "valor-resultado--conforme"}" title="${escaparHtml(
-          titulo
-        )}">${escaparHtml(String(r.resultado ?? "—"))}</span>`;
-      })
-      .join("");
-    return `<td class="celda-resultado">${chips}</td>`;
-  }
-
-  const programada = (zona.meses || []).includes(mes);
-  const yaDebioHacerse = anioActual > estado.anio || (anioActual === estado.anio && mes <= mesActual);
-
-  if (programada && yaDebioHacerse) {
-    return `<td class="celda-resultado"><span class="valor-resultado valor-resultado--pendiente" title="Programada este mes, todavía sin registrar">·</span></td>`;
-  }
-  return `<td class="celda-resultado"><span class="valor-resultado valor-resultado--vacio">—</span></td>`;
+  pintarTablaMuestreo(tablaResultados, { zonas: estado.zonas, registros, anio: estado.anio });
 }

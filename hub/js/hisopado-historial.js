@@ -1,14 +1,22 @@
 // =========================================================
 // hisopado-historial.js
-// Controlador de hisopado/historial.html — lista de tomas de hisopado.
+// Controlador de hisopado/historial.html — tomas de hisopado en dos vistas:
 //
-// Alcance: un gestor ve todas las tomas; el inspector solo las suyas.
-// El filtro por inspectorUid no es cosmético, las reglas de Firestore
-// rechazan la consulta completa si un inspector la omite.
+//  - Tabla (la que abre por defecto): la tabla de muestreo SIG-TA-102 con el
+//    diseño del formato en papel y solo los resultados, verde o rojo según el
+//    límite. Muestra los análisis de TODO el equipo en el año elegido (las
+//    reglas dejan a cualquier usuario activo leer los hisopados).
+//  - Tarjetas: una por toma, para revisar o eliminar un registro puntual.
+//    Un gestor ve todas; el inspector solo las suyas (el filtro por
+//    inspectorUid no es cosmético, las reglas rechazan la consulta completa
+//    si un inspector la omite). Se leen la primera vez que se abre esa vista.
 // =========================================================
 
 import { protegerPagina, cerrarSesion, esRolDeGestion, etiquetaRol } from "./auth.js";
-import { listarHisopados, eliminarHisopado } from "./firestore.js";
+import { listarHisopados, eliminarHisopado, obtenerTablaHisopado } from "./firestore.js";
+import { zonasConLimite } from "./hisopado-datos.js";
+import { pintarTablaMuestreo } from "./hisopado-tabla.js";
+import { mostrarBloqueError } from "./aviso-carga.js";
 import {
   escaparHtml,
   formatearFechaISOCorta,
@@ -23,9 +31,20 @@ const btnSalir = document.getElementById("btn-salir");
 const filtroBusqueda = document.getElementById("filtro-busqueda");
 const lista = document.getElementById("lista-hisopados");
 
+const campoAnio = document.getElementById("campo-anio");
+const zonaMensaje = document.getElementById("zona-mensaje");
+const zonaTabla = document.getElementById("zona-tabla");
+const tablaResultados = document.getElementById("tabla-resultados");
+
 const estado = {
   registros: [],
   puedeEliminar: false,
+  usuario: null,
+  perfil: null,
+  zonas: null,
+  anio: new Date().getFullYear(),
+  tarjetasCargadas: false,
+  tablaDesactualizada: false, // se eliminó un registro desde las tarjetas
 };
 
 protegerPagina({}, async ({ user, perfil }) => {
@@ -33,20 +52,87 @@ protegerPagina({}, async ({ user, perfil }) => {
   textoUsuario.textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;
   avatarUsuario.textContent = iniciales(nombreVisible);
   estado.puedeEliminar = esRolDeGestion(perfil.rol);
+  estado.usuario = user;
+  estado.perfil = perfil;
 
-  mostrarCarga(lista, "Cargando registros…");
+  const actual = new Date().getFullYear();
+  campoAnio.innerHTML = [actual, actual - 1, actual - 2, actual - 3, actual - 4]
+    .map((a) => `<option value="${a}">${a}</option>`)
+    .join("");
+  campoAnio.value = String(estado.anio);
+
+  await cargarTabla();
+});
+
+/* ---------- Vista Tabla ---------- */
+
+async function cargarTabla() {
+  zonaMensaje.classList.add("oculto");
+  zonaTabla.classList.remove("oculto");
+  tablaResultados.classList.remove("tabla-papel");
+  tablaResultados.innerHTML = `<tbody><tr><td class="texto-suave texto-sm">Cargando resultados…</td></tr></tbody>`;
 
   try {
+    // La tabla de muestreo (zonas y límites) se lee una sola vez.
+    if (!estado.zonas) estado.zonas = zonasConLimite(await obtenerTablaHisopado());
+    if (estado.zonas.length === 0) {
+      zonaTabla.classList.add("oculto");
+      zonaMensaje.classList.remove("oculto");
+      zonaMensaje.innerHTML =
+        '<p class="texto-suave texto-sm mb-0">Todavía no hay tabla de muestreo configurada. Un administrador debe cargarla en Configuraciones.</p>';
+      return;
+    }
+    const registros = await listarHisopados({
+      desde: `${estado.anio}-01-01`,
+      hasta: `${estado.anio}-12-31`,
+      max: 3000,
+    });
+    pintarTablaMuestreo(tablaResultados, { zonas: estado.zonas, registros, anio: estado.anio });
+  } catch (error) {
+    console.error("No se pudo cargar la tabla de hisopados:", error);
+    zonaTabla.classList.add("oculto");
+    zonaMensaje.classList.remove("oculto");
+    mostrarBloqueError(zonaMensaje, { error, alReintentar: cargarTabla });
+  }
+}
+
+campoAnio.addEventListener("change", () => {
+  estado.anio = Number(campoAnio.value);
+  cargarTabla();
+});
+
+/* ---------- Cambio de vista ---------- */
+
+document.querySelectorAll("[data-vista]").forEach((boton) => {
+  boton.addEventListener("click", async () => {
+    const vista = boton.dataset.vista;
+    document.querySelectorAll("[data-vista]").forEach((b) => b.classList.toggle("activo", b === boton));
+    document.getElementById("vista-tabla").classList.toggle("oculto", vista !== "tabla");
+    document.getElementById("vista-tarjetas").classList.toggle("oculto", vista !== "tarjetas");
+    if (vista === "tarjetas" && !estado.tarjetasCargadas) await cargarTarjetas();
+    if (vista === "tabla" && estado.tablaDesactualizada) {
+      estado.tablaDesactualizada = false;
+      await cargarTabla();
+    }
+  });
+});
+
+/* ---------- Vista Tarjetas ---------- */
+
+async function cargarTarjetas() {
+  mostrarCarga(lista, "Cargando registros…");
+  try {
     estado.registros = await listarHisopados(
-      esRolDeGestion(perfil.rol) ? {} : { inspectorUid: user.uid }
+      estado.puedeEliminar ? {} : { inspectorUid: estado.usuario.uid }
     );
+    estado.tarjetasCargadas = true;
     renderizar();
   } catch (error) {
     console.error("No se pudieron cargar los hisopados:", error);
     lista.innerHTML = "";
     mostrarToast("No se pudo cargar el historial. Verifica tu conexión.", "error");
   }
-});
+}
 
 btnSalir.addEventListener("click", () => cerrarSesion());
 filtroBusqueda.addEventListener("input", renderizar);
@@ -217,6 +303,7 @@ lista.addEventListener("click", async (evento) => {
   try {
     await eliminarHisopado(id);
     estado.registros = estado.registros.filter((r) => r.id !== id);
+    estado.tablaDesactualizada = true;
     renderizar();
     mostrarToast("Registro eliminado.", "exito");
   } catch (error) {

@@ -36,12 +36,36 @@
         <a href="index.html" class="btn btn-dorado btn-sm btn-ancho-auto">+ Nuevo registro</a>
       </div>
 
-      <div class="campo mb-2">
-        <label for="filtro-busqueda">Buscar por superficie, área/máquina, supervisor o inspector</label>
-        <input type="search" id="filtro-busqueda" placeholder="Ej. Rodillos, Línea 3, Ana López…" />
+      <div class="tabs" role="tablist">
+        <button type="button" class="tabs__item activo" data-vista="tabla" role="tab">Tabla</button>
+        <button type="button" class="tabs__item" data-vista="tarjetas" role="tab">Tarjetas</button>
       </div>
 
-      <div id="lista-hisopados" class="editor-lista"></div>
+      <section id="vista-tabla">
+        <div class="flex-entre mb-2" style="flex-wrap: wrap; gap: var(--e3);">
+          <div class="flex-entre leyenda-resultados" style="gap: var(--e3); font-size: var(--txt-xs); flex-wrap: wrap;">
+            <span><span class="valor-resultado valor-resultado--conforme">RLU</span> Conforme</span>
+            <span><span class="valor-resultado valor-resultado--fuera">RLU</span> Fuera del límite</span>
+          </div>
+          <div class="campo mb-0" style="min-width: 140px;">
+            <label for="campo-anio">Año</label>
+            <select id="campo-anio"></select>
+          </div>
+        </div>
+        <section id="zona-mensaje" class="tarjeta oculto"></section>
+        <div id="zona-tabla" class="tabla-scroll">
+          <table class="tabla-muestreo" id="tabla-resultados"></table>
+        </div>
+      </section>
+
+      <section id="vista-tarjetas" class="oculto">
+        <div class="campo mb-2">
+          <label for="filtro-busqueda">Buscar por superficie, área/máquina, supervisor o inspector</label>
+          <input type="search" id="filtro-busqueda" placeholder="Ej. Rodillos, Línea 3, Ana López…" />
+        </div>
+
+        <div id="lista-hisopados" class="editor-lista"></div>
+      </section>
     </main>
   </div>
 
