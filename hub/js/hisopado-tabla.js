@@ -6,10 +6,14 @@
 //   Cantidad | Rangos y superficies | Tipo de muestra | Ene … Dic
 //
 // Dentro de cada mes hay una franja por turno (azul = turno 1, naranja =
-// turno 2, amarillo = turno 3; tantas franjas como indique la cantidad de esa
-// superficie). El resultado de cada toma va en su franja, en verde si está
-// dentro del límite de su tipo y en rojo si lo incumple. Al pie, cuántos
-// análisis hubo por turno cada mes.
+// turno 2, amarillo = turno 3). Qué turnos le tocan a cada superficie ese mes
+// sigue la lógica del Excel:
+//   - 3 muestras: siempre los tres turnos (1, 2 y 3).
+//   - 2 muestras: dos turnos distintos que rotan y se repiten cada 3 meses
+//     (ver PATRON_DOS_MUESTRAS).
+// El resultado de cada toma va en la franja de su turno, en verde si está
+// dentro del límite de su tipo y en rojo si lo incumple. Al pie, por turno y
+// mes, los análisis hechos contra los programados (el "7 6 7 7…" del Excel).
 // Lo usan el historial (vista "Tabla") y la pantalla de resultados.
 // =========================================================
 
@@ -32,6 +36,29 @@ function tituloDeResultado(r, zona) {
 const TURNOS = [1, 2, 3];
 
 /**
+ * Turnos de las superficies de 2 muestras, leídos de los colores del Excel
+ * (azul = 1, naranja = 2, amarillo = 3, de arriba hacia abajo). Cada fila es
+ * una superficie, en el orden en que aparecen en la tabla entre las de 2
+ * muestras (Mesas, Rodillos, Bandas, Papel y láminas); cada columna es el mes
+ * dentro del ciclo de 3 (ene/abr/jul/oct, feb/may/ago/nov, mar/jun/sep/dic).
+ * Si hay más de cuatro superficies de 2 muestras, el patrón se vuelve a usar.
+ */
+const PATRON_DOS_MUESTRAS = [
+  [[1, 3], [2, 3], [2, 1]],
+  [[1, 2], [1, 3], [2, 3]],
+  [[3, 2], [1, 2], [1, 3]],
+  [[3, 1], [3, 2], [1, 2]],
+];
+
+/** Turnos (de arriba hacia abajo) que le tocan a una superficie en un mes. */
+function turnosProgramados(zona, mes, posicionDos) {
+  const cantidad = Math.max(Number(zona.cantidad) || 1, 1);
+  if (cantidad >= TURNOS.length) return [...TURNOS];
+  if (cantidad === 2) return PATRON_DOS_MUESTRAS[posicionDos % PATRON_DOS_MUESTRAS.length][mes % 3];
+  return [1];
+}
+
+/**
  * @param {HTMLTableElement} tabla elemento <table> donde se dibuja
  * @param {{zonas: Array, registros: Array, anio: number, encabezado?: {codigo?: string, revision?: string}}} datos
  *   zonas ya con límite resuelto (zonasConLimite) y los análisis del año.
@@ -52,24 +79,37 @@ export function pintarTablaMuestreo(tabla, { zonas, registros, anio, encabezado 
     if (TURNOS.includes(t)) conteoTurnoMes.set(`${t}|${mes}`, (conteoTurnoMes.get(`${t}|${mes}`) || 0) + 1);
   });
 
+  // Posición de cada superficie de 2 muestras (0, 1, 2…) para elegir su patrón.
+  const posicionDos = new Map();
+  zonas.filter((z) => Number(z.cantidad) === 2).forEach((z, i) => posicionDos.set(z.id, i));
+
+  // Turnos programados por mes (para las franjas y para el pie).
+  const programadosTurnoMes = new Map(); // "turno|mes" -> cantidad programada
+  zonas.forEach((z) => {
+    for (let mes = 0; mes < MESES.length; mes++) {
+      turnosProgramados(z, mes, posicionDos.get(z.id) ?? 0).forEach((t) => {
+        programadosTurnoMes.set(`${t}|${mes}`, (programadosTurnoMes.get(`${t}|${mes}`) || 0) + 1);
+      });
+    }
+  });
+
   const chip = (r, zona) =>
     `<span class="valor-resultado ${r.desviacion ? "valor-resultado--fuera" : "valor-resultado--conforme"}" title="${escaparHtml(
       tituloDeResultado(r, zona)
     )}">${escaparHtml(String(r.resultado ?? "—"))}</span>`;
 
-  // Una franja por turno (1..cantidad). Una toma sin turno, o de un turno
-  // fuera de ese rango, va en una franja extra sin color para no perderla.
+  // Una franja por cada turno que le toca a la superficie ese mes. Una toma
+  // de otro turno, o sin turno, va en una franja extra sin color para no
+  // perderla.
   const celdaMes = (zona, mes) => {
     const delMes = (porZonaMes.get(`${zona.id}|${mes}`) || [])
       .slice()
       .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
-    const franjas = Math.min(Math.max(Number(zona.cantidad) || 1, 1), TURNOS.length);
-    let html = "";
-    for (let t = 1; t <= franjas; t++) {
-      const deTurno = delMes.filter((r) => Number(r.turno) === t);
-      html += `<div class="tp-franja tp-t${t}">${deTurno.map((r) => chip(r, zona)).join("")}</div>`;
-    }
-    const otras = delMes.filter((r) => !(Number(r.turno) >= 1 && Number(r.turno) <= franjas));
+    const turnos = turnosProgramados(zona, mes, posicionDos.get(zona.id) ?? 0);
+    let html = turnos
+      .map((t) => `<div class="tp-franja tp-t${t}">${delMes.filter((r) => Number(r.turno) === t).map((r) => chip(r, zona)).join("")}</div>`)
+      .join("");
+    const otras = delMes.filter((r) => !turnos.includes(Number(r.turno)));
     if (otras.length) html += `<div class="tp-franja tp-tx">${otras.map((r) => chip(r, zona)).join("")}</div>`;
     return `<td class="tp-celda"><div class="tp-franjas">${html}</div></td>`;
   };
@@ -106,12 +146,15 @@ export function pintarTablaMuestreo(tabla, { zonas, registros, anio, encabezado 
     )
     .join("");
 
+  // Pie: por turno y mes, análisis hechos / programados.
   const resumen = TURNOS.map(
     (t) => `<tr class="tp-resumen">
       <th class="tp-turno tp-t${t}" colspan="3">Turno ${t}</th>
       ${MESES.map((_, mes) => {
-        const n = conteoTurnoMes.get(`${t}|${mes}`) || 0;
-        return `<td class="${n ? "" : "tp-cero"}">${n}</td>`;
+        const hechos = conteoTurnoMes.get(`${t}|${mes}`) || 0;
+        const prog = programadosTurnoMes.get(`${t}|${mes}`) || 0;
+        const clase = prog > 0 && hechos >= prog ? "tp-completo" : hechos === 0 ? "tp-cero" : "";
+        return `<td class="${clase}" title="Turno ${t}: ${hechos} hechos de ${prog} programados"><strong>${hechos}</strong><small>/${prog}</small></td>`;
       }).join("")}
     </tr>`
   ).join("");
@@ -138,5 +181,6 @@ export function pintarTablaMuestreo(tabla, { zonas, registros, anio, encabezado 
     </thead>
     <tbody>${cuerpo}</tbody>
     <tfoot>${resumen}</tfoot>
+    <caption class="tp-nota">Pie de tabla: análisis hechos / programados por turno en cada mes.</caption>
   `;
 }

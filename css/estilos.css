@@ -2984,7 +2984,18 @@ body.tema-hub .tabla-papel tfoot th {
 }
 
 body.tema-hub .tabla-papel tfoot tr:first-child > * { border-top: 3px solid var(--marino-700); }
-body.tema-hub .tabla-papel tfoot .tp-cero { color: var(--tinta-3); font-weight: 500; }
+body.tema-hub .tabla-papel tfoot small { font-weight: 500; color: var(--tinta-3); margin-left: 1px; }
+body.tema-hub .tabla-papel tfoot .tp-cero strong { color: var(--tinta-3); font-weight: 500; }
+body.tema-hub .tabla-papel tfoot .tp-completo { background: var(--estado-bien-suave); color: var(--estado-bien-ink); }
+body.tema-hub .tabla-papel tfoot .tp-completo small { color: var(--estado-bien-ink); }
+
+body.tema-hub .tabla-papel .tp-nota {
+  caption-side: bottom;
+  padding: var(--e2) var(--e3);
+  text-align: left;
+  font-size: var(--txt-xs);
+  color: var(--tinta-3);
+}
 
 body.tema-hub .tabla-papel .tp-turno {
   text-align: left;
