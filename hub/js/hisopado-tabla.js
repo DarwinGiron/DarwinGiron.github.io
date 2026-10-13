@@ -13,7 +13,9 @@
 //     (ver PATRON_DOS_MUESTRAS).
 // El resultado de cada toma va en la franja de su turno, en verde si está
 // dentro del límite de su tipo y en rojo si lo incumple. Al pie, por turno y
-// mes, los análisis hechos contra los programados (el "7 6 7 7…" del Excel).
+// mes, los análisis hechos contra los programados (el "7 6 7 7…" del Excel), y
+// el porcentaje de cumplimiento: resultados dentro del límite entre todos los
+// resultados del mes (100 % si ninguno salió fuera), más el del año.
 // Lo usan el historial (vista "Tabla") y la pantalla de resultados.
 // =========================================================
 
@@ -66,6 +68,8 @@ function turnosProgramados(zona, mes, posicionDos) {
 export function pintarTablaMuestreo(tabla, { zonas, registros, anio, encabezado = {} }) {
   const porZonaMes = new Map();
   const conteoTurnoMes = new Map(); // "turno|mes" -> cantidad de análisis
+  const totalMes = Array(MESES.length).fill(0); // análisis del mes
+  const fueraMes = Array(MESES.length).fill(0); // los que salieron fuera de límite
   const zonasConocidas = new Set(zonas.map((z) => z.id));
 
   registros.forEach((r) => {
@@ -75,6 +79,8 @@ export function pintarTablaMuestreo(tabla, { zonas, registros, anio, encabezado 
     const clave = `${r.zonaId}|${mes}`;
     if (!porZonaMes.has(clave)) porZonaMes.set(clave, []);
     porZonaMes.get(clave).push(r);
+    totalMes[mes]++;
+    if (r.desviacion) fueraMes[mes]++;
     const t = Number(r.turno);
     if (TURNOS.includes(t)) conteoTurnoMes.set(`${t}|${mes}`, (conteoTurnoMes.get(`${t}|${mes}`) || 0) + 1);
   });
@@ -159,6 +165,25 @@ export function pintarTablaMuestreo(tabla, { zonas, registros, anio, encabezado 
     </tr>`
   ).join("");
 
+  // Cumplimiento: dentro del límite / todos los resultados. Un mes sin
+  // resultados no tiene porcentaje (no es 0 %, simplemente no hay qué medir).
+  const pctTexto = (total, fuera) => (total > 0 ? `${Math.round(((total - fuera) / total) * 1000) / 10}%` : "—");
+  const totalAnio = totalMes.reduce((a, n) => a + n, 0);
+  const fueraAnio = fueraMes.reduce((a, n) => a + n, 0);
+  const filaCumplimiento = `<tr class="tp-cumplimiento">
+      <th class="tp-turno tp-cumpl-etiqueta" colspan="3">
+        Cumplimiento
+        <small>Año: <strong>${pctTexto(totalAnio, fueraAnio)}</strong>${totalAnio ? ` (${totalAnio - fueraAnio} de ${totalAnio})` : ""}</small>
+      </th>
+      ${MESES.map((_, mes) => {
+        const total = totalMes[mes];
+        const fuera = fueraMes[mes];
+        const clase = total === 0 ? "tp-cero" : fuera === 0 ? "tp-cumple" : "tp-incumple";
+        const titulo = total === 0 ? "Sin resultados este mes" : `${total - fuera} de ${total} dentro del límite`;
+        return `<td class="${clase}" title="${titulo}"><strong>${pctTexto(total, fuera)}</strong></td>`;
+      }).join("")}
+    </tr>`;
+
   const codigo = [encabezado.codigo, encabezado.revision].filter(Boolean);
 
   tabla.classList.add("tabla-papel");
@@ -180,7 +205,7 @@ export function pintarTablaMuestreo(tabla, { zonas, registros, anio, encabezado 
       <tr>${MESES.map((m) => `<th class="tp-mes"><span>${escaparHtml(m)}</span></th>`).join("")}</tr>
     </thead>
     <tbody>${cuerpo}</tbody>
-    <tfoot>${resumen}</tfoot>
-    <caption class="tp-nota">Pie de tabla: análisis hechos / programados por turno en cada mes.</caption>
+    <tfoot>${resumen}${filaCumplimiento}</tfoot>
+    <caption class="tp-nota">Pie de tabla: análisis hechos / programados por turno, y cumplimiento (resultados dentro del límite entre el total de resultados) de cada mes.</caption>
   `;
 }
