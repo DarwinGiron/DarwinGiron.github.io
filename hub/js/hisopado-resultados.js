@@ -33,7 +33,7 @@ const zonaMensaje = document.getElementById("zona-mensaje");
 const zonaTabla = document.getElementById("zona-tabla");
 const tablaResultados = document.getElementById("tabla-resultados");
 
-const estado = { zonas: [], encabezado: {}, anio: new Date().getFullYear() };
+const estado = { zonas: [], encabezado: {}, anio: new Date().getFullYear(), anios: new Map() };
 
 protegerPagina({}, async ({ user, perfil }) => {
   const nombreVisible = perfil.nombre || user.email;
@@ -96,12 +96,11 @@ async function cargarAnio(anio) {
   tablaResultados.innerHTML = `<tbody><tr><td class="texto-suave texto-sm">Cargando resultados…</td></tr></tbody>`;
 
   try {
-    const registros = await listarHisopados({
-      desde: `${anio}-01-01`,
-      hasta: `${anio}-12-31`,
-      max: 3000,
-    });
-    renderTabla(registros);
+    // Solo el año elegido, y una vez por año mientras la pantalla siga abierta.
+    if (!estado.anios.has(anio)) {
+      estado.anios.set(anio, await listarHisopados({ desde: `${anio}-01-01`, hasta: `${anio}-12-31`, max: 3000 }));
+    }
+    renderTabla(estado.anios.get(anio));
   } catch (error) {
     console.error("No se pudieron cargar los resultados de hisopado:", error);
     zonaTabla.classList.add("oculto");

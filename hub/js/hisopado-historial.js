@@ -42,6 +42,7 @@ const estado = {
   usuario: null,
   perfil: null,
   zonas: null,
+  anios: new Map(), // año -> resultados ya leídos
   encabezado: {},
   anio: new Date().getFullYear(),
   tarjetasCargadas: false,
@@ -88,11 +89,15 @@ async function cargarTabla() {
         '<p class="texto-suave texto-sm mb-0">Todavía no hay tabla de muestreo configurada. Un administrador debe cargarla en Configuraciones.</p>';
       return;
     }
-    const registros = await listarHisopados({
-      desde: `${estado.anio}-01-01`,
-      hasta: `${estado.anio}-12-31`,
-      max: 3000,
-    });
+    // Solo se consulta el año elegido, y una sola vez por año mientras la
+    // pantalla siga abierta: volver a un año ya visto no vuelve a leer nada.
+    if (!estado.anios.has(estado.anio)) {
+      estado.anios.set(
+        estado.anio,
+        await listarHisopados({ desde: `${estado.anio}-01-01`, hasta: `${estado.anio}-12-31`, max: 3000 })
+      );
+    }
+    const registros = estado.anios.get(estado.anio);
     pintarTablaMuestreo(tablaResultados, { zonas: estado.zonas, registros, anio: estado.anio, encabezado: estado.encabezado });
   } catch (error) {
     console.error("No se pudo cargar la tabla de hisopados:", error);
@@ -118,6 +123,7 @@ document.querySelectorAll("[data-vista]").forEach((boton) => {
     if (vista === "tarjetas" && !estado.tarjetasCargadas) await cargarTarjetas();
     if (vista === "tabla" && estado.tablaDesactualizada) {
       estado.tablaDesactualizada = false;
+      estado.anios.clear();
       await cargarTabla();
     }
   });
