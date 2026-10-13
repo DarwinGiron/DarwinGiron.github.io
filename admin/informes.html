@@ -2,14 +2,15 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-  <script src="/js/tema-horario.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#060605">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <title>Informes - COGUSA SGI</title>
 <link rel="stylesheet" href="/css/estilos.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap">
+<link rel="stylesheet" href="/css/dashboard-airbnb.css">
 </head>
-<body class="tema-reportes">
+<body class="tema-reportes dash-airbnb">
 <div id="app">
   <header class="barra-superior">
     <div class="marca">
@@ -22,38 +23,42 @@
     <nav data-nav-principal></nav>
   </header>
 
-  <main class="contenedor" style="max-width:800px;">
-    <div class="tarjeta">
-      <h3>Generar informe consolidado por semana</h3>
-      <p class="ayuda">Elija la semana que desea exportar. El informe incluye TODOS los reportes hechos en esa semana (pendientes y validados), con sus fotografías.</p>
+  <main class="contenedor" style="max-width:1080px;">
+    <div class="ab-encabezado">
+      <div>
+        <h2 class="ab-titulo">Informe semanal</h2>
+        <p class="ab-subtitulo" id="rango-semana-texto">Cargando semana…</p>
+      </div>
+      <div class="ab-acciones">
+        <a class="ab-enlace" href="dashboard.html">Ver indicadores →</a>
+      </div>
+    </div>
 
-      <div class="filtros-fecha">
+    <div class="ab-buscador">
+      <div class="ab-semana">
+        <button type="button" class="ab-flecha" id="btn-semana-anterior" aria-label="Semana anterior" title="Semana anterior">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
         <div class="campo">
           <label for="selector-semana">Semana</label>
           <input type="week" id="selector-semana">
         </div>
-        <button class="btn btn-secundario" id="btn-semana-anterior">
-          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-          Semana anterior
-        </button>
-        <button class="btn btn-secundario" id="btn-semana-siguiente">
-          Semana siguiente
-          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        <button type="button" class="ab-flecha" id="btn-semana-siguiente" aria-label="Semana siguiente" title="Semana siguiente">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
+      <p class="ayuda ab-nota">Incluye todos los reportes de la semana, pendientes y validados, de lunes a domingo.</p>
+    </div>
 
-      <p id="rango-semana-texto" class="aviso aviso-info"></p>
-
-      <div id="mensaje-sin-datos" class="aviso aviso-advertencia" style="display:none;">
-        No hay reportes en esta semana. El informe se puede generar igual, pero saldrá vacío.
-      </div>
+    <div id="mensaje-sin-datos" class="ab-vacio" style="display:none;">
+      No hay reportes en esta semana. El informe se puede generar igual, pero saldrá vacío.
     </div>
 
     <div class="kpis">
-      <div class="kpi"><div class="valor" id="kpi-semana-total">0</div><div class="etiqueta">Total reportes</div></div>
-      <div class="kpi"><div class="valor" id="kpi-semana-pendientes">0</div><div class="etiqueta">Pendientes</div></div>
-      <div class="kpi"><div class="valor" id="kpi-semana-validados">0</div><div class="etiqueta">Validados</div></div>
-      <div class="kpi"><div class="valor" id="kpi-semana-criticos">0</div><div class="etiqueta">Críticos</div></div>
+      <div class="kpi"><div class="etiqueta">Total de reportes</div><div class="valor" id="kpi-semana-total">0</div></div>
+      <div class="kpi"><div class="etiqueta">Pendientes</div><div class="valor" id="kpi-semana-pendientes">0</div></div>
+      <div class="kpi"><div class="etiqueta">Validados</div><div class="valor" id="kpi-semana-validados">0</div></div>
+      <div class="kpi"><div class="etiqueta">Críticos</div><div class="valor" id="kpi-semana-criticos">0</div></div>
     </div>
 
     <div class="tarjeta">
@@ -64,23 +69,45 @@
       </div>
     </div>
 
-    <div class="tarjeta">
-      <h3>Descargar informe</h3>
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button class="btn btn-primario" id="btn-exportar-pdf">
-          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Exportar PDF
-        </button>
-        <button class="btn btn-primario" id="btn-exportar-word">
-          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Exportar Word
-        </button>
-        <button class="btn btn-primario" id="btn-exportar-excel">
-          <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Exportar Excel
-        </button>
+    <section class="ab-seccion">
+      <h3 class="ab-seccion-titulo">Descargar informe</h3>
+      <p class="ayuda ab-seccion-sub">Elige el formato. Todos usan la semana seleccionada arriba.</p>
+      <div class="ab-formatos">
+        <article class="ab-formato">
+          <div class="ab-formato-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></div>
+          <div class="ab-formato-cuerpo">
+            <h4>Informe en PDF</h4>
+            <p>Documento con la primera fotografía de cada reporte, listo para imprimir o enviar.</p>
+          </div>
+          <button type="button" class="ab-boton-formato" id="btn-exportar-pdf">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span>Descargar</span>
+          </button>
+        </article>
+        <article class="ab-formato">
+          <div class="ab-formato-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m8.5 12 1.5 5 2-5 2 5 1.5-5"/></svg></div>
+          <div class="ab-formato-cuerpo">
+            <h4>Informe en Word</h4>
+            <p>El mismo informe en formato editable, con fotografías, para ajustarlo antes de entregarlo.</p>
+          </div>
+          <button type="button" class="ab-boton-formato" id="btn-exportar-word">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span>Descargar</span>
+          </button>
+        </article>
+        <article class="ab-formato">
+          <div class="ab-formato-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/></svg></div>
+          <div class="ab-formato-cuerpo">
+            <h4>Datos en Excel</h4>
+            <p>Tabla con todos los reportes de la semana para filtrar, ordenar y analizar.</p>
+          </div>
+          <button type="button" class="ab-boton-formato" id="btn-exportar-excel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span>Descargar</span>
+          </button>
+        </article>
       </div>
-    </div>
+    </section>
   </main>
 </div>
 
@@ -177,8 +204,9 @@ async function cargarSemana() {
   const porZona = contarPorCampo(reportesSemana, "zona");
   const filas = Object.entries(porZona).sort((a, b) => b[1] - a[1]);
   const tbody = document.getElementById("tabla-zonas-semana");
+  const maximo = filas.length ? filas[0][1] : 1;
   tbody.innerHTML = filas.length
-    ? filas.map(([zona, cant]) => `<tr><td>${zona}</td><td>${cant}</td></tr>`).join("")
+    ? filas.map(([zona, cant]) => `<tr><td>${zona}</td><td><div class="ab-celda-barra"><span class="ab-barra"><i style="width:${Math.max(4, Math.round((cant / maximo) * 100))}%"></i></span><strong>${cant}</strong></div></td></tr>`).join("")
     : `<tr><td colspan="2">Sin datos en esta semana.</td></tr>`;
 }
 

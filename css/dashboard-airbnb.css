@@ -488,6 +488,185 @@ body.tema-reportes.dash-airbnb .campo select {
 
 body.tema-reportes.dash-airbnb .modal-caja { border-radius: 24px; }
 
+/* ---- Informes (admin/informes.html) ------------------------------------- */
+/* Selector de semana: píldora con flechas redondas a los lados. */
+body.tema-reportes.dash-airbnb .ab-semana {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid var(--ab-borde);
+  border-radius: 999px;
+  background: var(--ab-fondo);
+  box-shadow: var(--ab-sombra-suave);
+  transition: box-shadow 0.2s ease;
+}
+
+body.tema-reportes.dash-airbnb .ab-semana:hover,
+body.tema-reportes.dash-airbnb .ab-semana:focus-within { box-shadow: var(--ab-sombra); }
+
+body.tema-reportes.dash-airbnb .ab-semana .campo {
+  margin: 0;
+  padding: 4px 20px;
+  min-width: 190px;
+  border-radius: 999px;
+  text-align: center;
+}
+
+body.tema-reportes.dash-airbnb .ab-semana .campo:hover { background: var(--ab-suave); }
+
+body.tema-reportes.dash-airbnb .ab-semana .campo label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  margin-bottom: 2px;
+  color: var(--ab-tinta);
+}
+
+body.tema-reportes.dash-airbnb .ab-semana .campo input[type="week"] {
+  border: none;
+  padding: 0;
+  width: 100%;
+  background: transparent;
+  font-family: var(--ab-fuente);
+  font-size: 0.95rem;
+  color: var(--ab-gris);
+  min-height: 24px;
+  text-align: center;
+}
+
+body.tema-reportes.dash-airbnb .ab-semana .campo input[type="week"]:focus { outline: none; color: var(--ab-tinta); }
+
+body.tema-reportes.dash-airbnb .ab-flecha {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--ab-borde);
+  border-radius: 50%;
+  background: var(--ab-fondo);
+  color: var(--ab-tinta);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+
+body.tema-reportes.dash-airbnb .ab-flecha svg { width: 18px; height: 18px; }
+body.tema-reportes.dash-airbnb .ab-flecha:hover { border-color: var(--ab-tinta); background: var(--ab-suave); }
+body.tema-reportes.dash-airbnb .ab-flecha:active { transform: scale(0.94); }
+body.tema-reportes.dash-airbnb .ab-flecha:focus-visible { outline: 2px solid var(--ab-tinta); outline-offset: 2px; }
+
+body.tema-reportes.dash-airbnb .ab-nota { margin: 12px 0 0 8px; }
+
+body.tema-reportes.dash-airbnb .ab-vacio {
+  margin: 0 0 24px;
+  padding: 14px 18px;
+  border: 1px solid var(--ab-linea);
+  border-radius: 12px;
+  background: var(--ab-suave);
+  color: var(--ab-gris);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Tabla de zonas con barra proporcional. */
+body.tema-reportes.dash-airbnb .ab-celda-barra { display: flex; align-items: center; gap: 14px; min-width: 160px; }
+body.tema-reportes.dash-airbnb .ab-celda-barra strong { min-width: 2ch; text-align: right; font-weight: 800; }
+body.tema-reportes.dash-airbnb .ab-barra { flex: 1; height: 8px; border-radius: 999px; background: var(--ab-linea); overflow: hidden; }
+body.tema-reportes.dash-airbnb .ab-barra i { display: block; height: 100%; border-radius: 999px; background: var(--ab-tinta); }
+
+/* Tarjetas de formato de descarga. */
+body.tema-reportes.dash-airbnb .ab-seccion { margin-top: 40px; }
+body.tema-reportes.dash-airbnb .ab-seccion-titulo { margin: 0; font-size: 1.4rem; font-weight: 800; letter-spacing: -0.01em; }
+body.tema-reportes.dash-airbnb .ab-seccion-sub { margin: 4px 0 20px; }
+
+body.tema-reportes.dash-airbnb .ab-formatos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+body.tema-reportes.dash-airbnb .ab-formato {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  background: var(--ab-fondo);
+  border: 1px solid var(--ab-linea);
+  border-radius: var(--ab-radio);
+  box-shadow: var(--ab-sombra-suave);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+body.tema-reportes.dash-airbnb .ab-formato:hover { box-shadow: var(--ab-sombra); transform: translateY(-2px); }
+
+body.tema-reportes.dash-airbnb .ab-formato-icono {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--ab-suave);
+  color: var(--ab-tinta);
+}
+
+body.tema-reportes.dash-airbnb .ab-formato-icono svg { width: 28px; height: 28px; }
+
+body.tema-reportes.dash-airbnb .ab-formato-cuerpo { flex: 1; }
+
+body.tema-reportes.dash-airbnb .ab-formato-cuerpo h4 {
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: var(--ab-fuente);
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--ab-tinta);
+}
+
+body.tema-reportes.dash-airbnb .ab-etiqueta {
+  padding: 2px 8px;
+  border: 1px solid var(--ab-borde);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ab-gris);
+}
+
+body.tema-reportes.dash-airbnb .ab-formato-cuerpo p { margin: 0; color: var(--ab-gris); font-size: 0.9rem; line-height: 1.5; }
+
+body.tema-reportes.dash-airbnb .ab-boton-formato {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: var(--ab-coral);
+  color: #fff;
+  font-family: var(--ab-fuente);
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+body.tema-reportes.dash-airbnb .ab-boton-formato svg { width: 18px; height: 18px; }
+body.tema-reportes.dash-airbnb .ab-boton-formato:hover { background: var(--ab-coral-fuerte); }
+body.tema-reportes.dash-airbnb .ab-boton-formato:active { transform: scale(0.98); }
+body.tema-reportes.dash-airbnb .ab-boton-formato:focus-visible { outline: 2px solid var(--ab-tinta); outline-offset: 2px; }
+body.tema-reportes.dash-airbnb .ab-boton-formato:disabled { opacity: 0.5; cursor: progress; }
+
 /* ---- Celular: el buscador pasa a tarjeta apilada ------------------------ */
 @media (max-width: 640px) {
   body.tema-reportes.dash-airbnb main.contenedor { padding: 24px 16px 48px; }
@@ -506,6 +685,10 @@ body.tema-reportes.dash-airbnb .modal-caja { border-radius: 24px; }
   body.tema-reportes.dash-airbnb .kpi { padding: 16px; }
   body.tema-reportes.dash-airbnb .kpi .valor { font-size: 1.6rem; }
   body.tema-reportes.dash-airbnb .tarjeta { padding: 20px 16px; }
+  body.tema-reportes.dash-airbnb .ab-semana { width: 100%; justify-content: space-between; }
+  body.tema-reportes.dash-airbnb .ab-semana .campo { min-width: 0; flex: 1; padding: 4px 8px; }
+  body.tema-reportes.dash-airbnb .ab-formatos { grid-template-columns: 1fr; gap: 16px; }
+  body.tema-reportes.dash-airbnb .ab-formato { padding: 20px 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
