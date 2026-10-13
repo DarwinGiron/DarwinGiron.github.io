@@ -4923,3 +4923,33 @@ body.tema-sig-fo-101 {
 
   font-family: var(--x-sans);
 }
+
+/* ============================================================================
+   SIG-FO-101 en modo noche: legibilidad (WCAG AA)
+   ----------------------------------------------------------------------------
+   En la paleta nocturna --marino-900 es casi negro (#0d0c09): los títulos de
+   las tarjetas, el nombre de la máquina y los encabezados de ventana que usan
+   ese color quedaban negro sobre negro (contraste 1.04:1). Además el gris de
+   las etiquetas era tenue, el blanco sobre dorado/verde de lo seleccionado no
+   llegaba a 3:1, y el subtítulo del encabezado usaba un dorado casi
+   transparente. Solo se toca SIG-FO-101 y solo de noche; el modo día no cambia.
+   ============================================================================ */
+:root[data-theme="dark"] body.tema-sig-fo-101 {
+  --tinta-2: #D8D4C5;   /* etiquetas, opciones sin elegir (antes #A9A79A) */
+  --tinta-3: #BDB9AB;   /* ayudas y textos secundarios */
+}
+:root[data-theme="dark"] body.tema-sig-fo-101 .tarjeta__titulo,
+:root[data-theme="dark"] body.tema-sig-fo-101 .registro-tarjeta__maquina,
+:root[data-theme="dark"] body.tema-sig-fo-101 .modal-caja__cabecera h3 {
+  color: #F1D27A;       /* dorado claro de la marca */
+}
+:root[data-theme="dark"] body.tema-sig-fo-101 .app-header__subtitulo { color: #D8D4C5; }
+:root[data-theme="dark"] body.tema-sig-fo-101 .chip.seleccionado,
+:root[data-theme="dark"] body.tema-sig-fo-101 .segmentos input:checked + .segmento {
+  background: #D4AF37;
+  border-color: #D4AF37;
+  color: #1c1404;
+}
+:root[data-theme="dark"] body.tema-sig-fo-101 .toggle-si-no__opcion[data-valor="si"].activo { color: #04160c; }
+:root[data-theme="dark"] body.tema-sig-fo-101 .toggle-si-no__opcion[data-valor="no"].activo { color: #1d0805; }
+:root[data-theme="dark"] body.tema-sig-fo-101 ::placeholder { color: #A9A596; opacity: 1; }
