@@ -108,6 +108,33 @@
         </article>
       </div>
     </section>
+
+    <section class="ab-seccion">
+      <h3 class="ab-seccion-titulo">Enviar por correo</h3>
+      <p class="ayuda ab-seccion-sub">El correo ya viene redactado con la semana y las cantidades. Descarga el PDF o el Word arriba y adjúntalo al abrir el correo: el navegador no puede adjuntarlo solo.</p>
+      <div class="tarjeta ab-correo">
+        <div class="campo">
+          <label for="correo-para">Para</label>
+          <input type="text" id="correo-para" placeholder="nombre@empresa.com, otro@empresa.com" autocomplete="off">
+        </div>
+        <div class="campo">
+          <label for="correo-asunto">Asunto</label>
+          <input type="text" id="correo-asunto" autocomplete="off">
+        </div>
+        <div class="campo">
+          <label for="correo-mensaje">Mensaje</label>
+          <textarea id="correo-mensaje" rows="12"></textarea>
+        </div>
+        <div class="ab-correo-acciones">
+          <button type="button" class="ab-boton-formato ab-boton-correo" id="btn-abrir-correo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+            <span>Abrir en mi correo</span>
+          </button>
+          <button type="button" class="ab-boton-secundario" id="btn-copiar-correo">Copiar texto</button>
+        </div>
+        <p class="ayuda ab-nota-correo" id="estado-correo" role="status" aria-live="polite"></p>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -208,7 +235,85 @@ async function cargarSemana() {
   tbody.innerHTML = filas.length
     ? filas.map(([zona, cant]) => `<tr><td>${zona}</td><td><div class="ab-celda-barra"><span class="ab-barra"><i style="width:${Math.max(4, Math.round((cant / maximo) * 100))}%"></i></span><strong>${cant}</strong></div></td></tr>`).join("")
     : `<tr><td colspan="2">Sin datos en esta semana.</td></tr>`;
+
+  actualizarBorradorCorreo();
 }
+
+// --- Borrador del correo ------------------------------------------------------
+// El asunto y el mensaje se rearman al cambiar de semana, salvo que la persona
+// ya los haya editado a mano (para no pisarle lo que escribió).
+let asuntoEditado = false, mensajeEditado = false;
+const campoPara = document.getElementById("correo-para");
+const campoAsunto = document.getElementById("correo-asunto");
+const campoMensaje = document.getElementById("correo-mensaje");
+try { campoPara.value = localStorage.getItem("informes_correo_para") || EMPRESA_CONFIG.correoInforme || ""; } catch (e) { campoPara.value = EMPRESA_CONFIG.correoInforme || ""; }
+campoPara.addEventListener("input", () => {
+  try { localStorage.setItem("informes_correo_para", campoPara.value); } catch (e) { /* sin almacenamiento */ }
+});
+campoAsunto.addEventListener("input", () => { asuntoEditado = true; });
+campoMensaje.addEventListener("input", () => { mensajeEditado = true; });
+
+function textoSemanaCorreo() {
+  const f = (d) => d.toLocaleDateString("es-GT", { day: "numeric", month: "long", year: "numeric" });
+  // Misma semana dentro de un mes: "12 al 18 de octubre de 2026".
+  if (desdeActual.getMonth() === hastaActual.getMonth() && desdeActual.getFullYear() === hastaActual.getFullYear()) {
+    return `${desdeActual.getDate()} al ${f(hastaActual)}`;
+  }
+  return `${f(desdeActual)} al ${f(hastaActual)}`;
+}
+
+function actualizarBorradorCorreo() {
+  if (!desdeActual) return;
+  const semana = textoSemanaCorreo();
+  const n = (g) => reportesSemana.filter((r) => r.gravedad === g).length;
+  const firma = [perfilAdmin?.nombre || perfilAdmin?.correo, perfilAdmin?.puesto, EMPRESA_CONFIG.nombre].filter(Boolean).join("\n");
+
+  if (!asuntoEditado) {
+    campoAsunto.value = `Reporte semanal de inspección de inocuidad (${EMPRESA_CONFIG.codigoFormulario}) - Semana del ${semana}`;
+  }
+  if (!mensajeEditado) {
+    campoMensaje.value = [
+      "Buen día,",
+      "",
+      `Adjunto el reporte semanal de inspección de inocuidad correspondiente a la semana del ${semana}.`,
+      "",
+      "Resumen de hallazgos por gravedad:",
+      `- Críticos: ${n("Crítico")}`,
+      `- Mayores: ${n("Mayor")}`,
+      `- Menores: ${n("Menor")}`,
+      `Total de reportes de la semana: ${reportesSemana.length}.`,
+      "",
+      "Quedo a la orden para cualquier consulta.",
+      "",
+      "Saludos cordiales,",
+      firma
+    ].join("\n");
+  }
+}
+
+function avisoCorreo(texto, error) {
+  const el = document.getElementById("estado-correo");
+  el.textContent = texto;
+  el.style.color = error ? "var(--ab-mal, #C13515)" : "";
+}
+
+document.getElementById("btn-abrir-correo").addEventListener("click", () => {
+  const para = campoPara.value.split(/[;,]/).map((x) => x.trim()).filter(Boolean).join(",");
+  if (!para) { avisoCorreo("Escribe el correo del destinatario en el campo \"Para\".", true); campoPara.focus(); return; }
+  const enlace = `mailto:${para}?subject=${encodeURIComponent(campoAsunto.value)}&body=${encodeURIComponent(campoMensaje.value)}`;
+  window.location.href = enlace;
+  avisoCorreo("Se abrió tu programa de correo. Recuerda adjuntar el informe descargado.", false);
+});
+
+document.getElementById("btn-copiar-correo").addEventListener("click", async () => {
+  const texto = `Para: ${campoPara.value}\nAsunto: ${campoAsunto.value}\n\n${campoMensaje.value}`;
+  try {
+    await navigator.clipboard.writeText(texto);
+    avisoCorreo("Texto copiado.", false);
+  } catch (e) {
+    avisoCorreo("No se pudo copiar. Selecciona el texto y cópialo a mano.", true);
+  }
+});
 
 document.getElementById("btn-exportar-pdf").addEventListener("click", () => {
   exportarInformePDF(reportesSemana, desdeActual, hastaActual, perfilAdmin);

@@ -667,6 +667,42 @@ body.tema-reportes.dash-airbnb .ab-boton-formato:active { transform: scale(0.98)
 body.tema-reportes.dash-airbnb .ab-boton-formato:focus-visible { outline: 2px solid var(--ab-tinta); outline-offset: 2px; }
 body.tema-reportes.dash-airbnb .ab-boton-formato:disabled { opacity: 0.5; cursor: progress; }
 
+/* Correo del informe */
+body.tema-reportes.dash-airbnb .ab-correo { max-width: 720px; }
+body.tema-reportes.dash-airbnb .ab-correo .campo { margin-bottom: 16px; }
+body.tema-reportes.dash-airbnb .ab-correo .campo label { font-size: 0.8rem; font-weight: 800; color: var(--ab-tinta); margin-bottom: 6px; display: block; }
+body.tema-reportes.dash-airbnb .ab-correo input[type="text"],
+body.tema-reportes.dash-airbnb .ab-correo textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--ab-borde);
+  border-radius: 12px;
+  background: var(--ab-fondo);
+  color: var(--ab-tinta);
+  font-family: var(--ab-fuente);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+body.tema-reportes.dash-airbnb .ab-correo textarea { resize: vertical; min-height: 220px; }
+body.tema-reportes.dash-airbnb .ab-correo input:focus,
+body.tema-reportes.dash-airbnb .ab-correo textarea:focus { outline: 2px solid var(--ab-tinta); outline-offset: 1px; border-color: var(--ab-tinta); }
+body.tema-reportes.dash-airbnb .ab-correo-acciones { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+body.tema-reportes.dash-airbnb .ab-boton-correo { width: auto; padding: 0 24px; }
+body.tema-reportes.dash-airbnb .ab-boton-secundario {
+  height: 48px;
+  padding: 0 22px;
+  border: 1px solid var(--ab-tinta);
+  border-radius: 12px;
+  background: var(--ab-fondo);
+  color: var(--ab-tinta);
+  font-family: var(--ab-fuente);
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+body.tema-reportes.dash-airbnb .ab-boton-secundario:hover { background: var(--ab-suave); }
+body.tema-reportes.dash-airbnb .ab-nota-correo { margin: 12px 0 0; min-height: 1.2em; }
+
 /* ---- Celular: el buscador pasa a tarjeta apilada ------------------------ */
 @media (max-width: 640px) {
   body.tema-reportes.dash-airbnb main.contenedor { padding: 24px 16px 48px; }

@@ -49,7 +49,11 @@ const EMPRESA_CONFIG = {
   // encabezado, como en el formato oficial de la empresa). Ajuste según su
   // sistema de gestión documental.
   codigoFormulario: "SIG-FO-114",
-  revisionFormulario: "REV. 00"
+  revisionFormulario: "REV. 00",
+  // Destinatario(s) por defecto del correo del informe semanal (pantalla
+  // Informes). Vacío = se escribe a mano y el navegador lo recuerda. Varias
+  // direcciones se separan con coma.
+  correoInforme: ""
 };
 
 // --- Niveles de gravedad usados en la validación de reportes --------------
