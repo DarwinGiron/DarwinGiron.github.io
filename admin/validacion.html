@@ -652,7 +652,26 @@ function abrirModal(reporte) {
     btn.disabled = true;
     btn.textContent = "Eliminando...";
     try {
-      await colReportes.doc(reporte.id).delete();
+      // Copia completa del reporte en "registrosEliminados" y borrado en el mismo lote.
+      const refReporte = colReportes.doc(reporte.id);
+      const lote = db.batch();
+      lote.set(db.collection("registrosEliminados").doc(), {
+        modulo: "Reporte de hallazgo",
+        coleccion: "reportes",
+        idOriginal: reporte.id,
+        datos: (await refReporte.get()).data() || {},
+        eliminadoPor: usuarioAdmin.uid,
+        eliminadoPorNombre: perfilAdmin.nombre || perfilAdmin.correo || "",
+        eliminadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      lote.delete(refReporte);
+      try {
+        await lote.commit();
+      } catch (errorLote) {
+        if (errorLote?.code !== "permission-denied") throw errorLote;
+        console.warn("Sin permiso para registrosEliminados; se borra sin dejar copia.", errorLote);
+        await refReporte.delete();
+      }
       mostrarAvisoGlobal("Reporte eliminado correctamente.", "exito");
       quitarDeBandeja(reporte.id);
       cerrarModal();

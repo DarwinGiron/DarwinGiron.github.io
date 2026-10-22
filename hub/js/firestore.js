@@ -14,6 +14,7 @@
 //   sigfo111Config/formato                     (puntos y riesgos del SIG-FO-111)
 //   registrosVidrio/{autoId}                   (registro SIG-FO-111)
 //   registrosTarimas/{autoId}                  (registro SIG-FO-118, un callejón)
+//   registrosEliminados/{autoId}               (copia completa de cada registro borrado + quién y cuándo)
 // =========================================================
 
 import {
@@ -36,7 +37,7 @@ import {
   Timestamp,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { db } from "./firebase-config.js";
+import { db, auth } from "./firebase-config.js";
 import { codigoHisopado } from "./hisopado-datos.js";
 
 /* ---------------------------------------------------------
@@ -249,7 +250,46 @@ export async function finalizarRecorrido(id, datos, esNuevo = false) {
  * registro, incluidos los ya enviados — reforzado por firestore.rules.
  */
 export async function eliminarInspeccion(idInspeccion) {
-  await deleteDoc(doc(db, "inspecciones", idInspeccion));
+  await eliminarConRegistro("inspecciones", idInspeccion, "SIG-FO-115 · Recorrido PPR");
+}
+
+/**
+ * Elimina un documento dejando antes una copia completa en "registrosEliminados"
+ * (módulo, id original, datos tal como estaban, quién lo borró y cuándo). La
+ * copia y el borrado van en el mismo lote: o se hacen los dos o ninguno.
+ * Si las reglas de registrosEliminados todavía no están publicadas, se borra
+ * igual (con aviso en consola) en vez de dejar al gestor sin poder eliminar.
+ */
+export async function eliminarConRegistro(coleccion, id, modulo) {
+  const referencia = doc(db, coleccion, id);
+  const snap = await getDoc(referencia);
+  if (!snap.exists()) return;
+
+  const usuario = auth.currentUser;
+  let nombre = usuario?.email || "";
+  try {
+    const perfil = await getDoc(doc(db, "usuarios", usuario.uid));
+    nombre = perfil.data()?.nombre || nombre;
+  } catch (error) { /* el nombre es opcional; queda el correo */ }
+
+  try {
+    const lote = writeBatch(db);
+    lote.set(doc(collection(db, "registrosEliminados")), {
+      modulo,
+      coleccion,
+      idOriginal: id,
+      datos: snap.data(),
+      eliminadoPor: usuario?.uid || "",
+      eliminadoPorNombre: nombre,
+      eliminadoEn: serverTimestamp(),
+    });
+    lote.delete(referencia);
+    await lote.commit();
+  } catch (error) {
+    if (error?.code !== "permission-denied") throw error;
+    console.warn("Sin permiso para registrosEliminados; se borra sin dejar copia.", error);
+    await deleteDoc(referencia);
+  }
 }
 
 /** Obtiene el detalle completo de un recorrido por id. */
@@ -344,7 +384,7 @@ export async function listarAuditoriasBpm(max = 24) {
 
 /** Elimina la auditoría de BPM de un mes (solo gestión, ver firestore.rules). */
 export async function eliminarAuditoriaBpm(claveMes) {
-  await deleteDoc(doc(db, "auditoriasBpm", claveMes));
+  await eliminarConRegistro("auditoriasBpm", claveMes, "SIG-FO-116 · Auditoría BPM");
 }
 
 /* ---------------------------------------------------------
@@ -630,7 +670,7 @@ export async function guardarCodigosHisopados(asignaciones, contadores) {
 
 /** Elimina un registro de hisopado (solo gestión, ver firestore.rules). */
 export async function eliminarHisopado(id) {
-  await deleteDoc(doc(db, "hisopados", id));
+  await eliminarConRegistro("hisopados", id, "Hisopado");
 }
 
 /* ---------------------------------------------------------
@@ -708,7 +748,7 @@ export async function listarRegistrosVidrio(filtros = {}) {
 
 /** Elimina un registro del SIG-FO-111 (solo gestión, ver firestore.rules). */
 export async function eliminarRegistroVidrio(id) {
-  await deleteDoc(doc(db, "registrosVidrio", id));
+  await eliminarConRegistro("registrosVidrio", id, "SIG-FO-111 · Vidrio y plástico");
 }
 
 /* ---------------------------------------------------------
@@ -747,7 +787,7 @@ export async function listarRegistrosTarimas(filtros = {}) {
 
 /** Elimina un registro del SIG-FO-118 (solo gestión, ver firestore.rules). */
 export async function eliminarRegistroTarimas(id) {
-  await deleteDoc(doc(db, "registrosTarimas", id));
+  await eliminarConRegistro("registrosTarimas", id, "SIG-FO-118 · Tarimas");
 }
 
 /* ---------------------------------------------------------

@@ -12,6 +12,7 @@
 
 import { protegerPagina, cerrarSesion, esRolDeGestion, etiquetaRol } from "./auth.js";
 import { db } from "./firebase-config.js";
+import { eliminarConRegistro } from "./firestore.js";
 import {
   collection,
   doc,
@@ -924,7 +925,7 @@ async function eliminarVerificacion(docId, data) {
   if (!confirmado) return;
 
   try {
-    await deleteDoc(doc(db, COLEC_REGISTROS, docId));
+    await eliminarConRegistro(COLEC_REGISTROS, docId, "Verificación de transporte");
     mostrarToast("Registro de liberación eliminado.", "exito");
     vistaDetalle.classList.add("oculto");
     vistaLista.classList.remove("oculto");

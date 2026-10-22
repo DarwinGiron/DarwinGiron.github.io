@@ -470,6 +470,17 @@ service cloud.firestore {
       allow delete: if esGestor();
     }
 
+    // ---- registrosEliminados (bitácora de borrados) ------------
+    // Antes de borrar un registro la app guarda aquí una copia completa
+    // (módulo, id original, datos, quién y cuándo). Solo un gestor la lee y
+    // nadie puede modificarla ni borrarla: es un registro de auditoría.
+    match /registrosEliminados/{eliminadoId} {
+      allow read: if esGestor();
+      allow create: if esUsuarioActivo()
+        && request.resource.data.eliminadoPor == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // ---- proveedores_transporte (catálogo que se llena solo) ------
     // Empresas de transporte para el buscador del formulario de
     // contenedores: cualquier usuario activo lo lee y da de alta un nombre

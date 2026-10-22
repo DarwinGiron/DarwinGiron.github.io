@@ -481,7 +481,26 @@ async function eliminarRegistro(id) {
   if (!confirmado) return;
 
   try {
-    await db.collection("liberaciones").doc(id).delete();
+    // Copia completa del registro en "registrosEliminados" y borrado en el mismo lote.
+    const referencia = db.collection("liberaciones").doc(id);
+    const lote = db.batch();
+    lote.set(db.collection("registrosEliminados").doc(), {
+      modulo: "SIG-FO-101 · Liberación de imprentas",
+      coleccion: "liberaciones",
+      idOriginal: id,
+      datos: (await referencia.get()).data() || registro,
+      eliminadoPor: estado.usuario.uid,
+      eliminadoPorNombre: estado.perfil?.nombre || estado.usuario.email || "",
+      eliminadoEn: FieldValue.serverTimestamp(),
+    });
+    lote.delete(referencia);
+    try {
+      await lote.commit();
+    } catch (errorLote) {
+      if (errorLote?.code !== "permission-denied") throw errorLote;
+      console.warn("Sin permiso para registrosEliminados; se borra sin dejar copia.", errorLote);
+      await referencia.delete();
+    }
     estado.registrosMes = estado.registrosMes.filter((r) => r.id !== id);
     if (estado.detalleId === id) cerrarDetalle();
     render();
