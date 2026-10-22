@@ -144,6 +144,16 @@ function celdaFechaHoraSeg(ts) {
   return { valor: fechaHoraSegExcel(ts), tipo: "fechaHoraSeg" };
 }
 
+/**
+ * Última modificación de un hisopado: editadoEn, o la fecha de la última corrección
+ * del historial en los registros corregidos antes de que existiera ese campo.
+ */
+function celdaModificacionHisopado(h) {
+  if (h.editadoEn) return celdaFechaHoraSeg(h.editadoEn);
+  const ultima = (h.historialCorrecciones || []).map((c) => new Date(c.en)).filter((f) => !isNaN(f)).sort((a, b) => b - a)[0];
+  return celdaFechaHoraSeg(ultima ? { toDate: () => ultima } : null);
+}
+
 /** Minutos entre dos timestamps de Firestore (null si falta alguno). */
 function minutosEntre(desde, hasta) {
   if (!desde?.toMillis || !hasta?.toMillis) return null;
@@ -899,7 +909,7 @@ async function hojasHisopado(wb, d, prefijo) {
     fechaExcel(h.fecha), h.turno ?? "", h.zonaNombre || "", h.tipoNombre || "", h.areaMaquina || "",
     typeof h.resultado === "number" ? h.resultado : h.resultado ?? "", h.unidad || "", h.limiteMin ?? "", h.limiteMax ?? "",
     h.desviacion === true ? "Desviación" : "Dentro del límite", h.supervisor || "", h.inspectorNombre || "", h.observaciones || "",
-    celdaFechaHoraSeg(h.creadoEn), celdaFechaHoraSeg(h.editadoEn),
+    celdaFechaHoraSeg(h.creadoEn), celdaModificacionHisopado(h),
   ]));
 }
 

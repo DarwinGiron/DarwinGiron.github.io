@@ -493,6 +493,7 @@ export async function corregirHisopado(registro, nuevos, usuario) {
 
   await updateDoc(doc(db, "hisopados", registro.id), {
     ...campos,
+    editadoEn: serverTimestamp(),
     historialCorrecciones: arrayUnion({
       por: usuario.uid,
       nombre: usuario.nombre || "",
