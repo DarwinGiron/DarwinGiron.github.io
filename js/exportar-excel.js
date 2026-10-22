@@ -132,6 +132,24 @@ function fechaHoraExcel(ts) {
   return new Date(Date.UTC(f.getFullYear(), f.getMonth(), f.getDate(), f.getHours(), f.getMinutes()));
 }
 
+/** Timestamp de Firestore con segundos: sirve para medir cuánto tardó realmente un registro. */
+function fechaHoraSegExcel(ts) {
+  const f = ts?.toDate ? ts.toDate() : null;
+  if (!f) return null;
+  return new Date(Date.UTC(f.getFullYear(), f.getMonth(), f.getDate(), f.getHours(), f.getMinutes(), f.getSeconds()));
+}
+
+/** Celda de fecha y hora (con segundos) lista para una fila de la base de datos. */
+function celdaFechaHoraSeg(ts) {
+  return { valor: fechaHoraSegExcel(ts), tipo: "fechaHoraSeg" };
+}
+
+/** Minutos entre dos timestamps de Firestore (null si falta alguno). */
+function minutosEntre(desde, hasta) {
+  if (!desde?.toMillis || !hasta?.toMillis) return null;
+  return Math.round(((hasta.toMillis() - desde.toMillis()) / 60000) * 10) / 10;
+}
+
 function nombreHoja(prefijo, nombre) {
   return (prefijo + nombre).replace(/[\\/?*[\]:]/g, "-").slice(0, 31);
 }
@@ -169,6 +187,9 @@ function escribirCelda(celda, valor, tipo, ligero) {
   } else if (tipo === "fechaHora") {
     celda.value = valor;
     celda.numFmt = "dd/mm/yyyy hh:mm";
+  } else if (tipo === "fechaHoraSeg") {
+    celda.value = valor;
+    celda.numFmt = "dd/mm/yyyy hh:mm:ss";
   } else {
     celda.value = valor;
   }
@@ -534,6 +555,8 @@ function hojaBaseDatosPPR(wb, prefijo, d) {
           fechaExcel(rec.fechaInspeccion), rec.turno ?? "", rec.inspectorNombre || "", rec.estado === "enviada" ? "Terminado" : "Borrador",
           area.areaNombre || areaId, secciones.get(info?.seccionId)?.titulo || "Otros", info?.texto || aspectoId,
           RESPUESTA_PPR[resp.valor], resp.observacion || "", area.comentarios || "",
+          celdaFechaHoraSeg(rec.iniciadaEn), celdaFechaHoraSeg(rec.actualizadaEn), celdaFechaHoraSeg(rec.enviadaEn),
+          minutosEntre(rec.iniciadaEn, rec.enviadaEn),
         ]);
       });
     });
@@ -543,6 +566,8 @@ function hojaBaseDatosPPR(wb, prefijo, d) {
     { titulo: "Recorrido", ancho: 12 }, { titulo: "Proceso", ancho: 28 }, { titulo: "Cuestión", ancho: 30 },
     { titulo: "Aspecto", ancho: 60 }, { titulo: "Resultado", ancho: 12 }, { titulo: "Observación", ancho: 40 },
     { titulo: "Comentarios del proceso", ancho: 40 },
+    { titulo: "Fecha de creación (inicio del recorrido)", ancho: 20 }, { titulo: "Fecha de modificación", ancho: 20 },
+    { titulo: "Fecha de envío", ancho: 20 }, { titulo: "Duración del recorrido (min)", ancho: 14 },
   ], filas);
 }
 
@@ -592,11 +617,13 @@ async function hojasContenedores(wb, d, prefijo) {
     { titulo: "Picking", ancho: 12 }, { titulo: "Resultado", ancho: 12 }, { titulo: "% checklist", ancho: 11, tipo: "pct" },
     { titulo: "Puntos cumplidos", ancho: 10 }, { titulo: "Puntos evaluados", ancho: 10 }, { titulo: "Inspector de inocuidad", ancho: 22 },
     { titulo: "Observaciones", ancho: 40 },
+    { titulo: "Fecha de creación", ancho: 20 }, { titulo: "Fecha de modificación", ancho: 20 },
   ], registros.map((x) => [
     fechaExcel(x.fecha), x.inspectorNombre || "", empresa(x), x.transporte || "", x.nombrePiloto || "", x.placaCamion || "", x.tc || "",
     x.numeroEquipo || "", x.numeroMarchamo || "", x.ordenProduccion || "", x.cliente || "", x.numeroPicking || "",
     contenedorAprobado(x) ? "Aprobado" : "Rechazado", typeof x.cumplimientoPorcentaje === "number" ? x.cumplimientoPorcentaje : null,
     x.cumplidos ?? "", x.total ?? "", x.inspectorInocuidad || "", x.observacionesGenerales || "",
+    celdaFechaHoraSeg(x.fechaCreacion), celdaFechaHoraSeg(x.editadoEn),
   ]));
 
   const detalle = [];
@@ -668,6 +695,7 @@ async function hojasImprentas(wb, d, prefijo) {
     { titulo: "Fecha", ancho: 12, tipo: "fecha" }, { titulo: "Turno", ancho: 8 }, { titulo: "Máquina", ancho: 22 },
     { titulo: "Orden No.", ancho: 12 }, { titulo: "Cliente", ancho: 22 }, { titulo: "Inspector", ancho: 22 },
     { titulo: "Resultado", ancho: 14 }, ...preguntas.map((t) => ({ titulo: t, ancho: 16 })), { titulo: "Observaciones", ancho: 40 },
+    { titulo: "Fecha de creación", ancho: 20 }, { titulo: "Fecha de modificación", ancho: 20 },
   ], registros.map((l) => {
     const respuestas = new Map((l.respuestas || []).map((p) => [p.texto, p.valor]));
     return [
@@ -675,6 +703,7 @@ async function hojasImprentas(wb, d, prefijo) {
       liberacionConforme(l) ? "Conforme" : "Con algún NO",
       ...preguntas.map((t) => (respuestas.has(t) ? (respuestas.get(t) ? "SÍ" : "NO") : "")),
       l.observaciones || "",
+      celdaFechaHoraSeg(l.timestamp), celdaFechaHoraSeg(l.editadoEn),
     ];
   }));
 }
@@ -722,7 +751,7 @@ async function hojasBpm(wb, d, prefijo) {
         filas.push([
           etiquetaMes(aud.id), fechaExcel(aud.meta?.fecha), aud.meta?.auditor || "", aud.meta?.area || "",
           datos.etiquetas[seccionId] || seccionId, info?.grupo || "", info?.texto || qid,
-          RESPUESTA_BPM[resp.value], resp.obs || "",
+          RESPUESTA_BPM[resp.value], resp.obs || "", celdaFechaHoraSeg(aud.actualizadaEn),
         ]);
       });
   });
@@ -730,6 +759,7 @@ async function hojasBpm(wb, d, prefijo) {
     { titulo: "Mes", ancho: 10 }, { titulo: "Fecha de auditoría", ancho: 14, tipo: "fecha" }, { titulo: "Auditor", ancho: 22 },
     { titulo: "Área", ancho: 18 }, { titulo: "Sección", ancho: 30 }, { titulo: "Grupo", ancho: 20 },
     { titulo: "Pregunta", ancho: 70 }, { titulo: "Respuesta", ancho: 11 }, { titulo: "Observación", ancho: 40 },
+    { titulo: "Fecha de modificación de la auditoría", ancho: 22 },
   ], filas);
 }
 
@@ -769,12 +799,14 @@ async function hojasVidrio(wb, d, prefijo) {
   registros.forEach((x) => (x.puntos || []).forEach((p) => filas.push([
     fechaExcel(x.fecha), x.inspeccionadoPor || "", x.revisadoPor || "", p.proceso || "", p.localizacion || "",
     p.material || "", p.tipo || "", Number(p.riesgo) || "", NIVELES_VIDRIO[Number(p.riesgo)] || "", p.accion || "", x.comentarios || "",
+    celdaFechaHoraSeg(x.creadoEn), celdaFechaHoraSeg(x.editadoEn),
   ])));
   hojaBaseDatos(wb, prefijo, "Base de datos", "SIG-FO-111 · Base de datos de puntos inspeccionados", d, [
     { titulo: "Fecha", ancho: 12, tipo: "fecha" }, { titulo: "Inspeccionado por", ancho: 22 }, { titulo: "Revisado por", ancho: 22 },
     { titulo: "Proceso", ancho: 22 }, { titulo: "Localización", ancho: 28 }, { titulo: "Material", ancho: 16 }, { titulo: "Tipo", ancho: 16 },
     { titulo: "Riesgo", ancho: 8 }, { titulo: "Nivel de riesgo", ancho: 16 }, { titulo: "Acción requerida", ancho: 40 },
     { titulo: "Comentarios de la inspección", ancho: 40 },
+    { titulo: "Fecha de creación", ancho: 20 }, { titulo: "Fecha de modificación", ancho: 20 },
   ], filas);
 }
 
@@ -816,12 +848,14 @@ async function hojasTarimas(wb, d, prefijo) {
     fechaExcel(x.fecha), x.evaluador || x.inspectorNombre || "", x.bodega || "", x.callejon || "", x.tipo || "",
     Number(x.totalInspeccionadas) || 0, Number(x.cntMadera) || 0, Number(x.cntPlastica) || 0, Number(x.danadas) || 0,
     pct(ratio(Number(x.danadas) || 0, Number(x.totalInspeccionadas) || 0)), (x.hallazgos || []).join(", "),
+    celdaFechaHoraSeg(x.creadoEn), celdaFechaHoraSeg(x.editadoEn),
   ]);
   hojaBaseDatos(wb, prefijo, "Base de datos", "SIG-FO-118 · Base de datos por callejón", d, [
     { titulo: "Fecha", ancho: 12, tipo: "fecha" }, { titulo: "Evaluador", ancho: 22 }, { titulo: "Bodega", ancho: 22 },
     { titulo: "Callejón", ancho: 10 }, { titulo: "Tipo", ancho: 18 }, { titulo: "Inspeccionadas", ancho: 15 },
     { titulo: "Madera dañada", ancho: 14 }, { titulo: "Plástica dañada", ancho: 15 }, { titulo: "Total dañadas", ancho: 14 },
     { titulo: "% daño", ancho: 10, tipo: "pct" }, { titulo: "Hallazgos", ancho: 36 },
+    { titulo: "Fecha de creación", ancho: 20 }, { titulo: "Fecha de modificación", ancho: 20 },
   ], filas);
 }
 
@@ -860,10 +894,12 @@ async function hojasHisopado(wb, d, prefijo) {
     { titulo: "Unidad", ancho: 8 }, { titulo: "Límite mín.", ancho: 11 }, { titulo: "Límite máx.", ancho: 11 },
     { titulo: "Evaluación", ancho: 18 }, { titulo: "Supervisor", ancho: 22 }, { titulo: "Inspector", ancho: 22 },
     { titulo: "Observaciones", ancho: 40 },
+    { titulo: "Fecha de creación", ancho: 20 }, { titulo: "Fecha de modificación", ancho: 20 },
   ], registros.map((h) => [
     fechaExcel(h.fecha), h.turno ?? "", h.zonaNombre || "", h.tipoNombre || "", h.areaMaquina || "",
     typeof h.resultado === "number" ? h.resultado : h.resultado ?? "", h.unidad || "", h.limiteMin ?? "", h.limiteMax ?? "",
     h.desviacion === true ? "Desviación" : "Dentro del límite", h.supervisor || "", h.inspectorNombre || "", h.observaciones || "",
+    celdaFechaHoraSeg(h.creadoEn), celdaFechaHoraSeg(h.editadoEn),
   ]));
 }
 
@@ -930,11 +966,13 @@ async function hojasHallazgos(wb, d, prefijo) {
     { titulo: "Seguimiento del hallazgo", ancho: 14 }, { titulo: "Validado por", ancho: 22 },
     { titulo: "Fecha de validación", ancho: 16, tipo: "fechaHora" }, { titulo: "Latitud", ancho: 11 }, { titulo: "Longitud", ancho: 11 },
     { titulo: "Fotos", ancho: 50 },
+    { titulo: "Fecha de creación", ancho: 20 }, { titulo: "Fecha de modificación", ancho: 20 },
   ], todos.map((r) => [
     fechaHoraExcel(r.fechaHora), r.turno ?? "", r.inspectorNombre || "", r.zona || "", r.proceso || "", textoCategoria(r),
     r.descripcion || "", r.gravedad || "", r.estado === "validado" ? "Validado" : "Pendiente",
     ETIQUETAS_ESTADO_HALLAZGO[r.estadoHallazgo || "abierto"] || r.estadoHallazgo || "", r.validadoPorNombre || "",
     { valor: fechaHoraExcel(r.fechaValidacion), tipo: "fechaHora" }, r.gps?.lat ?? "", r.gps?.lng ?? "", (r.fotos || []).join(" "),
+    celdaFechaHoraSeg(r.fechaCreacion), celdaFechaHoraSeg(r.actualizadoEn),
   ]));
 }
 
