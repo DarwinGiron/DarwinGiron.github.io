@@ -1,14 +1,5 @@
-import { listarPersonal, guardarPersona, crearPersonas, registrarHistorial } from '../firebase.js';
+import { listarPersonal, guardarPersona, registrarHistorial } from '../firebase.js';
 import { textos } from '../textos.js';
-
-const PERSONAL_INICIAL = [
-  { codigo_empleado: '5750', nombre: 'EMERSON ELÍ MAZARIEGOS C', puesto: 'inspector', grupo: 1 },
-  { codigo_empleado: '5211', nombre: 'JOSE OSLIN BARREIRA LOPE', puesto: 'encargado', grupo: 1 },
-  { codigo_empleado: '6056', nombre: 'LUIS ALBERTO ARÉVALO SAL', puesto: 'inspector', grupo: 2 },
-  { codigo_empleado: '5182', nombre: 'WILMER OMAR SIS POP', puesto: 'encargado', grupo: 2 },
-  { codigo_empleado: '6867', nombre: 'IRMA LUCÍA MARTÍNEZ GARC', puesto: 'inspector', grupo: 3 },
-  { codigo_empleado: '6291', nombre: 'DAVID SALOMON VELIZ ALVA', puesto: 'encargado', grupo: 3 },
-];
 
 export async function render(contenedor) {
   const t = textos.paginas.personal;
@@ -22,16 +13,10 @@ export async function render(contenedor) {
 
       <div id="form-nuevo" class="tarjeta" hidden></div>
       <div id="lista-personal" class="lista-columna"></div>
-
-      <div style="padding:20px;">
-        <button id="boton-carga-inicial" class="boton-secundario" style="width:100%;">Cargar personal inicial</button>
-        <div id="personal-mensaje" class="mensaje-info" hidden></div>
-      </div>
     </div>
   `;
 
   document.getElementById('boton-agregar').addEventListener('click', () => mostrarFormNuevo());
-  document.getElementById('boton-carga-inicial').addEventListener('click', () => cargarPersonalInicial());
 
   await pintarLista();
 
@@ -49,7 +34,7 @@ export async function render(contenedor) {
     }
 
     if (!data || data.length === 0) {
-      lista.innerHTML = `<div class="estado-vacio">Todavía no hay personal. Usa "Agregar" o "Cargar personal inicial".</div>`;
+      lista.innerHTML = `<div class="estado-vacio">Todavía no hay personal. Usa "Agregar" para dar de alta a cada persona.</div>`;
       return;
     }
 
@@ -72,7 +57,7 @@ export async function render(contenedor) {
 
     return `
       <div id="persona-${persona.id}" class="tarjeta-persona">
-        <div class="tarjeta-persona-icono">${badgeGrupo || '—'}</div>
+        <div class="tarjeta-persona-icono" title="${badgeGrupo}">${persona.grupo ? `T${persona.grupo}` : '—'}</div>
         <div class="tarjeta-persona-info">
           <div class="tarjeta-persona-nombre">${persona.nombre}</div>
           <div class="tarjeta-persona-detalle">${capitalizar(persona.puesto)} · ${badgeGrupo || 'sin grupo'} · ${correoPendiente ? 'sin correo asignado' : persona.correo}</div>
@@ -175,39 +160,6 @@ export async function render(contenedor) {
         errorEl.hidden = false;
       }
     });
-  }
-
-  async function cargarPersonalInicial() {
-    const mensaje = document.getElementById('personal-mensaje');
-    const boton = document.getElementById('boton-carga-inicial');
-    boton.disabled = true;
-    mensaje.hidden = true;
-
-    try {
-      const codigosExistentes = new Set((await listarPersonal()).map((u) => u.codigo_empleado));
-
-      const nuevos = PERSONAL_INICIAL
-        .filter((p) => !codigosExistentes.has(p.codigo_empleado))
-        .map((p) => ({ ...p, correo: correoPlaceholder(p.codigo_empleado), activo: true }));
-
-      if (nuevos.length === 0) {
-        mensaje.textContent = 'El personal inicial ya estaba cargado.';
-        mensaje.hidden = false;
-        return;
-      }
-
-      await crearPersonas(nuevos);
-
-      mensaje.textContent = `Se cargaron ${nuevos.length} personas. Completa el correo real de cada una (el mismo con el que entra al hub) para que vea su horario.`;
-      mensaje.hidden = false;
-      await pintarLista();
-    } catch (e) {
-      console.error(e);
-      mensaje.textContent = textos.errores.genericoAlGuardar;
-      mensaje.hidden = false;
-    } finally {
-      boton.disabled = false;
-    }
   }
 }
 

@@ -101,16 +101,6 @@ export async function guardarPersona(id, datos) {
   return referencia.id;
 }
 
-export async function crearPersonas(lista) {
-  const lote = writeBatch(db);
-  for (const persona of lista) {
-    lote.set(doc(collection(db, 'horarios_personal')), {
-      ...persona, correo: normalizarCorreo(persona.correo), creado_en: new Date().toISOString(),
-    });
-  }
-  await lote.commit();
-}
-
 // ---------- turnos ----------
 
 export const idTurno = (fecha, personaId) => `${fecha}_${personaId}`;
