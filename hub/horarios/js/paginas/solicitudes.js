@@ -28,20 +28,19 @@ export async function render(contenedor) {
       </div>
 
       <div class="tarjeta">
-        <div class="tarjeta-titulo-fila">
-          <div class="tarjeta-titulo">Cambio de turno</div>
-          <button id="cambio-abrir" class="boton-chip">+ Pedir cambio de turno</button>
-        </div>
-        <div class="tarjeta-ayuda">Elige la fecha, con quién cambias y qué horario hará cada uno.</div>
+        <div class="tarjeta-titulo">Nueva solicitud</div>
+        ${selectorTipo('sol')}
         <div id="cambio-form" hidden></div>
+        <div id="vacaciones-form" hidden></div>
       </div>
 
       <div class="tarjeta">
-        <div class="tarjeta-titulo">${t.formTitulo}</div>
+        <div class="tarjeta-titulo">Otras solicitudes</div>
+        <div class="tarjeta-ayuda">Permiso, cobertura 6 a 6 o evento extra.</div>
         <div class="campo">
           <label for="sol-tipo">${t.campoTipo}</label>
           <select id="sol-tipo">
-            ${Object.entries(textos.tiposSolicitud).filter(([clave]) => clave !== 'cambio_turno').map(([clave, texto]) => `<option value="${clave}">${texto}</option>`).join('')}
+            ${Object.entries(textos.tiposSolicitud).filter(([clave]) => !['cambio_turno', 'vacaciones'].includes(clave)).map(([clave, texto]) => `<option value="${clave}">${texto}</option>`).join('')}
           </select>
         </div>
         <div class="campo">
@@ -50,9 +49,7 @@ export async function render(contenedor) {
             <input id="sol-fecha-inicio" type="date" style="flex:1;" aria-label="Fecha inicial">
             <input id="sol-fecha-fin" type="date" style="flex:1;" aria-label="Fecha final">
           </div>
-          <div id="sol-nota-vacaciones" class="tarjeta-ayuda" hidden style="margin:8px 0 0;">Máximo 3 semanas seguidas (21 días).</div>
         </div>
-        <div id="sol-plan" class="plan-vacaciones" hidden></div>
         <div class="campo">
           <label for="sol-motivo">${t.campoMotivo}</label>
           <input id="sol-motivo" type="text" placeholder="${t.motivoPlaceholder}">
@@ -70,11 +67,10 @@ export async function render(contenedor) {
   `;
 
   document.getElementById('sol-enviar').addEventListener('click', () => enviarSolicitud(usuario));
-  document.getElementById('cambio-abrir').addEventListener('click', () => abrirCambioTrabajador(usuario));
-  ['sol-tipo', 'sol-fecha-inicio', 'sol-fecha-fin'].forEach((id) => {
-    document.getElementById(id).addEventListener('change', () => mostrarPlanVacaciones(usuario));
-  });
-  if (location.hash.includes('tipo=cambio_turno')) abrirCambioTrabajador(usuario);
+  enlazarSelectorTipo('sol', {
+    cambio: () => abrirCambioTrabajador(usuario),
+    vacaciones: () => abrirVacacionesTrabajador(usuario),
+  }, location.hash.includes('tipo=vacaciones') ? 'vacaciones' : location.hash.includes('tipo=cambio_turno') ? 'cambio' : null);
 
   await pintarLista(usuario);
 }
@@ -144,35 +140,148 @@ function htmlPlan(plan) {
   return `<ul class="plan-lista">${textoPlan(plan).map((l) => `<li>${escapar(l)}</li>`).join('')}</ul>`;
 }
 
-/** Al pedir vacaciones: valida el rango y muestra cómo cubrirían los compañeros. */
-async function mostrarPlanVacaciones(usuario) {
-  const tipo = document.getElementById('sol-tipo').value;
-  const zona = document.getElementById('sol-plan');
-  document.getElementById('sol-nota-vacaciones').hidden = tipo !== 'vacaciones';
-  if (tipo !== 'vacaciones' || !usuario.id) { zona.hidden = true; return; }
-  const desde = document.getElementById('sol-fecha-inicio').value;
-  const hasta = document.getElementById('sol-fecha-fin').value;
-  if (!desde || !hasta) { zona.hidden = true; return; }
-  const error = validarRangoVacaciones(desde, hasta);
-  zona.hidden = false;
-  if (error) {
-    zona.innerHTML = `<div class="mensaje-error" style="margin:0;">${escapar(error)}</div>`;
+/** Botones para elegir qué se pide: cambio de turno o vacaciones. */
+function selectorTipo(idp) {
+  return `
+    <div class="grupo-opciones selector-solicitud" role="group" aria-label="Tipo de solicitud">
+      <button type="button" class="grupo-opcion" data-${idp}-tipo="cambio" aria-pressed="false">Cambio de turno</button>
+      <button type="button" class="grupo-opcion" data-${idp}-tipo="vacaciones" aria-pressed="false">Vacaciones</button>
+    </div>`;
+}
+
+/** Muestra el formulario del tipo elegido (y lo arma la primera vez). */
+function enlazarSelectorTipo(idp, abrir, inicial) {
+  const botones = [...document.querySelectorAll(`[data-${idp}-tipo]`)];
+  const zonas = { cambio: document.getElementById(idp === 'sol' ? 'cambio-form' : 'cambio-form-coord'), vacaciones: document.getElementById(idp === 'sol' ? 'vacaciones-form' : 'vacaciones-form-coord') };
+  const elegir = (tipo) => {
+    botones.forEach((b) => {
+      const activo = b.dataset[`${idp}Tipo`] === tipo;
+      b.classList.toggle('grupo-opcion-activa', activo);
+      b.setAttribute('aria-pressed', String(activo));
+    });
+    Object.entries(zonas).forEach(([clave, zona]) => { zona.hidden = clave !== tipo; });
+    abrir[tipo]();
+  };
+  botones.forEach((b) => b.addEventListener('click', () => elegir(b.dataset[`${idp}Tipo`])));
+  if (inicial) elegir(inicial);
+}
+
+/** Formulario de vacaciones: persona (solo el coordinador), desde, hasta y motivo. */
+function formVacacionesHtml(idp, personal, conPersona) {
+  return `
+    ${conPersona ? `
+    <div class="campo">
+      <label for="${idp}-persona">Persona</label>
+      <select id="${idp}-persona" class="v-persona"><option value="">Elige a la persona...</option>${personal.map((p) => `<option value="${p.id}">${escapar(p.nombre)} · ${escapar(p.puesto)}</option>`).join('')}</select>
+    </div>` : ''}
+    <div class="campo">
+      <label id="${idp}-fechas">Desde y hasta</label>
+      <div style="display:flex; gap:8px;" role="group" aria-labelledby="${idp}-fechas">
+        <input type="date" class="v-desde" style="flex:1;" aria-label="Primer día de vacaciones">
+        <input type="date" class="v-hasta" style="flex:1;" aria-label="Último día de vacaciones">
+      </div>
+      <div class="tarjeta-ayuda" style="margin:8px 0 0;">Máximo 3 semanas seguidas (21 días).</div>
+    </div>
+    <div class="v-plan plan-vacaciones" hidden></div>
+    <div class="campo">
+      <label for="${idp}-motivo">Comentario (opcional)</label>
+      <input id="${idp}-motivo" type="text" class="v-motivo" placeholder="Ej. Vacaciones anuales">
+    </div>
+    <div class="v-error mensaje-error" hidden></div>
+    <div class="v-info mensaje-info" hidden></div>
+  `;
+}
+
+/** Conecta el formulario: valida el rango y muestra la cobertura propuesta. Devuelve leer(). */
+function enlazarVacaciones(raiz, { personal, personaFija = null }) {
+  const persona = () => personaFija ?? personal.find((p) => p.id === raiz.querySelector('.v-persona')?.value);
+  const zona = raiz.querySelector('.v-plan');
+  let ultimo = 0;
+
+  async function vistaPrevia() {
+    const p = persona();
+    const desde = raiz.querySelector('.v-desde').value;
+    const hasta = raiz.querySelector('.v-hasta').value;
+    if (!p || !desde || !hasta) { zona.hidden = true; return; }
+    const error = validarRangoVacaciones(desde, hasta);
+    zona.hidden = false;
+    if (error) { zona.innerHTML = `<div class="mensaje-error" style="margin:0;">${escapar(error)}</div>`; return; }
+    const turno = ++ultimo;
+    zona.innerHTML = '<div class="mensaje-cargando">Calculando la cobertura...</div>';
+    try {
+      const plan = await planDeCobertura({ personaId: p.id, desde, hasta });
+      if (turno !== ultimo) return;
+      zona.innerHTML = `<div class="plan-titulo">Cobertura propuesta mientras ${escapar(p.nombre.split(' ')[0].charAt(0) + p.nombre.split(' ')[0].slice(1).toLowerCase())} está de vacaciones</div>${htmlPlan(plan)}`;
+    } catch (e) {
+      console.error(e);
+      zona.hidden = true;
+    }
+  }
+  ['.v-persona', '.v-desde', '.v-hasta'].forEach((sel) => raiz.querySelector(sel)?.addEventListener('change', vistaPrevia));
+
+  return function leer() {
+    const p = persona();
+    const desde = raiz.querySelector('.v-desde').value;
+    const hasta = raiz.querySelector('.v-hasta').value;
+    if (!p) return { error: 'Elige a la persona.' };
+    const error = validarRangoVacaciones(desde, hasta);
+    if (error) return { error };
+    return { persona: p, desde, hasta, motivo: raiz.querySelector('.v-motivo').value.trim() || null };
+  };
+}
+
+async function abrirVacacionesTrabajador(usuario) {
+  const zona = document.getElementById('vacaciones-form');
+  if (!usuario.id) {
+    zona.innerHTML = '<div class="mensaje-error">Tu correo no está en el personal de Horarios, así que no puedes pedir vacaciones todavía. Pídele al coordinador que te agregue.</div>';
     return;
   }
-  zona.innerHTML = '<div class="mensaje-cargando">Calculando la cobertura...</div>';
-  try {
-    const plan = await planDeCobertura({ personaId: usuario.id, desde, hasta });
-    zona.innerHTML = `<div class="plan-titulo">Así cubrirían tus compañeros (lo confirma el coordinador)</div>${htmlPlan(plan)}`;
-  } catch (e) {
-    console.error(e);
-    zona.hidden = true;
-  }
+  if (zona.dataset.listo) return;
+  zona.dataset.listo = '1';
+  let personal = [];
+  try { personal = await listarPersonal({ soloActivos: true }); } catch (e) { console.error(e); }
+  const yo = personal.find((p) => p.id === usuario.id) ?? { id: usuario.id, nombre: usuario.nombre, correo: usuario.correo };
+  zona.innerHTML = `${formVacacionesHtml('vac', personal, false)}<button id="vac-enviar" class="boton-principal">Enviar solicitud de vacaciones</button>`;
+  const leer = enlazarVacaciones(zona, { personal, personaFija: yo });
+
+  document.getElementById('vac-enviar').addEventListener('click', async () => {
+    const errorEl = zona.querySelector('.v-error');
+    const infoEl = zona.querySelector('.v-info');
+    errorEl.hidden = true; infoEl.hidden = true;
+    const datos = leer();
+    if (datos.error) { errorEl.textContent = datos.error; errorEl.hidden = false; return; }
+    const boton = document.getElementById('vac-enviar');
+    boton.disabled = true;
+    try {
+      await crearSolicitud({
+        tipo: 'vacaciones',
+        solicitante_id: usuario.id,
+        solicitante_nombre: usuario.nombre,
+        detalle: { fecha_inicio: datos.desde, fecha_fin: datos.hasta },
+        motivo: datos.motivo,
+      });
+      await registrarHistorial({
+        accion: 'solicitud',
+        texto: `${usuario.nombre} pidió vacaciones del ${fechaCorta(datos.desde)} al ${fechaCorta(datos.hasta)}`,
+        persona: { id: usuario.id, nombre: usuario.nombre, correo: usuario.correo },
+        fecha: datos.desde,
+      });
+      infoEl.textContent = t().toastEnviada;
+      infoEl.hidden = false;
+      await pintarLista(usuario);
+    } catch (e) {
+      console.error(e);
+      errorEl.textContent = textos.errores.genericoAlGuardar;
+      errorEl.hidden = false;
+    } finally {
+      boton.disabled = false;
+    }
+  });
 }
 
 async function abrirCambioTrabajador(usuario) {
   const zona = document.getElementById('cambio-form');
   if (!zona) return;
-  zona.hidden = false;
   if (!usuario.id) {
     zona.innerHTML = '<div class="mensaje-error">Tu correo no está en el personal de Horarios, así que no puedes pedir cambios todavía. Pídele al coordinador que te agregue.</div>';
     return;
@@ -339,12 +448,11 @@ async function renderCoordinador(contenedor) {
       </div>
       <div id="sol-aviso" class="mensaje-info" hidden style="margin:12px 20px 0;"></div>
       <div class="tarjeta">
-        <div class="tarjeta-titulo-fila">
-          <div class="tarjeta-titulo">Cambio de turno</div>
-          <button id="cambio-registrar" class="boton-chip">+ Registrar cambio de turno</button>
-        </div>
-        <div class="tarjeta-ayuda">Lo aplicas directo en el horario, sin que nadie tenga que pedirlo.</div>
+        <div class="tarjeta-titulo">Nueva solicitud</div>
+        <div class="tarjeta-ayuda">Lo registras directo en el horario, sin que la persona tenga que pedirlo.</div>
+        ${selectorTipo('coord')}
         <div id="cambio-form-coord" hidden></div>
+        <div id="vacaciones-form-coord" hidden></div>
       </div>
       <div class="lista-columna">
         <div class="tarjeta-titulo">Pendientes</div>
@@ -403,9 +511,8 @@ async function renderCoordinador(contenedor) {
 
   const porId = new Map(solicitudes.map((s) => [s.id, s]));
 
-  document.getElementById('cambio-registrar').addEventListener('click', async () => {
+  const abrirCambioCoordinador = async () => {
     const zona = document.getElementById('cambio-form-coord');
-    zona.hidden = false;
     if (zona.dataset.listo) return;
     zona.dataset.listo = '1';
     const personal = await listarPersonal({ soloActivos: true });
@@ -443,7 +550,54 @@ async function renderCoordinador(contenedor) {
         errorEl.hidden = false;
       }
     });
-  });
+  };
+
+  const abrirVacacionesCoordinador = async () => {
+    const zona = document.getElementById('vacaciones-form-coord');
+    if (zona.dataset.listo) return;
+    zona.dataset.listo = '1';
+    const personal = await listarPersonal({ soloActivos: true });
+    zona.innerHTML = `${formVacacionesHtml('vac-coord', personal, true)}<button id="vac-coord-guardar" class="boton-principal">Registrar vacaciones</button>`;
+    const leer = enlazarVacaciones(zona, { personal });
+    document.getElementById('vac-coord-guardar').addEventListener('click', async () => {
+      const errorEl = zona.querySelector('.v-error');
+      errorEl.hidden = true;
+      const datos = leer();
+      if (datos.error) { errorEl.textContent = datos.error; errorEl.hidden = false; return; }
+      const plan = await planDeCobertura({ personaId: datos.persona.id, desde: datos.desde, hasta: datos.hasta });
+      const pregunta = `¿Registrar vacaciones de ${escapar(datos.persona.nombre)} del ${fechaCorta(datos.desde)} al ${fechaCorta(datos.hasta)}?`
+        + `<div class="plan-titulo" style="margin-top:12px;">Cobertura que se aplicará</div>${htmlPlan(plan)}`;
+      if (!await confirmar(pregunta, { textoConfirmar: 'Registrar' })) return;
+
+      const boton = document.getElementById('vac-coord-guardar');
+      boton.disabled = true;
+      try {
+        const marcados = await aplicarAusencia({
+          id: null, tipo: 'vacaciones', solicitante_id: datos.persona.id,
+          detalle: { fecha_inicio: datos.desde, fecha_fin: datos.hasta },
+        });
+        if (plan.cambios.length) await guardarTurnosManuales(await turnosDeCobertura(plan), { origen: 'manual' });
+        await registrarHistorial({
+          accion: 'turno_editado',
+          texto: `Vacaciones de ${datos.persona.nombre} del ${fechaCorta(datos.desde)} al ${fechaCorta(datos.hasta)}${datos.motivo ? ` (${datos.motivo})` : ''}`,
+          persona: datos.persona, fecha: datos.desde,
+        });
+        for (const c of plan.cambios) {
+          await registrarHistorial({ accion: 'turno_editado', texto: `${c.persona.nombre} cubre vacaciones de ${datos.persona.nombre} el ${fechaCorta(c.fecha)}`, persona: c.persona, fecha: c.fecha });
+        }
+        await renderCoordinador(contenedor);
+        const revisar = plan.pendientes.length ? ` Revisa a mano: ${plan.pendientes.map(fechaCorta).join(', ')}.` : '';
+        avisar(`Vacaciones registradas: ${marcados} día(s) marcados y ${plan.cambios.length} turno(s) de compañeros ajustados.${revisar}`);
+      } catch (error) {
+        console.error(error);
+        boton.disabled = false;
+        errorEl.textContent = textos.errores.genericoAlGuardar;
+        errorEl.hidden = false;
+      }
+    });
+  };
+
+  enlazarSelectorTipo('coord', { cambio: abrirCambioCoordinador, vacaciones: abrirVacacionesCoordinador }, null);
 
   document.querySelectorAll('#sol-pendientes .sol-aprobar').forEach((boton) => boton.addEventListener('click', async () => {
     const s = porId.get(boton.closest('[data-id]').dataset.id);

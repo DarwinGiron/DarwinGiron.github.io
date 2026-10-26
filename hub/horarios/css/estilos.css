@@ -633,3 +633,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .plan-vacaciones { margin: 0 0 14px; padding: 12px 14px; border-radius: var(--radio); background: var(--color-superficie-alt); border: 1px solid var(--color-borde-suave); }
 .plan-titulo { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
 .plan-lista { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--color-texto); max-height: 40vh; overflow-y: auto; }
+
+/* ---------- solicitudes: elegir qué se pide ---------- */
+.selector-solicitud { margin: 4px 0 16px; }
+
+/* Los campos de fecha lado a lado no deben salirse de la tarjeta en celular. */
+input[type="date"], input[type="time"] { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.campo input[type="date"] { width: 100%; min-height: 52px; border-radius: var(--radio); border: 1px solid var(--color-borde-fuerte); padding: 0 10px; color: var(--color-texto); background: var(--color-fondo); }
