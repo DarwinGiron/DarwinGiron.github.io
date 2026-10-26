@@ -501,7 +501,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .hoy-tarjeta { align-items: flex-start; }
 .hoy-tarjeta-hueco { border-color: var(--color-alerta-borde); background: var(--color-alerta-bg-suave); }
 .hoy-persona { display: flex; flex-direction: column; font-size: 15px; font-weight: 700; margin-top: 6px; }
-.hoy-persona-rol { font-size: 12px; font-weight: 500; color: var(--color-texto-suave); text-transform: capitalize; }
+.hoy-persona-rol { font-size: 12px; font-weight: 500; color: var(--color-texto-suave); }
 .hoy-persona-vacio { font-weight: 600; color: var(--color-texto-suave); }
 .tabla-desplazable { overflow-x: auto; margin: 0 -4px; }
 .tabla-hoy { border-collapse: collapse; width: 100%; font-size: 13px; white-space: nowrap; }
@@ -542,3 +542,4 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* ---------- solicitudes (coordinador) ---------- */
 .encabezado-subtitulo { font-size: 13px; color: var(--color-texto-suave); margin-top: 2px; }
 .tarjeta-solicitud-resuelta { box-shadow: none; }
+.hoy-aviso-pareja { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--color-d-texto); background: var(--color-d-bg); border-radius: 6px; padding: 4px 8px; display: inline-block; }

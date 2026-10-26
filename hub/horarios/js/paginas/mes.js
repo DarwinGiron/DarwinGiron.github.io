@@ -1,4 +1,5 @@
 import { listarPersonal, listarTurnos, listarFeriados } from '../firebase.js';
+import { etiquetaTurno } from '../ajustes-turno.js';
 import { textos } from '../textos.js';
 import { estado } from '../estado.js';
 import {
@@ -217,7 +218,7 @@ function celdaDia(dia, usuarios, turnosPorPersonaFecha, editable) {
         orden: turno.letra_reportada,
         html: `
           <div class="dia-persona" style="background:${color.bg}; color:${color.texto};" ${tocable}>
-            ${iconoRol(persona.puesto)}<span>${primerNombreCap}</span><span class="dia-persona-letra">${turno.letra_reportada}</span>
+            ${iconoRol(persona.puesto)}<span>${primerNombreCap}</span><span class="dia-persona-letra">${etiquetaTurno(turno)}</span>
           </div>`,
       };
     })

@@ -18,6 +18,7 @@ export function opcionesPersona(turno) {
     { valor: 'F', texto: 'F · Noche', detalle: '21:00 – 06:00' },
     { valor: '6a6dia', texto: '6 a 6 día', detalle: '06:00 – 18:00' },
     { valor: '6a6noche', texto: '6 a 6 noche', detalle: '18:00 – 06:00' },
+    { valor: 'doble:D+F', texto: 'Doble D + F', detalle: '06:00 – 14:00 y 21:00 – 06:00' },
     { valor: 'libre', texto: 'No trabaja este día', detalle: 'Se quita del día y queda libre' },
     ...AUSENCIAS.map((tipo) => ({ valor: `ausencia:${tipo}`, texto: textos.ausencias[tipo], detalle: tipo === 'falta' ? 'Estaba programado y no llegó' : 'Ausencia justificada' })),
   ];
@@ -28,6 +29,10 @@ export function opcionesPersona(turno) {
 }
 
 /** Opciones para todo el equipo en un día. */
+export const OPCION_DOMINGO_3_TURNOS = {
+  valor: 'domingo:3turnos', texto: 'Domingo de 3 turnos (D, E y F)', detalle: 'Cada grupo con su letra de la semana: 6 espacios',
+};
+
 export const OPCIONES_DIA = [
   { valor: 'libre:inspector', texto: 'Los inspectores no trabajan este día' },
   { valor: 'libre:encargado', texto: 'Los monitores de salud (encargados) no trabajan este día' },
@@ -44,6 +49,7 @@ export function describirOpcion(opcion) {
   if (opcion.startsWith('ausencia:')) return textos.ausencias[opcion.split(':')[1]].toLowerCase();
   if (opcion === '6a6dia') return '6 a 6 día';
   if (opcion === '6a6noche') return '6 a 6 noche';
+  if (opcion === 'doble:D+F') return 'doble D + F (06–14 y 21–06)';
   return `turno ${opcion}`;
 }
 
@@ -53,7 +59,13 @@ export function armarTurnoManual({ persona, fecha, opcion, turnoActual, esFeriad
   const planificado = turnoActual?.origen === 'manual'
     ? (turnoActual.letra_planificada ?? null)
     : (turnoActual?.letra_reportada ?? null);
-  const comun = { fecha, usuario_id: persona.id, letra_planificada: planificado, es_feriado: Boolean(esFeriado), ausencia_tipo: null, split_ini: null, split_fin: null };
+  const tipoPlanificado = turnoActual?.origen === 'manual' || turnoActual?.origen === 'solicitud'
+    ? (turnoActual.tipo_planificado ?? null)
+    : (turnoActual?.tipo_cobertura ?? null);
+  const comun = {
+    fecha, usuario_id: persona.id, letra_planificada: planificado, tipo_planificado: tipoPlanificado,
+    es_feriado: Boolean(esFeriado), ausencia_tipo: null, split_ini: null, split_fin: null,
+  };
 
   if (opcion === 'libre' || opcion.startsWith('ausencia:')) {
     const ausencia = opcion.startsWith('ausencia:') ? opcion.split(':')[1] : null;
@@ -64,6 +76,17 @@ export function armarTurnoManual({ persona, fecha, opcion, turnoActual, esFeriad
       tipo_cobertura: ausencia ? 'ausencia' : 'libre',
       ausencia_tipo: ausencia,
       hora_ini: null, hora_fin: null, horas_reales: 0, horas_ordinarias: 0, horas_extra: 0,
+    };
+  }
+
+  if (opcion === 'doble:D+F') {
+    const tramo = { tipoCobertura: 'doblar', letraBase: 'D', horaIni: '06:00', horaFin: '14:00', splitIni: '21:00', splitFin: '06:00', esFeriado };
+    const { horasReales, horasOrdinarias, horasExtra } = calcularHoras(tramo);
+    return {
+      ...comun,
+      letra_base: 'D', letra_reportada: 'D', tipo_cobertura: 'doblar',
+      hora_ini: '06:00', hora_fin: '14:00', split_ini: '21:00', split_fin: '06:00',
+      horas_reales: horasReales, horas_ordinarias: horasOrdinarias, horas_extra: horasExtra,
     };
   }
 
@@ -87,4 +110,36 @@ export function armarTurnoManual({ persona, fecha, opcion, turnoActual, esFeriad
     horas_ordinarias: horasOrdinarias,
     horas_extra: horasExtra,
   };
+}
+
+/** Letra del turno en que empieza una hora 'HH:MM' (06–14 D, 14–21 E, 21–06 F). */
+export function letraDeHora(horaTexto) {
+  const h = Number(String(horaTexto).slice(0, 2));
+  if (h >= 6 && h < 14) return 'D';
+  if (h >= 14 && h < 21) return 'E';
+  return 'F';
+}
+
+/**
+ * Franjas que cubre un turno: 'D' | 'E' | 'F' | '6a6dia' | '6a6noche'. Un doble cubre dos
+ * (p. ej. D y F). Para una ausencia devuelve la franja que tenía planificada.
+ */
+export function franjasDe(turno) {
+  if (!turno || turno.tipo_cobertura === 'libre') return [];
+  const tipo = turno.tipo_cobertura === 'ausencia' ? turno.tipo_planificado : turno.tipo_cobertura;
+  if (tipo === '6a6dia' || tipo === '6a6noche') return [tipo];
+  const base = turno.letra_reportada?.[0];
+  if (!['D', 'E', 'F'].includes(base)) return [];
+  if (turno.tipo_cobertura === 'doblar' && turno.split_ini) {
+    const segunda = letraDeHora(turno.split_ini);
+    return segunda === base ? [base] : [base, segunda];
+  }
+  return [base];
+}
+
+/** Etiqueta corta para el calendario: "D", "E1", "D+F"... */
+export function etiquetaTurno(turno) {
+  const franjas = franjasDe(turno);
+  if (turno?.tipo_cobertura === 'doblar' && franjas.length === 2) return franjas.join('+');
+  return turno?.letra_reportada ?? '';
 }

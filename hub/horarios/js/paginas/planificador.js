@@ -1,11 +1,12 @@
 import { textos } from '../textos.js';
 import { estado } from '../estado.js';
-import { nombreMes, sumarMeses, fechaCorta, primerDiaDelMes } from '../utilidades/fechas.js';
+import { nombreMes, sumarMeses, fechaCorta, primerDiaDelMes, isoALocal } from '../utilidades/fechas.js';
 import { generarMes } from '../generar-mes.js';
 import { pintarCuadricula } from './mes.js';
 import { confirmar, elegirOpcion } from '../utilidades/dialogo.js';
-import { guardarTurnosManuales, eliminarTurnos, idTurno, listarFeriados, registrarHistorial } from '../firebase.js';
-import { opcionesPersona, OPCIONES_DIA, armarTurnoManual, describirOpcion, trabaja } from '../ajustes-turno.js';
+import { guardarTurnosManuales, eliminarTurnos, idTurno, listarFeriados, registrarHistorial, obtenerConfig } from '../firebase.js';
+import { opcionesPersona, OPCIONES_DIA, OPCION_DOMINGO_3_TURNOS, armarTurnoManual, describirOpcion, trabaja } from '../ajustes-turno.js';
+import { letraBaseDelDia } from '../rotacion.js';
 
 export async function render(contenedor) {
   const t = textos.paginas.planificador;
@@ -109,10 +110,17 @@ export async function render(contenedor) {
   }
 
   async function alTocarDia({ fecha, usuarios, turnos }) {
-    const opcion = await elegirOpcion(`${fechaCorta(fecha)} · todo el equipo`, OPCIONES_DIA, { subtitulo: 'Se aplica a quienes estaban programados ese día.' });
+    const esDomingo = isoALocal(fecha).getDay() === 0;
+    const opciones = esDomingo ? [OPCION_DOMINGO_3_TURNOS, ...OPCIONES_DIA] : OPCIONES_DIA;
+    const opcion = await elegirOpcion(`${fechaCorta(fecha)} · todo el equipo`, opciones, { subtitulo: 'Se aplica a quienes estaban programados ese día.' });
     if (!opcion) return;
 
     try {
+      if (opcion === OPCION_DOMINGO_3_TURNOS.valor) {
+        await domingoDeTresTurnos({ fecha, usuarios, turnos });
+        return;
+      }
+
       if (opcion === 'restaurar') {
         const manuales = usuarios.filter((p) => ['manual', 'solicitud'].includes(turnos[p.id]?.origen));
         if (manuales.length === 0) {
@@ -146,6 +154,31 @@ export async function render(contenedor) {
       console.error(e);
       avisar(textos.errores.genericoAlGuardar);
     }
+  }
+
+  /**
+   * Cambia un domingo de 6 a 6 a 3 turnos: cada grupo trabaja su letra de la semana (D, E, F)
+   * con su horario normal. A quien ya tenga una ausencia marcada no se le toca.
+   * Para regresar al 6 a 6: "Volver a lo planificado este día".
+   */
+  async function domingoDeTresTurnos({ fecha, usuarios, turnos }) {
+    const config = await obtenerConfig();
+    if (!config) {
+      avisar('Configura primero la semana de referencia en Configuración.');
+      return;
+    }
+    const letras = letraBaseDelDia(isoALocal(fecha), { semanaReferenciaLunes: isoALocal(config.semana_referencia_lunes), grupoEnD: config.grupo_en_d });
+    const afectados = usuarios.filter((p) => p.grupo && turnos[p.id]?.tipo_cobertura !== 'ausencia');
+    const resumen = [1, 2, 3].map((g) => `Turno ${g} → ${letras[g]}`).join(', ');
+    if (!await confirmar(`¿Pasar el ${fechaCorta(fecha)} a 3 turnos? ${resumen}.`, { textoConfirmar: 'Pasar a 3 turnos' })) return;
+
+    const feriado = await esFeriado(fecha);
+    await guardarTurnosManuales(afectados.map((p) => armarTurnoManual({ persona: p, fecha, opcion: letras[p.grupo], turnoActual: turnos[p.id], esFeriado: feriado })));
+    for (const p of afectados) {
+      await registrarHistorial({ accion: 'turno_editado', texto: `${p.nombre}: turno ${letras[p.grupo]} (domingo de 3 turnos) el ${fechaCorta(fecha)}`, persona: p, fecha });
+    }
+    await repintar();
+    avisar(`El ${fechaCorta(fecha)} quedó con 3 turnos. Si alguien no puede, tócalo y elige "Doble D + F" o una ausencia.`);
   }
 
   await repintar();

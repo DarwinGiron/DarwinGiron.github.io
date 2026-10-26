@@ -42,25 +42,17 @@ export function letraBaseDelDia(fecha, referencia) {
 }
 
 /**
- * Regla del domingo: el grupo en E cubre 06–18 (reportado E1, 11 h) y el grupo en D cubre
- * 18–06 (reportado D, 12 h). Cada domingo trabajan un inspector y un encargado: si de día va
- * el inspector, de noche va el encargado, y el domingo siguiente se intercambian.
- * Depende solo de la semana (no de lo generado antes), así que volver a generar un mes da
- * siempre el mismo resultado.
+ * Regla del domingo (6 a 6): el grupo que esa semana va en E cubre de día, 06–18 (reportado E1,
+ * 11 h), y el grupo en D cubre de noche, 18–06 (reportado D, 12 h). Cada turno lo cubre la
+ * pareja completa del grupo (inspector + encargado); el grupo en F descansa. Son 4 espacios.
+ * El coordinador puede cambiar un domingo a 3 turnos (D, E, F) desde Planificar.
  */
 export function coberturaDomingo(fecha, referencia) {
   const letras = letraBaseDelDia(fecha, referencia);
-  const grupoEnD = Number(Object.keys(letras).find((g) => letras[g] === 'D'));
-  const grupoEnE = Number(Object.keys(letras).find((g) => letras[g] === 'E'));
-
-  const semanas = Math.round((lunesDeLaSemana(fecha) - lunesDeLaSemana(referencia.semanaReferenciaLunes)) / MS_POR_SEMANA);
-  const puestoDia = ((semanas % 2) + 2) % 2 === 0 ? 'inspector' : 'encargado';
-  const puestoNoche = puestoDia === 'inspector' ? 'encargado' : 'inspector';
-
-  return [
-    { grupo: grupoEnE, puesto: puestoDia, franja: '06:00-18:00', letraReportada: 'E1', horas: 11 },
-    { grupo: grupoEnD, puesto: puestoNoche, franja: '18:00-06:00', letraReportada: 'D', horas: 12 },
-  ];
+  return {
+    grupoDia: Number(Object.keys(letras).find((g) => letras[g] === 'E')),
+    grupoNoche: Number(Object.keys(letras).find((g) => letras[g] === 'D')),
+  };
 }
 
 /** true si `fecha` (Date) cae en domingo. */

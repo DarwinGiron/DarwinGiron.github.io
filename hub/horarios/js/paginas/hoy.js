@@ -4,9 +4,17 @@
 import { textos } from '../textos.js';
 import { LETRAS, listarPersonal, listarTurnos } from '../firebase.js';
 import { hoyIso, fechaConDiaLargo, isoALocal, localAIso } from '../utilidades/fechas.js';
-import { trabaja } from '../ajustes-turno.js';
+import { trabaja, franjasDe } from '../ajustes-turno.js';
 
-const LETRAS_DE_COBERTURA = ['D', 'E', 'F'];
+// Franjas que se muestran como tarjetas. Entre semana: D, E, F. Domingo 6 a 6: día y noche.
+const FRANJAS = {
+  D: { badge: 'D', color: 'd', titulo: () => { const l = LETRAS.find((x) => x.codigo === 'D'); return `${l.nombre} · ${l.hora_ini}–${l.hora_fin}`; } },
+  E: { badge: 'E', color: 'e', titulo: () => { const l = LETRAS.find((x) => x.codigo === 'E'); return `${l.nombre} · ${l.hora_ini}–${l.hora_fin}`; } },
+  F: { badge: 'F', color: 'f', titulo: () => { const l = LETRAS.find((x) => x.codigo === 'F'); return `${l.nombre} · ${l.hora_ini}–${l.hora_fin}`; } },
+  '6a6dia': { badge: 'E1', color: 'e', titulo: () => '6 a 6 día · 06:00–18:00' },
+  '6a6noche': { badge: 'D', color: 'd', titulo: () => '6 a 6 noche · 18:00–06:00' },
+};
+const PUESTOS = { inspector: 'inspector', encargado: 'encargado' };
 let diaVisible = null;
 
 function sumarDias(iso, dias) {
@@ -71,29 +79,52 @@ export async function render(contenedor) {
 }
 
 function pintarCobertura(personal, turnoDe, esDomingo, t) {
-  const tarjetas = LETRAS_DE_COBERTURA.map((codigo) => {
-    const letra = LETRAS.find((l) => l.codigo === codigo);
-    const deLaLetra = (p) => turnoDe.get(p.id)?.letra_reportada?.[0] === codigo;
-    const quienes = personal.filter((p) => deLaLetra(p) && trabaja(turnoDe.get(p.id)));
-    const ausentes = personal.filter((p) => deLaLetra(p) && turnoDe.get(p.id)?.tipo_cobertura === 'ausencia');
-    const hueco = quienes.length === 0 && (!esDomingo || ausentes.length > 0);
+  const presentes = new Map(); // franja -> personas que la cubren
+  const ausentes = new Map(); // franja -> personas que la tenían y faltan
+  for (const p of personal) {
+    const turno = turnoDe.get(p.id);
+    const destino = trabaja(turno) ? presentes : turno?.tipo_cobertura === 'ausencia' ? ausentes : null;
+    if (!destino) continue;
+    for (const franja of franjasDe(turno)) {
+      if (!destino.has(franja)) destino.set(franja, []);
+      destino.get(franja).push(p);
+    }
+  }
+
+  // Qué tarjetas mostrar: las de siempre (D/E/F entre semana; 6 a 6 día/noche si el domingo
+  // va así) más cualquier otra franja que alguien esté cubriendo ese día.
+  const hayTresTurnos = ['D', 'E', 'F'].some((f) => presentes.has(f) || ausentes.has(f));
+  const base = esDomingo && !hayTresTurnos ? ['6a6dia', '6a6noche'] : ['D', 'E', 'F'];
+  const franjas = [...base, ...Object.keys(FRANJAS).filter((f) => !base.includes(f) && (presentes.has(f) || ausentes.has(f)))];
+
+  const tarjetas = franjas.map((franja) => {
+    const info = FRANJAS[franja];
+    const quienes = presentes.get(franja) ?? [];
+    const faltan = ausentes.get(franja) ?? [];
+    const hueco = quienes.length === 0;
 
     const detalle = quienes.length
       ? quienes.map((p) => {
         const x = turnoDe.get(p.id);
-        const extra = x.tipo_cobertura && x.tipo_cobertura !== 'normal' ? ` · ${hora(x.hora_ini)}–${hora(x.hora_fin)}` : '';
-        return `<div class="hoy-persona">${escapar(primerNombre(p.nombre))}<span class="hoy-persona-rol">${escapar(p.puesto)}${extra}</span></div>`;
+        const doble = x.tipo_cobertura === 'doblar' ? ` · doble ${hora(x.hora_ini)}–${hora(x.hora_fin)} y ${hora(x.split_ini)}–${hora(x.split_fin)}` : '';
+        const puesto = p.puesto ? p.puesto.charAt(0).toUpperCase() + p.puesto.slice(1) : '';
+        return `<div class="hoy-persona">${escapar(primerNombre(p.nombre))}<span class="hoy-persona-rol">${escapar(puesto)}${doble}</span></div>`;
       }).join('')
-      : `<div class="hoy-persona hoy-persona-vacio">${hueco ? t.textoHueco(codigo) : 'Nadie asignado'}</div>`;
-    const lineaAusentes = ausentes.map((p) => `<div class="hoy-persona hoy-persona-ausente">${escapar(primerNombre(p.nombre))}<span class="hoy-persona-rol">${escapar(textos.ausencias[turnoDe.get(p.id).ausencia_tipo] ?? 'Ausente')}</span></div>`).join('');
+      : `<div class="hoy-persona hoy-persona-vacio">${t.textoHueco(info.badge)}</div>`;
+    const lineaAusentes = faltan.map((p) => `<div class="hoy-persona hoy-persona-ausente">${escapar(primerNombre(p.nombre))}<span class="hoy-persona-rol">${escapar(textos.ausencias[turnoDe.get(p.id).ausencia_tipo] ?? 'Ausente')}</span></div>`).join('');
+
+    // Lo normal es una pareja por turno: avisa si falta el inspector o el encargado.
+    const sinPuesto = quienes.length ? Object.keys(PUESTOS).filter((puesto) => !quienes.some((p) => p.puesto === puesto)) : [];
+    const avisoPareja = sinPuesto.length ? `<div class="hoy-aviso-pareja">Sin ${sinPuesto.join(' ni ')} en este turno</div>` : '';
 
     return `
       <div class="tarjeta-persona hoy-tarjeta ${hueco ? 'hoy-tarjeta-hueco' : ''}">
-        <div class="fila-letra-badge" style="background:var(--color-${codigo.toLowerCase()}-bg);color:var(--color-${codigo.toLowerCase()}-texto)">${codigo}</div>
+        <div class="fila-letra-badge" style="background:var(--color-${info.color}-bg);color:var(--color-${info.color}-texto)">${info.badge}</div>
         <div class="tarjeta-persona-info">
-          <div class="tarjeta-persona-nombre">${escapar(letra.nombre)} · ${hora(letra.hora_ini)}–${hora(letra.hora_fin)}</div>
+          <div class="tarjeta-persona-nombre">${escapar(info.titulo())}</div>
           ${detalle}
           ${lineaAusentes}
+          ${avisoPareja}
         </div>
         ${hueco ? `<span class="badge badge-roja">${t.badgeHueco}</span>` : ''}
       </div>`;

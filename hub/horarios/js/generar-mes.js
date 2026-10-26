@@ -40,20 +40,11 @@ export async function generarMes(mesIso) {
     const esFeriado = feriadosSet.has(fechaIso);
 
     if (esDomingo(fecha)) {
-      const coberturas = coberturaDomingo(fecha, referencia);
-      const cubrePorGrupo = {};
-      for (const c of coberturas) cubrePorGrupo[c.grupo] = c;
-
+      const { grupoDia, grupoNoche } = coberturaDomingo(fecha, referencia);
       for (const grupo of [1, 2, 3]) {
-        const personas = porGrupo[grupo];
-        const cobertura = cubrePorGrupo[grupo];
-        const personaElegida = cobertura
-          ? (personas.find((p) => p.puesto === cobertura.puesto) ?? personas[0])
-          : null;
-
-        for (const persona of personas) {
-          if (cobertura && persona === personaElegida) {
-            const esNoche = cobertura.letraReportada === 'D';
+        for (const persona of porGrupo[grupo]) {
+          if (grupo === grupoDia || grupo === grupoNoche) {
+            const esNoche = grupo === grupoNoche;
             const [horaIni, horaFin] = esNoche ? ['18:00', '06:00'] : ['06:00', '18:00'];
             const tipoCobertura = esNoche ? '6a6noche' : '6a6dia';
             const letraBase = esNoche ? 'D' : 'E';
@@ -62,7 +53,7 @@ export async function generarMes(mesIso) {
             });
             turnosGenerados.push(armarTurno({
               fecha: fechaIso, usuarioId: persona.id, letraBase,
-              letraReportada: cobertura.letraReportada, tipoCobertura,
+              letraReportada: esNoche ? 'D' : 'E1', tipoCobertura,
               horaIni, horaFin, horasReales, horasOrdinarias, horasExtra, esFeriado,
             }));
           } else {
@@ -74,7 +65,6 @@ export async function generarMes(mesIso) {
           }
         }
       }
-
       continue;
     }
 
