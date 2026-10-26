@@ -3,18 +3,31 @@
 // horas: D (8 h) de tarde 13:00–21:00, E (7 h) de mañana 06:00–13:00, noche 21:00–06:00.
 // Lo usan el trabajador (crea una solicitud) y el coordinador (registra el cambio directo).
 
-import { listarTurnos, listarFeriados, guardarTurnosManuales } from '../firebase.js';
+import { listarTurnos, listarFeriados, guardarTurnosManuales, obtenerConfig, listarPersonal } from '../firebase.js';
+import { letraBaseDelDia } from '../rotacion.js';
 import {
   HORARIOS_CAMBIO, horarioDeTurno, opcionDeHorario, armarTurnoManual, describirHorario,
   franjaDeHorario, horarioSugerido, revisarHorasOrdinarias, letraBaseDe,
 } from '../ajustes-turno.js';
-import { fechaCorta } from '../utilidades/fechas.js';
+import { fechaCorta, isoALocal } from '../utilidades/fechas.js';
 
 const escapar = (texto) => String(texto ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const primerNombre = (nombre) => {
   const p = String(nombre ?? '').split(' ')[0];
   return p.charAt(0) + p.slice(1).toLowerCase();
 };
+
+let promesaConfig = null;
+
+/** Letra de la semana de una persona (por su grupo), para quien ese día está libre o sin turno. */
+async function letraDeSemana(fecha, persona) {
+  if (!persona?.grupo) return null;
+  promesaConfig ??= obtenerConfig().catch(() => null);
+  const config = await promesaConfig;
+  if (!config) return null;
+  const referencia = { semanaReferenciaLunes: isoALocal(config.semana_referencia_lunes), grupoEnD: config.grupo_en_d };
+  return letraBaseDelDia(isoALocal(fecha), referencia)[persona.grupo] ?? null;
+}
 
 function selectorHorario(clase, etiqueta, idp) {
   return `
@@ -133,10 +146,14 @@ export function enlazarFormularioCambio(raiz, { personal, solicitante = null }) 
       const ta = turnos.find((t) => t.usuario_id === a.id) ?? null;
       const tb = turnos.find((t) => t.usuario_id === b.id) ?? null;
       const ha = horarioDeTurno(ta); const hb = horarioDeTurno(tb);
-      letras['c-ha'] = letraBaseDe(ta);
-      letras['c-hb'] = letraBaseDe(tb);
+      letras['c-ha'] = letraBaseDe(ta) ?? await letraDeSemana(fecha, a);
+      letras['c-hb'] = letraBaseDe(tb) ?? await letraDeSemana(fecha, b);
+      const esDomingo = isoALocal(fecha).getDay() === 0;
       const etiqueta = (t, h) => (t?.letra_reportada && h.tipo === 'manual' ? `${t.letra_reportada} ${describirHorario(h)}` : describirHorario(h));
-      actual.textContent = `Lo planificado el ${fechaCorta(fecha)}: ${primerNombre(a.nombre)} ${etiqueta(ta, ha)} · ${primerNombre(b.nombre)} ${etiqueta(tb, hb)}. Se propone que intercambien el turno conservando cada uno su letra; puedes cambiar cualquiera.`;
+      const explicacion = esDomingo
+        ? 'Domingo: se propone que intercambien el 6 a 6 (06:00–18:00 / 18:00–06:00) o, si uno estaba libre, que lo cubra; cada uno conserva su letra.'
+        : 'Se propone que intercambien el turno conservando cada uno su letra.';
+      actual.textContent = `Lo planificado el ${fechaCorta(fecha)}: ${primerNombre(a.nombre)} ${etiqueta(ta, ha)} · ${primerNombre(b.nombre)} ${etiqueta(tb, hb)}. ${explicacion} Puedes cambiar cualquiera.`;
       actual.hidden = false;
       // Cada uno pasa a la franja del otro, con el horario que completa SUS horas ordinarias.
       // Un 6 a 6 o un doble se intercambia tal cual.
@@ -174,12 +191,17 @@ export function enlazarFormularioCambio(raiz, { personal, solicitante = null }) 
 
 /** Escribe en el horario los turnos de las dos personas para esa fecha. */
 export async function aplicarCambio({ fecha, a, b, horarioA, horarioB, origen = 'manual', solicitudId = null }) {
-  const [turnos, feriados] = await Promise.all([listarTurnos(fecha, fecha), listarFeriados(fecha, fecha)]);
+  const [turnos, feriados, personal] = await Promise.all([listarTurnos(fecha, fecha), listarFeriados(fecha, fecha), listarPersonal()]);
   const actual = new Map(turnos.map((t) => [t.usuario_id, t]));
+  const grupoDe = new Map(personal.map((p) => [p.id, p]));
   const esFeriado = feriados.length > 0;
-  const nuevos = [[a, horarioA], [b, horarioB]].map(([persona, horario]) => armarTurnoManual({
-    persona, fecha, opcion: opcionDeHorario(horario), turnoActual: actual.get(persona.id) ?? null, esFeriado,
-  }));
+  const nuevos = [];
+  for (const [persona, horario] of [[a, horarioA], [b, horarioB]]) {
+    const letraSemana = await letraDeSemana(fecha, grupoDe.get(persona.id) ?? persona);
+    nuevos.push(armarTurnoManual({
+      persona, fecha, opcion: opcionDeHorario(horario), turnoActual: actual.get(persona.id) ?? null, esFeriado, letraSemana,
+    }));
+  }
   await guardarTurnosManuales(nuevos, { origen, solicitudId });
 }
 

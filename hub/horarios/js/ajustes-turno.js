@@ -56,7 +56,11 @@ export function describirOpcion(opcion) {
 }
 
 /** Arma el turno manual de `persona` en `fecha` según `opcion` (ver opcionesPersona). */
-export function armarTurnoManual({ persona, fecha, opcion, turnoActual, esFeriado }) {
+/**
+ * `letraSemana` (opcional) es la letra de la semana de la persona; se usa cuando ese día no
+ * tenía turno o estaba libre, para que conserve su letra igual.
+ */
+export function armarTurnoManual({ persona, fecha, opcion, turnoActual, esFeriado, letraSemana = null }) {
   const baseActual = ['D', 'E', 'F'].includes(turnoActual?.letra_base) ? turnoActual.letra_base : null;
   const planificado = turnoActual?.origen === 'manual'
     ? (turnoActual.letra_planificada ?? null)
@@ -97,9 +101,16 @@ export function armarTurnoManual({ persona, fecha, opcion, turnoActual, esFeriad
     // Cambio de horario (a mano o por cambio de turno): la letra NO se mueve, porque de ella
     // salen las horas ordinarias. Solo si no tenía turno se toma la del horario en que entra.
     [horaIni, horaFin] = opcion.slice(8).split('-');
-    letraBase = baseActual ?? letraDeHora(horaIni);
-    letraReportada = trabaja(turnoActual) ? turnoActual.letra_reportada : letraBase;
-    tipoCobertura = 'normal';
+    letraBase = baseActual ?? letraSemana ?? letraDeHora(horaIni);
+    if (horaIni === '06:00' && horaFin === '18:00') {
+      // 6 a 6 de día: se reporta la letra con "1" (E1, D1...) y descuenta 1 h de almuerzo.
+      letraReportada = `${letraBase}1`; tipoCobertura = '6a6dia';
+    } else if (horaIni === '18:00' && horaFin === '06:00') {
+      letraReportada = letraBase; tipoCobertura = '6a6noche';
+    } else {
+      letraReportada = trabaja(turnoActual) && turnoActual.tipo_cobertura === 'normal' ? turnoActual.letra_reportada : letraBase;
+      tipoCobertura = 'normal';
+    }
   } else if (opcion === '6a6dia') {
     letraBase = baseActual ?? 'E'; letraReportada = `${letraBase}1`; tipoCobertura = '6a6dia'; [horaIni, horaFin] = ['06:00', '18:00'];
   } else if (opcion === '6a6noche') {
@@ -165,6 +176,8 @@ export const HORARIOS_CAMBIO = [
   { valor: '13:00-21:00', texto: '13:00 – 21:00 (tarde, 8 h)' },
   { valor: '14:00-21:00', texto: '14:00 – 21:00 (tarde, 7 h)' },
   { valor: '21:00-06:00', texto: '21:00 – 06:00 (noche)' },
+  { valor: '06:00-18:00', texto: '06:00 – 18:00 (6 a 6 día, domingo)' },
+  { valor: '18:00-06:00', texto: '18:00 – 06:00 (6 a 6 noche, domingo)' },
 ];
 
 /** Franja de un horario por su hora de entrada: 'manana' | 'tarde' | 'noche'. */
