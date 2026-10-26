@@ -5,6 +5,7 @@
 
 import { protegerPagina, cerrarSesion, esRolDeGestion, etiquetaRol } from "./auth.js";
 import { iniciales } from "./utils.js";
+import { cargarHorariosPerfil } from "./horarios-perfil.js";
 
 const textoUsuario = document.getElementById("texto-usuario");
 const avatarUsuario = document.getElementById("avatar-usuario");
@@ -14,6 +15,8 @@ const linkAdminSuperior = document.getElementById("link-admin-superior");
 const perfilMenu = document.getElementById("perfil-menu");
 const perfilMenuPanel = document.getElementById("perfil-menu-panel");
 const perfilMenuNombre = document.getElementById("perfil-menu-nombre");
+const perfilHorariosContenido = document.getElementById("perfil-horarios-contenido");
+let correoUsuario = "";
 
 const seccionGestionSgi = document.getElementById("seccion-gestion-sgi");
 const seccionAdministracion = document.getElementById("seccion-administracion");
@@ -27,6 +30,7 @@ const btnModalHistorial = document.getElementById("btn-modal-historial-completo"
 
 protegerPagina({}, ({ user, perfil }) => {
   const nombreVisible = perfil.nombre || user.email;
+  correoUsuario = user.email || "";
   textoUsuario.textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;
   avatarUsuario.textContent = iniciales(nombreVisible);
   perfilMenuNombre.textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;
@@ -63,6 +67,7 @@ avatarUsuario.addEventListener("click", (evento) => {
   evento.stopPropagation();
   const abierto = !perfilMenuPanel.classList.toggle("oculto");
   avatarUsuario.setAttribute("aria-expanded", String(abierto));
+  if (abierto) cargarHorariosPerfil(perfilHorariosContenido, correoUsuario);
 });
 
 document.addEventListener("click", (evento) => {

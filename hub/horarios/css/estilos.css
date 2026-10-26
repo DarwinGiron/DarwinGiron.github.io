@@ -1,0 +1,498 @@
+/* Horarios COGUSA — estilos móviles primero.
+   Lenguaje visual inspirado en Airbnb: lienzo blanco, tipografía oscura y nítida, un único color
+   de marca (rojo/rosa "Rausch") reservado a las acciones, tarjetas con sombra suave y radios
+   generosos. Los contrastes de texto cumplen WCAG AA (4.5:1); ver el comentario de cada token. */
+
+:root {
+  /* Superficies y bordes */
+  --color-fondo: #FFFFFF;
+  --color-superficie: #FFFFFF;
+  --color-superficie-alt: #F7F7F7;
+  --color-borde: #DDDDDD;
+  --color-borde-suave: #EBEBEB;
+  --color-borde-fuerte: #B0B0B0;
+
+  /* Texto: 15.9:1 / 5.4:1 / 5.4:1 sobre blanco */
+  --color-texto: #222222;
+  --color-texto-suave: #5E5E5E;
+  --color-texto-tenue: #6A6A6A;
+
+  /* Marca: #E31C5F con texto blanco = 4.57:1 (AA). El hover va un paso más oscuro. */
+  --color-acento: #E31C5F;
+  --color-acento-oscuro: #D70466;
+  --color-acento-suave: #FFF0F3;
+  --color-acento-borde: #FFC9D6;
+
+  /* Letras de turno: fondo suave + texto oscuro, todas por encima de 6:1 */
+  --color-d-bg: #FFF1C2; --color-d-texto: #6B5200;
+  --color-e-bg: #FFE0CC; --color-e-texto: #8A3B12;
+  --color-f-bg: #EDE4FF; --color-f-texto: #5B3FA8; --color-f-bg-suave: #F6F2FF;
+  --color-l-bg: #F0F0F0; --color-l-texto: #484848;
+  --color-alerta-bg: #FFF0ED; --color-alerta-bg-suave: #FFF6F4; --color-alerta-texto: #C13515; --color-alerta-borde: #FFC9BD;
+  --color-ok-bg: #DFF5E8; --color-ok-texto: #0B6B3A; --color-ok-punto: #00A699;
+
+  /* Forma y elevación */
+  --radio: 12px;
+  --radio-chico: 8px;
+  --radio-tarjeta: 16px;
+  --sombra-tarjeta: 0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 16px rgba(0, 0, 0, 0.06);
+  --sombra-elevada: 0 2px 4px rgba(0, 0, 0, 0.08), 0 12px 28px rgba(0, 0, 0, 0.14);
+  --anillo-foco: 0 0 0 2px #FFFFFF, 0 0 0 4px #222222;
+  --transicion: 150ms cubic-bezier(0.2, 0, 0, 1);
+
+  --fuente: "Circular", "Airbnb Cereal VF", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  font-family: var(--fuente);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.4;
+}
+
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-fondo);
+  position: relative;
+}
+
+.app-cuerpo {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+#contenido {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 24px;
+}
+
+/* ---------- layout de escritorio (>=880px): barra lateral en vez de barra inferior ---------- */
+@media (min-width: 880px) {
+  #app {
+    max-width: none;
+  }
+  .app-cuerpo {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  #nav-inferior {
+    display: none !important;
+  }
+  .nav-lateral:not([hidden]) {
+    display: flex;
+  }
+  #contenido {
+    padding: 32px 40px 48px;
+  }
+  #contenido > .pagina {
+    max-width: 900px;
+  }
+  /* Mes/Planificador (la cuadrícula) aprovechan todo el ancho disponible en vez de recortarse a 900px */
+  #contenido > .pagina:has(.calendario-mes) {
+    max-width: none;
+  }
+  .encabezado, .selector-mes, .leyenda, .cuadricula-mes,
+  .tarjeta, .lista-columna, .acciones-columna, .selector-doble {
+    max-width: 900px;
+  }
+  #contenido > .pagina:has(.calendario-mes) .encabezado,
+  #contenido > .pagina:has(.calendario-mes) .selector-mes,
+  #contenido > .pagina:has(.calendario-mes) .leyenda,
+  #contenido > .pagina:has(.calendario-mes) .cuadricula-mes {
+    max-width: none;
+  }
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: 16px;
+}
+
+a {
+  color: var(--color-acento);
+  text-decoration: none;
+}
+
+/* Foco de teclado visible en toda la app (auditoría de accesibilidad — 2.4.7).
+   Sin esto, algunos navegadores recortan o esconden el anillo por defecto en
+   botones con border-radius, y no había ningún estilo de foco propio. */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--anillo-foco);
+}
+
+/* ---------- aviso sin conexión ---------- */
+.aviso-offline {
+  background: var(--color-d-bg);
+  color: var(--color-d-texto);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  padding: 10px 16px;
+}
+
+/* ---------- botones ---------- */
+.boton-principal {
+  width: 100%;
+  min-height: 52px;
+  border-radius: var(--radio);
+  border: none;
+  background: var(--color-acento);
+  color: #FFFFFF;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transicion), transform var(--transicion);
+}
+.boton-principal:hover { background: var(--color-acento-oscuro); }
+.boton-principal:active { transform: scale(0.98); }
+.boton-principal:disabled { background: var(--color-borde); color: var(--color-texto-tenue); cursor: not-allowed; transform: none; }
+
+.boton-secundario {
+  flex: 1;
+  min-height: 48px;
+  border-radius: var(--radio);
+  border: 1px solid var(--color-texto);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transicion), transform var(--transicion);
+}
+.boton-secundario:hover { background: var(--color-superficie-alt); }
+.boton-secundario:active { transform: scale(0.98); }
+
+.boton-chip {
+  /* 48px mínimo táctil (auditoría de accesibilidad — antes 40px) */
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: var(--radio-chico);
+  border: none;
+  background: var(--color-acento);
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transicion);
+}
+.boton-chip:hover { background: var(--color-acento-oscuro); }
+
+.boton-icono {
+  /* 48px mínimo táctil (auditoría de accesibilidad — antes 40px) */
+  width: 48px; height: 48px;
+  border-radius: var(--radio-chico);
+  border: 1px solid var(--color-borde);
+  background: var(--color-superficie);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background var(--transicion), box-shadow var(--transicion);
+}
+.boton-icono:hover { background: var(--color-superficie-alt); box-shadow: var(--sombra-tarjeta); }
+
+.boton-icono-relleno {
+  /* 48px mínimo táctil (auditoría de accesibilidad — antes 34px) */
+  width: 48px; height: 48px;
+  border-radius: 10px;
+  border: none;
+  background: var(--color-borde-suave);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-texto);
+  cursor: pointer;
+  transition: background var(--transicion);
+}
+.boton-icono-relleno:hover { background: var(--color-borde); }
+
+.acciones-fila { display: flex; gap: 12px; }
+.acciones-columna { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ---------- formularios ---------- */
+.campo { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.campo label { font-size: 13px; font-weight: 600; color: var(--color-texto); }
+.campo input, .campo select {
+  min-height: 52px;
+  border-radius: var(--radio);
+  border: 1px solid var(--color-borde-fuerte);
+  background: var(--color-fondo);
+  padding: 0 14px;
+  color: var(--color-texto);
+  transition: border-color var(--transicion), box-shadow var(--transicion);
+}
+.campo input:hover, .campo select:hover { border-color: var(--color-texto); }
+.campo input:focus, .campo select:focus { border-color: var(--color-texto); box-shadow: 0 0 0 1px var(--color-texto); outline: none; }
+.campo-check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 10px; }
+
+.mensaje-error {
+  background: var(--color-alerta-bg);
+  color: var(--color-alerta-texto);
+  border: 1px solid var(--color-alerta-borde);
+  border-radius: var(--radio);
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.mensaje-info {
+  background: var(--color-ok-bg);
+  color: var(--color-ok-texto);
+  border-radius: var(--radio);
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 12px;
+}
+
+/* ---------- pantalla Entrar ---------- */
+.pantalla-entrar {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0 24px; min-height: calc(100vh - 20px);
+}
+.entrar-logo { display: flex; flex-direction: column; align-items: center; margin-top: 72px; margin-bottom: 40px; }
+.entrar-logo-circulo {
+  width: 72px; height: 72px; border-radius: 20px; background: var(--color-acento-suave);
+  display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+}
+.entrar-nombre { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.entrar-subtitulo { font-size: 14px; color: var(--color-texto-suave); margin-top: 4px; }
+.entrar-form { width: 100%; display: flex; flex-direction: column; }
+.entrar-enlace { margin-top: 20px; font-size: 15px; font-weight: 600; }
+.entrar-ayuda { margin-top: auto; margin-bottom: 24px; font-size: 12px; color: var(--color-texto-tenue); text-align: center; }
+
+/* ---------- encabezado genérico de página ---------- */
+.pagina { display: flex; flex-direction: column; }
+.encabezado {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px 14px; background: var(--color-superficie); border-bottom: 1px solid var(--color-borde-suave);
+  position: sticky; top: 0; z-index: 10;
+}
+.encabezado-titulo { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.campana { width: 48px; height: 48px; border-radius: 50%; background: var(--color-superficie-alt); border: 1px solid var(--color-borde); display: flex; align-items: center; justify-content: center; }
+
+/* ---------- selector semana/mes ---------- */
+.selector-doble { display: flex; gap: 8px; padding: 16px 20px 0; }
+.selector-opcion {
+  flex: 1; min-height: 48px; border-radius: 999px; background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  color: var(--color-texto); font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color var(--transicion), background var(--transicion);
+}
+.selector-opcion:hover { border-color: var(--color-texto); }
+.selector-activa { background: var(--color-texto); border-color: var(--color-texto); color: #FFFFFF; font-weight: 600; }
+
+.selector-mes { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 0; }
+.selector-mes-nombre { font-size: 15px; font-weight: 700; }
+
+/* ---------- banner instalar app ---------- */
+.banner-instalar {
+  margin: 14px 20px 0; background: var(--color-acento-suave); border: 1px solid var(--color-acento-borde); border-radius: var(--radio-tarjeta);
+  padding: 12px 12px 12px 16px; display: flex; align-items: center; gap: 10px;
+}
+.banner-instalar-texto { flex: 1; min-width: 0; }
+.banner-instalar-titulo { font-size: 13.5px; font-weight: 700; }
+.banner-instalar-subtitulo { font-size: 11.5px; color: var(--color-texto-suave); margin-top: 2px; }
+.banner-instalar-cerrar { width: 48px; height: 48px; border-radius: 8px; border: none; background: transparent; color: var(--color-texto-tenue); font-size: 18px; line-height: 1; cursor: pointer; flex-shrink: 0; }
+
+/* ---------- tarjeta de hoy (Mi horario) ---------- */
+.tarjeta-hoy {
+  margin: 18px 20px 0; border-radius: 24px; padding: 28px 20px; box-shadow: var(--sombra-tarjeta);
+  display: flex; flex-direction: column; align-items: center;
+}
+.tarjeta-hoy-etiqueta { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.tarjeta-hoy-letra { font-size: 64px; font-weight: 800; line-height: 1; margin-top: 10px; letter-spacing: -0.03em; }
+.tarjeta-hoy-horario { font-size: 16px; font-weight: 600; margin-top: 8px; }
+
+/* ---------- tarjetas genéricas ---------- */
+.tarjeta {
+  margin: 18px 20px 0; background: var(--color-superficie); border: 1px solid var(--color-borde-suave);
+  border-radius: var(--radio-tarjeta); padding: 18px; box-shadow: var(--sombra-tarjeta);
+}
+.tarjeta-titulo { font-size: 16px; font-weight: 700; color: var(--color-texto); margin-bottom: 12px; letter-spacing: -0.01em; }
+.tarjeta-titulo-fila { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.tarjeta-ayuda { font-size: 12.5px; color: var(--color-texto-suave); margin-bottom: 14px; }
+
+/* ---------- fila de día (semana) ---------- */
+.fila-dia { display: flex; align-items: center; justify-content: space-between; padding: 8px 8px; border-radius: var(--radio); }
+.fila-dia-hoy { background: var(--color-acento-suave); box-shadow: inset 0 0 0 1px var(--color-acento-borde); }
+.fila-dia-fecha { font-size: 15px; font-weight: 600; }
+.fila-dia-letra { width: 36px; height: 36px; border-radius: var(--radio-chico); font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.fila-dia-horario { font-size: 13px; color: var(--color-texto-suave); }
+
+/* ---------- leyenda ---------- */
+.leyenda { display: flex; gap: 14px; padding: 12px 20px; font-size: 11px; color: var(--color-texto-suave); flex-wrap: wrap; }
+.leyenda span { display: inline-flex; align-items: center; gap: 4px; }
+.leyenda-punto { display: inline-block; width: 12px; height: 12px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
+
+.aviso-cache { font-size: 12px; color: var(--color-texto-suave); text-align: center; padding: 6px 0 10px; font-style: italic; }
+
+/* ---------- calendario del mes ---------- */
+.cuadricula-mes { margin: 0 20px 20px; }
+.calendario-mes { border: 1px solid var(--color-borde); border-radius: var(--radio-tarjeta); overflow: hidden; background: var(--color-superficie); box-shadow: var(--sombra-tarjeta); }
+.calendario-encabezado { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--color-borde); }
+.dia-semana-cabecera { text-align: center; padding: 8px 0; font-size: 11px; font-weight: 700; color: var(--color-texto-suave); }
+.dia-semana-cabecera-domingo { color: var(--color-alerta-texto); background: var(--color-alerta-bg); }
+.calendario-cuerpo { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+
+.dia-celda {
+  min-height: 74px; padding: 4px 3px 5px; border-right: 1px solid var(--color-borde-suave);
+  border-bottom: 1px solid var(--color-borde-suave); display: flex; flex-direction: column; gap: 2px;
+}
+.calendario-cuerpo .dia-celda:nth-child(7n) { border-right: none; }
+.dia-celda-fuera { background: var(--color-borde-suave); opacity: 0.5; }
+.dia-celda-domingo { background: var(--color-alerta-bg-suave); }
+.dia-celda-feriado { background: var(--color-f-bg-suave); }
+.dia-numero { font-size: 11px; font-weight: 700; color: var(--color-texto-suave); padding: 1px 2px; }
+.dia-personas { display: flex; flex-direction: column; gap: 2px; }
+.dia-persona {
+  display: flex; align-items: center; gap: 3px; border-radius: 6px; padding: 1.5px 3px;
+  font-size: 8.5px; font-weight: 700; line-height: 1.25; overflow: hidden;
+}
+.dia-persona span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.dia-persona-letra { flex: 0 0 auto !important; opacity: 0.75; font-weight: 800; }
+.dia-persona-hueco { background: var(--color-alerta-bg); color: var(--color-alerta-texto); border: 1px solid var(--color-alerta-borde); }
+.dia-persona-ausencia { background: var(--color-borde-suave); color: var(--color-texto-suave); }
+
+/* ---------- listas / tarjetas de persona ---------- */
+.lista-columna { padding: 16px 20px 0; display: flex; flex-direction: column; gap: 10px; }
+.lista-columna-ajustada { display: flex; flex-direction: column; gap: 10px; }
+.mensaje-cargando, .estado-vacio { color: var(--color-texto-suave); font-size: 13px; padding: 20px; text-align: center; }
+
+.tarjeta-persona {
+  background: var(--color-superficie); border: 1px solid var(--color-borde-suave); border-radius: var(--radio-tarjeta);
+  padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--sombra-tarjeta);
+}
+.tarjeta-persona-icono {
+  width: 44px; height: 44px; border-radius: 50%; background: var(--color-superficie-alt); border: 1px solid var(--color-borde);
+  font-size: 13px; font-weight: 800; color: var(--color-texto);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.tarjeta-persona-info { flex: 1; min-width: 0; }
+.tarjeta-persona-nombre { font-size: 14.5px; font-weight: 700; }
+.tarjeta-persona-detalle { font-size: 12px; color: var(--color-texto-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+.badge-gris { background: var(--color-l-bg); color: var(--color-l-texto); }
+.badge-amarillo { background: var(--color-d-bg); color: var(--color-d-texto); }
+.badge-verde { background: var(--color-ok-bg); color: var(--color-ok-texto); }
+.badge-roja { background: var(--color-alerta-bg); color: var(--color-alerta-texto); }
+.punto-activo { width: 10px; height: 10px; border-radius: 50%; background: var(--color-ok-punto); flex-shrink: 0; }
+
+/* ---------- solicitudes ---------- */
+.tarjeta-solicitud {
+  background: var(--color-superficie); border: 1px solid var(--color-borde-suave); border-radius: var(--radio-tarjeta);
+  padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--sombra-tarjeta);
+}
+.tarjeta-solicitud-pendiente { border: 1.5px dashed var(--color-borde-fuerte); background: var(--color-superficie-alt); box-shadow: none; }
+.tarjeta-solicitud-fila { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.tarjeta-solicitud-tipo { font-size: 14.5px; font-weight: 700; }
+.tarjeta-solicitud-detalle { font-size: 12.5px; color: var(--color-texto-suave); }
+.tarjeta-solicitud-pie { font-size: 11.5px; color: var(--color-texto-tenue); margin-top: 6px; font-style: italic; }
+
+/* ---------- letras y feriados (Configuración) ---------- */
+.fila-letra { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+.fila-letra-badge { width: 38px; height: 38px; border-radius: var(--radio-chico); font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.fila-letra-texto { font-size: 13.5px; }
+
+.grupo-opciones { display: flex; gap: 8px; }
+.grupo-opcion {
+  flex: 1; min-height: 48px; border-radius: 999px; border: 1px solid var(--color-borde);
+  background: var(--color-superficie); font-size: 14px; font-weight: 600; color: var(--color-texto); cursor: pointer;
+  transition: border-color var(--transicion), background var(--transicion);
+}
+.grupo-opcion:hover { border-color: var(--color-texto); }
+.grupo-opcion-activa { background: var(--color-texto); color: #FFFFFF; border-color: var(--color-texto); font-weight: 600; }
+
+.fila-feriado { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--color-borde-suave); font-size: 13.5px; gap: 8px; }
+.fila-feriado-nombre { color: var(--color-texto-suave); font-size: 13px; flex: 1; text-align: right; }
+
+/* ---------- menú "Más" ---------- */
+.fila-menu {
+  display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 4px;
+  border-radius: var(--radio-tarjeta); color: var(--color-texto); font-size: 16px; font-weight: 600;
+  transition: background var(--transicion);
+}
+.fila-menu:hover { background: var(--color-superficie-alt); }
+
+/* ---------- diálogo de confirmación / texto ---------- */
+.dialogo-overlay {
+  position: fixed; inset: 0; background: rgba(34, 34, 34, 0.55); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  display: flex; align-items: flex-end; justify-content: center; z-index: 100;
+}
+.dialogo-caja {
+  width: 100%; max-width: 480px; background: var(--color-superficie);
+  border-radius: 24px 24px 0 0; padding: 24px 20px; box-shadow: var(--sombra-elevada);
+}
+.dialogo-texto { font-size: 16px; font-weight: 700; margin-bottom: 16px; line-height: 1.4; }
+.dialogo-input {
+  width: 100%; min-height: 52px; border-radius: var(--radio); border: 1px solid var(--color-borde-fuerte);
+  background: var(--color-fondo); padding: 0 14px; margin-bottom: 16px; color: var(--color-texto);
+}
+.dialogo-acciones { display: flex; gap: 12px; }
+
+/* ---------- barra inferior ---------- */
+.nav-inferior {
+  position: sticky; bottom: 0;
+  height: 76px; background: var(--color-superficie); border-top: 1px solid var(--color-borde-suave); box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04); z-index: 20;
+  display: flex; align-items: center; justify-content: space-around; padding-bottom: 10px;
+}
+.nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; min-height: 48px; justify-content: center; padding: 4px 8px; transition: color var(--transicion); }
+
+/* ---------- barra lateral (escritorio) ---------- */
+.nav-lateral {
+  display: none; /* la media query de >=880px la muestra cuando no tiene [hidden] */
+  flex-direction: column;
+  width: 232px;
+  flex-shrink: 0;
+  background: var(--color-superficie);
+  border-right: 1px solid var(--color-borde-suave);
+  padding: 24px 14px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+}
+.nav-lateral-marca { display: flex; align-items: center; gap: 10px; padding: 0 8px; margin-bottom: 24px; }
+.nav-lateral-logo {
+  width: 36px; height: 36px; border-radius: 50%; background: var(--color-acento-suave);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.nav-lateral-nombre { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: var(--color-texto); }
+.nav-lateral-items { display: flex; flex-direction: column; gap: 2px; }
+.nav-lateral-item {
+  display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 12px;
+  border-radius: var(--radio); font-size: 14.5px;
+  transition: background var(--transicion);
+}
+.nav-lateral-item:hover { background: var(--color-superficie-alt); }
+.nav-lateral-item-activo { background: var(--color-acento-suave); }
+
+.leyenda-punto-hueco { background: var(--color-alerta-bg); border: 1px solid var(--color-alerta-borde); }
+
+/* ---------- movimiento reducido ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* ---------- integración con el hub ---------- */
+.volver-hub {
+  display: block; padding: 10px 20px; font-size: 13px; font-weight: 600;
+  color: var(--color-texto-suave); background: var(--color-superficie-alt);
+  border-bottom: 1px solid var(--color-borde-suave);
+}
+.volver-hub:hover { color: var(--color-texto); }
