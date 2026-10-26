@@ -185,3 +185,15 @@ export function horarioDeTurno(turno) {
   if (ini && fin) return { tipo: 'manual', hora_ini: ini, hora_fin: fin };
   return predefinido ? { tipo: 'letra', letra: base } : { tipo: 'libre' };
 }
+
+/**
+ * Horario de entrada y salida para mostrar ("06:00–14:00"; un doble lleva sus dos tramos).
+ * Con `compacto` quita los ":00" ("06–14"), para las celdas angostas del celular.
+ */
+export function horarioCorto(turno, { compacto = false } = {}) {
+  if (!trabaja(turno) || !turno.hora_ini || !turno.hora_fin) return '';
+  const h = (valor) => (compacto ? String(valor).slice(0, 5).replace(/:00$/, '') : String(valor).slice(0, 5));
+  let texto = `${h(turno.hora_ini)}–${h(turno.hora_fin)}`;
+  if (turno.tipo_cobertura === 'doblar' && turno.split_ini && turno.split_fin) texto += ` y ${h(turno.split_ini)}–${h(turno.split_fin)}`;
+  return texto;
+}
