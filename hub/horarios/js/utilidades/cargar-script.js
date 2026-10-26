@@ -18,7 +18,6 @@ export function cargarScript(url, listo) {
 
 export const URL_EXCELJS = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
 export const URL_JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-export const URL_JSPDF_TABLAS = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
 
 export async function cargarExcelJS() {
   await cargarScript(URL_EXCELJS, () => Boolean(window.ExcelJS));
@@ -27,7 +26,6 @@ export async function cargarExcelJS() {
 
 export async function cargarJsPDF() {
   await cargarScript(URL_JSPDF, () => Boolean(window.jspdf?.jsPDF));
-  await cargarScript(URL_JSPDF_TABLAS, () => Boolean(window.jspdf?.jsPDF?.API?.autoTable));
   return window.jspdf.jsPDF;
 }
 

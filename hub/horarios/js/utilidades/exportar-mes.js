@@ -4,7 +4,7 @@
 import { listarPersonal, listarTurnos, listarFeriados } from '../firebase.js';
 import { textos } from '../textos.js';
 import { isoALocal, localAIso, diasEnElMes, nombreMes } from './fechas.js';
-import { etiquetaTurno, trabaja } from '../ajustes-turno.js';
+import { etiquetaTurno, trabaja, horarioCorto } from '../ajustes-turno.js';
 import { cargarExcelJS, cargarJsPDF, descargarArchivo } from './cargar-script.js';
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -98,60 +98,170 @@ export async function exportarMesExcel(mesIso) {
   descargarArchivo(new Blob([datosExcel], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Horarios_${titulo.replace(/\s+/g, '_')}.xlsx`);
 }
 
+// ---------- PDF: el calendario tal como se ve en pantalla ----------
+
+const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+const hex = (h) => [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+const capital = (texto) => texto.charAt(0) + texto.slice(1).toLowerCase();
+
+/**
+ * Nombre corto de cada persona: el primer nombre, como en pantalla. Si dos se llaman igual,
+ * se agrega la segunda palabra para distinguirlas.
+ */
+function nombresCortos(personal) {
+  const primero = (p) => capital(String(p.nombre).split(' ')[0]);
+  const conteo = new Map();
+  personal.forEach((p) => conteo.set(primero(p), (conteo.get(primero(p)) ?? 0) + 1));
+  return new Map(personal.map((p) => {
+    const palabras = String(p.nombre).split(' ');
+    const nombre = conteo.get(primero(p)) > 1 && palabras[1] ? `${primero(p)} ${capital(palabras[1])}` : primero(p);
+    return [p.id, nombre];
+  }));
+}
+
+/** Renglones de un día: letra, nombre y horario de quien trabaja o falta (los libres no van). */
+function renglonesDelDia(dia, personal, turnoDe, nombres) {
+  return personal
+    .map((p) => {
+      const turno = turnoDe.get(`${p.id}_${dia.iso}`);
+      if (!turno || turno.tipo_cobertura === 'libre') return null;
+      if (turno.tipo_cobertura === 'ausencia') {
+        return {
+          orden: `Z${nombres.get(p.id)}`, letra: ABREV_AUSENCIA[turno.ausencia_tipo] ?? 'AUS', nombre: nombres.get(p.id),
+          horario: textos.ausencias[turno.ausencia_tipo] ?? 'Ausente', color: COLORES.ausencia, puesto: p.puesto,
+        };
+      }
+      const letra = etiquetaTurno(turno);
+      return {
+        orden: letra, letra, nombre: nombres.get(p.id), horario: horarioCorto(turno), horarioCompacto: horarioCorto(turno, { compacto: true }),
+        color: COLORES[letra[0]] ?? COLORES.L, puesto: p.puesto,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.orden.localeCompare(b.orden) || a.nombre.localeCompare(b.nombre));
+}
+
+/** Marca del puesto: círculo = inspector, cuadrado = encargado (se distinguen en blanco y negro). */
+function marcaPuesto(pdf, puesto, x, y, tam) {
+  pdf.setFillColor(60, 60, 60);
+  if (puesto === 'inspector') pdf.circle(x + tam / 2, y, tam / 2, 'F');
+  else pdf.rect(x, y - tam / 2, tam, tam, 'F');
+}
+
 export async function exportarMesPdf(mesIso) {
   const [JsPDF, datos] = await Promise.all([cargarJsPDF(), datosDelMes(mesIso)]);
   const { dias, personal, turnoDe, feriados, titulo } = datos;
-  const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
-  const ancho = pdf.internal.pageSize.getWidth();
+  const nombres = nombresCortos(personal);
 
+  const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+  const anchoHoja = pdf.internal.pageSize.getWidth();
+  const altoHoja = pdf.internal.pageSize.getHeight();
+  const margen = 8;
+
+  // Encabezado
+  pdf.setTextColor(34, 34, 34);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(15);
-  pdf.text(`Horarios · ${titulo}`, 10, 13);
+  pdf.text(`Horarios · ${titulo}`, margen, margen + 5);
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7.5);
-  pdf.setTextColor(106, 106, 106);
-  pdf.text(`D 06–14 · E 14–21 · F 21–06 · E1 6 a 6 día · L libre · ${leyendaAusencias()}`, 10, 18.5);
-  pdf.text(`Generado el ${new Date().toLocaleString('es-GT')}`, ancho - 10, 13, { align: 'right' });
+  pdf.setFontSize(7);
+  pdf.setTextColor(94, 94, 94);
+  pdf.text(`Generado el ${new Date().toLocaleString('es-GT')}`, anchoHoja - margen, margen + 5, { align: 'right' });
+  const leyenda = 'D 06:00–14:00 · E 14:00–21:00 · F 21:00–06:00 · E1 6 a 6 día 06:00–18:00 · D domingo 6 a 6 noche 18:00–06:00 · '
+    + `${leyendaAusencias()}`;
+  const lineasLeyenda = pdf.splitTextToSize(leyenda, anchoHoja - 2 * margen);
+  pdf.text(lineasLeyenda, margen, margen + 10);
+  const yMarcas = margen + 10 + lineasLeyenda.length * 3 + 0.6;
+  marcaPuesto(pdf, 'inspector', margen, yMarcas - 0.8, 1.8);
+  pdf.text('Inspector', margen + 2.8, yMarcas);
+  marcaPuesto(pdf, 'encargado', margen + 17, yMarcas - 0.8, 1.8);
+  pdf.text('Encargado', margen + 19.8, yMarcas);
 
-  const hex = (h) => [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-  const cuerpo = personal.map((p) => [
-    `${p.nombre}\n${p.puesto}${p.grupo ? ` · Turno ${p.grupo}` : ''}`,
-    ...dias.map((d) => celda(turnoDe.get(`${p.id}_${d.iso}`)).texto),
-    String(Math.round(horasDe(p.id, dias, turnoDe) * 10) / 10),
-  ]);
-  const anchoNombre = 42;
-  const anchoHoras = 10;
-  const anchoDia = (ancho - 20 - anchoNombre - anchoHoras) / dias.length;
+  // Semanas de lunes a domingo; los días de otros meses quedan en blanco.
+  const primerDia = isoALocal(dias[0].iso).getDay(); // 0 = domingo
+  const desfase = (primerDia + 6) % 7; // columnas vacías antes del día 1
+  const semanas = Math.ceil((desfase + dias.length) / 7);
 
-  pdf.autoTable({
-    startY: 22,
-    margin: { left: 10, right: 10 },
-    head: [['Persona', ...dias.map((d) => `${d.semana.slice(0, 2)}\n${d.numero}`), 'Horas']],
-    body: cuerpo,
-    theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 6.5, cellPadding: 1, halign: 'center', valign: 'middle', lineColor: [221, 221, 221], lineWidth: 0.1, textColor: [34, 34, 34] },
-    headStyles: { fillColor: [34, 34, 34], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 6.5 },
-    columnStyles: {
-      0: { halign: 'left', cellWidth: anchoNombre, fontSize: 7 },
-      [dias.length + 1]: { cellWidth: anchoHoras, fontStyle: 'bold' },
-      ...Object.fromEntries(dias.map((_, i) => [i + 1, { cellWidth: anchoDia, fontStyle: 'bold' }])),
-    },
-    didParseCell(dato) {
-      const i = dato.column.index - 1;
-      const dia = dias[i];
-      if (!dia) return;
-      if (dato.section === 'head' && (dia.domingo || feriados.has(dia.iso))) {
-        dato.cell.styles.fillColor = hex('FFE4DE');
-        dato.cell.styles.textColor = hex('C13515');
-      }
-      if (dato.section === 'body') {
-        const info = celda(turnoDe.get(`${personal[dato.row.index].id}_${dia.iso}`));
-        const fondo = info.color?.fondo ?? (dia.domingo || feriados.has(dia.iso) ? COLORES.domingo.fondo : null);
-        if (fondo) dato.cell.styles.fillColor = hex(fondo);
-        if (info.color) dato.cell.styles.textColor = hex(info.color.texto);
-      }
-    },
+  const xTabla = margen;
+  const yCabecera = yMarcas + 3;
+  const altoCabecera = 6;
+  const anchoCelda = (anchoHoja - 2 * margen) / 7;
+  const yCuerpo = yCabecera + altoCabecera;
+  const altoCelda = (altoHoja - margen - yCuerpo) / semanas;
+
+  const renglones = dias.map((d) => renglonesDelDia(d, personal, turnoDe, nombres));
+  const maxRenglones = Math.max(1, ...renglones.map((r) => r.length));
+  const altoRenglon = Math.min(4.8, (altoCelda - 5.5) / maxRenglones);
+  const tamLetra = Math.max(5.2, Math.min(7.2, altoRenglon * 1.55));
+
+  // Cabecera de días
+  DIAS_SEMANA.forEach((nombre, i) => {
+    const x = xTabla + i * anchoCelda;
+    const domingo = i === 6;
+    pdf.setFillColor(...(domingo ? hex('FFE4DE') : hex('222222')));
+    pdf.rect(x, yCabecera, anchoCelda, altoCabecera, 'F');
+    pdf.setTextColor(...(domingo ? hex('C13515') : [255, 255, 255]));
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7.5);
+    pdf.text(nombre.toUpperCase(), x + anchoCelda / 2, yCabecera + 4.1, { align: 'center' });
   });
+
+  // Celdas
+  for (let s = 0; s < semanas; s++) {
+    for (let c = 0; c < 7; c++) {
+      const x = xTabla + c * anchoCelda;
+      const y = yCuerpo + s * altoCelda;
+      const indice = s * 7 + c - desfase;
+      const dia = dias[indice];
+
+      if (dia && (dia.domingo || feriados.has(dia.iso))) {
+        pdf.setFillColor(...hex(COLORES.domingo.fondo));
+        pdf.rect(x, y, anchoCelda, altoCelda, 'F');
+      }
+      pdf.setDrawColor(200, 200, 200);
+      pdf.setLineWidth(0.2);
+      pdf.rect(x, y, anchoCelda, altoCelda, 'S');
+      if (!dia) continue;
+
+      pdf.setTextColor(34, 34, 34);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8);
+      pdf.text(String(dia.numero) + (feriados.has(dia.iso) ? '  feriado' : ''), x + 1.5, y + 3.6);
+
+      renglones[indice].forEach((r, i) => {
+        const yR = y + 5 + i * altoRenglon;
+        const altoPastilla = altoRenglon - 0.6;
+        pdf.setFillColor(...hex(r.color.fondo));
+        pdf.roundedRect(x + 1, yR, anchoCelda - 2, altoPastilla, 0.8, 0.8, 'F');
+        const base = yR + altoPastilla / 2 + tamLetra * 0.12;
+        marcaPuesto(pdf, r.puesto, x + 1.8, yR + altoPastilla / 2, Math.min(1.6, altoPastilla * 0.4));
+        pdf.setTextColor(...hex(r.color.texto));
+        pdf.setFontSize(tamLetra);
+
+        // Letra, nombre y horario en el mismo renglón: si no cabe el horario largo se usa el
+        // compacto ("06–14 y 21–06") y, si aún no cabe, se recorta el nombre.
+        pdf.setFont('helvetica', 'bold');
+        const xLetra = x + 4;
+        pdf.text(r.letra, xLetra, base);
+        const xNombre = xLetra + pdf.getTextWidth(r.letra) + 1.3;
+        const xFin = x + anchoCelda - 1.8;
+        pdf.setFont('helvetica', 'normal');
+        let horario = r.horario ?? '';
+        const espacioNombre = (h) => xFin - xNombre - pdf.getTextWidth(h) - 1.2;
+        pdf.setFont('helvetica', 'bold');
+        const anchoNombre = pdf.getTextWidth(r.nombre);
+        pdf.setFont('helvetica', 'normal');
+        if (anchoNombre > espacioNombre(horario) && r.horarioCompacto) horario = r.horarioCompacto;
+        const disponible = espacioNombre(horario);
+        pdf.setFont('helvetica', 'bold');
+        let nombre = r.nombre;
+        while (nombre.length > 2 && pdf.getTextWidth(nombre) > disponible) nombre = `${nombre.slice(0, -2)}…`;
+        pdf.text(nombre, xNombre, base);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(horario, xFin, base, { align: 'right' });
+      });
+    }
+  }
 
   pdf.save(`Horarios_${titulo.replace(/\s+/g, '_')}.pdf`);
 }
