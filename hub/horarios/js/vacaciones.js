@@ -4,11 +4,15 @@
 // dos compañeros de su mismo puesto para los tres turnos del día:
 //   - el que tiene D (o, si falta D, el de F) hace doble: 06:00–14:00 y 21:00–06:00;
 //   - el que tiene E se queda 14:00–21:00 (si falta E, el de F pasa a 14:00–21:00).
-// El domingo de 6 a 6, el compañero de su puesto que estaba libre cubre su 6 a 6.
+// El domingo, en el puesto de quien está de vacaciones ya no se hace 6 a 6: quedan dos para
+// los tres turnos igual que entre semana. El de día viene 06:00–14:00 y regresa 21:00–06:00;
+// el de noche viene 14:00–21:00 (así entra a su turno de la semana siguiente). Si quien se va
+// tenía el día, lo toma el compañero que estaba libre; si tenía la noche, el libre hace 14–21.
+// El otro puesto sigue con su 6 a 6.
 // Nadie cambia de letra: de ella salen sus horas ordinarias.
 
 import { listarPersonal, listarTurnos, listarFeriados } from './firebase.js';
-import { armarTurnoManual, trabaja, letraBaseDe, describirOpcion } from './ajustes-turno.js';
+import { armarTurnoManual, trabaja, letraBaseDe } from './ajustes-turno.js';
 import { letraDeSemana } from './paginas/cambio-turno.js';
 import { isoALocal, localAIso, fechaCorta } from './utilidades/fechas.js';
 
@@ -66,10 +70,14 @@ export async function planDeCobertura({ personaId, desde, hasta }) {
 
     if (propio.tipo_cobertura === '6a6dia' || propio.tipo_cobertura === '6a6noche') {
       const libre = delPuesto.find((p) => !trabaja(turnoCompa(p)) && turnoCompa(p)?.tipo_cobertura !== 'ausencia');
-      if (!libre) { pendientes.push(fecha); continue; }
-      const opcion = propio.tipo_cobertura === '6a6dia' ? 'horario:06:00-18:00' : 'horario:18:00-06:00';
-      agregar(libre, opcion);
-      porDia.push({ fecha, texto: `${primerNombre(libre.nombre)} cubre ${describirOpcion(opcion).replace('horario ', '')}` });
+      const deDia = delPuesto.find((p) => turnoCompa(p)?.tipo_cobertura === '6a6dia');
+      const deNoche = delPuesto.find((p) => turnoCompa(p)?.tipo_cobertura === '6a6noche');
+      const quienDia = propio.tipo_cobertura === '6a6dia' ? libre : deDia;
+      const quienNoche = propio.tipo_cobertura === '6a6noche' ? libre : deNoche;
+      if (!quienDia || !quienNoche || quienDia === quienNoche) { pendientes.push(fecha); continue; }
+      agregar(quienDia, 'doble:D+F');
+      agregar(quienNoche, 'horario:14:00-21:00');
+      porDia.push({ fecha, texto: `${primerNombre(quienDia.nombre)} 06–14 y 21–06 · ${primerNombre(quienNoche.nombre)} 14:00–21:00` });
       continue;
     }
 
