@@ -63,7 +63,7 @@ export async function render(contenedor) {
         return;
       }
 
-      location.hash = '#/mi-horario';
+      location.hash = '#/mes';
     } catch (e) {
       console.error(e);
       mostrarError(errorEl, textos.errores.genericoAlGuardar);
