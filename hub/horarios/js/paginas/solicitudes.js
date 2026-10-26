@@ -1,4 +1,4 @@
-import { getUsuarioActual, crearSolicitud, listarMisSolicitudes } from '../firebase.js';
+import { getUsuarioActual, crearSolicitud, listarMisSolicitudes, registrarHistorial } from '../firebase.js';
 import { textos } from '../textos.js';
 import { fechaCorta } from '../utilidades/fechas.js';
 
@@ -74,6 +74,13 @@ async function enviarSolicitud(usuario) {
       solicitante_nombre: usuario.nombre,
       detalle: { fecha_inicio: fechaInicio, fecha_fin: fechaFin },
       motivo: motivo || null,
+    });
+
+    await registrarHistorial({
+      accion: 'solicitud',
+      texto: `${usuario.nombre} pidió "${textos.tiposSolicitud[tipo] ?? tipo}" del ${fechaCorta(fechaInicio)} al ${fechaCorta(fechaFin)}`,
+      persona: { id: usuario.id, nombre: usuario.nombre, correo: usuario.correo },
+      fecha: fechaInicio,
     });
 
     infoEl.textContent = t().toastEnviada;

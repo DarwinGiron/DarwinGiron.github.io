@@ -10,7 +10,8 @@ import * as configuracion from './paginas/configuracion.js';
 import * as mas from './paginas/mas.js';
 import * as solicitudes from './paginas/solicitudes.js';
 import * as hoy from './paginas/hoy.js';
-import * as proximamente from './paginas/proximamente.js';
+import * as reportes from './paginas/reportes.js';
+import * as historial from './paginas/historial.js';
 
 const rutas = {
   '#/mi-horario': { render: miHorario.render },
@@ -21,8 +22,8 @@ const rutas = {
   '#/mas': { render: mas.render, coordinador: true },
   '#/hoy': { render: hoy.render, coordinador: true },
   '#/solicitudes': { render: solicitudes.render },
-  '#/reportes': { render: (c) => proximamente.render(c, textos.paginas.reportes.titulo), coordinador: true },
-  '#/historial': { render: (c) => proximamente.render(c, textos.paginas.historial.titulo) },
+  '#/reportes': { render: reportes.render, coordinador: true },
+  '#/historial': { render: historial.render },
 };
 
 let contenedor;

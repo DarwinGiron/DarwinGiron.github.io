@@ -66,8 +66,12 @@ export async function render(contenedor) {
   await pintarCuadricula(document.getElementById('cuadricula-mes'));
 }
 
-/** Exportada para que otras páginas (Planificador) reutilicen el mismo calendario. */
-export async function pintarCuadricula(cuadricula) {
+/**
+ * Exportada para que otras páginas (Planificador) reutilicen el mismo calendario.
+ * Con `editable`, cada persona y cada número de día se pueden tocar: se llama a
+ * `alTocarPersona({ persona, fecha, turno })` o a `alTocarDia({ fecha, usuarios, turnos })`.
+ */
+export async function pintarCuadricula(cuadricula, { editable = false, alTocarPersona, alTocarDia } = {}) {
   cuadricula.innerHTML = '<div class="mensaje-cargando">Cargando...</div>';
 
   const mesIso = estado.mesVisible;
@@ -124,7 +128,7 @@ export async function pintarCuadricula(cuadricula) {
     <div class="dia-semana-cabecera ${i === 6 ? 'dia-semana-cabecera-domingo' : ''}">${nombre}</div>
   `).join('');
 
-  const celdas = dias.map((dia) => celdaDia(dia, usuarios, turnosPorPersonaFecha)).join('');
+  const celdas = dias.map((dia) => celdaDia(dia, usuarios, turnosPorPersonaFecha, editable)).join('');
 
   cuadricula.innerHTML = `
     <div class="calendario-mes">
@@ -132,9 +136,25 @@ export async function pintarCuadricula(cuadricula) {
       <div class="calendario-cuerpo">${celdas}</div>
     </div>
   `;
+
+  if (!editable) return;
+  const personaPorId = new Map(usuarios.map((p) => [p.id, p]));
+  cuadricula.querySelectorAll('[data-persona-id]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const { personaId, fecha } = el.dataset;
+      alTocarPersona?.({ persona: personaPorId.get(personaId), fecha, turno: turnosPorPersonaFecha[`${personaId}_${fecha}`] ?? null });
+    });
+  });
+  cuadricula.querySelectorAll('[data-dia]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const fecha = el.dataset.dia;
+      const turnosDelDia = Object.fromEntries(usuarios.map((p) => [p.id, turnosPorPersonaFecha[`${p.id}_${fecha}`] ?? null]));
+      alTocarDia?.({ fecha, usuarios, turnos: turnosDelDia });
+    });
+  });
 }
 
-function celdaDia(dia, usuarios, turnosPorPersonaFecha) {
+function celdaDia(dia, usuarios, turnosPorPersonaFecha, editable) {
   const clasesCelda = [
     'dia-celda',
     !dia.esDelMes ? 'dia-celda-fuera' : '',
@@ -154,25 +174,39 @@ function celdaDia(dia, usuarios, turnosPorPersonaFecha) {
       const primerNombre = persona.nombre.split(' ')[0];
       const primerNombreCap = primerNombre.charAt(0) + primerNombre.slice(1).toLowerCase();
 
+      const tocable = editable ? `role="button" tabindex="0" data-persona-id="${persona.id}" data-fecha="${dia.iso}"` : '';
+
       if (!turno) {
         // Sin turno generado: en domingo es normal (la mayoría descansa), entre semana es un hueco.
-        if (dia.esDomingo) return null;
+        if (dia.esDomingo && !editable) return null;
+        if (dia.esDomingo) {
+          return {
+            orden: 'Z_libre_' + primerNombreCap,
+            html: `<div class="dia-persona dia-persona-libre" ${tocable}>${iconoRol(persona.puesto)}<span>${primerNombreCap}</span><span class="dia-persona-letra">—</span></div>`,
+          };
+        }
         return {
           orden: 'Z_hueco_' + primerNombreCap,
           html: `
-            <div class="dia-persona dia-persona-hueco">
+            <div class="dia-persona dia-persona-hueco" ${tocable}>
               ${iconoRol(persona.puesto)}<span>${primerNombreCap}</span><span class="dia-persona-letra">?</span>
             </div>`,
         };
       }
 
-      if (turno.tipo_cobertura === 'libre') return null;
+      if (turno.tipo_cobertura === 'libre') {
+        if (!editable) return null;
+        return {
+          orden: 'Z_libre_' + primerNombreCap,
+          html: `<div class="dia-persona dia-persona-libre" ${tocable}>${iconoRol(persona.puesto)}<span>${primerNombreCap}</span><span class="dia-persona-letra">L</span></div>`,
+        };
+      }
 
       if (turno.tipo_cobertura === 'ausencia') {
         return {
           orden: 'Z_ausencia_' + primerNombreCap,
           html: `
-            <div class="dia-persona dia-persona-ausencia">
+            <div class="dia-persona dia-persona-ausencia" ${tocable}>
               ${iconoRol(persona.puesto)}<span>${primerNombreCap}</span><span class="dia-persona-letra">${textos.ausencias[turno.ausencia_tipo]?.[0] ?? '—'}</span>
             </div>`,
         };
@@ -182,7 +216,7 @@ function celdaDia(dia, usuarios, turnosPorPersonaFecha) {
       return {
         orden: turno.letra_reportada,
         html: `
-          <div class="dia-persona" style="background:${color.bg}; color:${color.texto};">
+          <div class="dia-persona" style="background:${color.bg}; color:${color.texto};" ${tocable}>
             ${iconoRol(persona.puesto)}<span>${primerNombreCap}</span><span class="dia-persona-letra">${turno.letra_reportada}</span>
           </div>`,
       };
@@ -192,9 +226,13 @@ function celdaDia(dia, usuarios, turnosPorPersonaFecha) {
     .map((fila) => fila.html)
     .join('');
 
+  const numero = editable
+    ? `<button type="button" class="dia-numero dia-numero-boton" data-dia="${dia.iso}" aria-label="Opciones del día ${dia.numero}">${dia.numero}</button>`
+    : `<div class="dia-numero">${dia.numero}</div>`;
+
   return `
     <div class="${clasesCelda}">
-      <div class="dia-numero">${dia.numero}</div>
+      ${numero}
       <div class="dia-personas">${filas}</div>
     </div>`;
 }

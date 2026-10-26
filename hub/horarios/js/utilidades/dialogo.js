@@ -25,6 +25,31 @@ export function confirmar(mensaje, { textoConfirmar = 'Confirmar', textoCancelar
   });
 }
 
+/**
+ * Lista de opciones en una hoja inferior. `opciones` = [{ valor, texto, detalle?, peligro? }].
+ * Devuelve el `valor` elegido, o null si se cierra sin elegir.
+ */
+export function elegirOpcion(titulo, opciones, { subtitulo = '' } = {}) {
+  return new Promise((resolve) => {
+    const overlay = crearOverlay(`
+      <div class="dialogo-texto">${titulo}</div>
+      ${subtitulo ? `<div class="dialogo-subtitulo">${subtitulo}</div>` : ''}
+      <div class="dialogo-opciones">
+        ${opciones.map((o, i) => `
+          <button type="button" class="dialogo-opcion ${o.peligro ? 'dialogo-opcion-peligro' : ''}" data-i="${i}">
+            <span class="dialogo-opcion-texto">${o.texto}</span>
+            ${o.detalle ? `<span class="dialogo-opcion-detalle">${o.detalle}</span>` : ''}
+          </button>`).join('')}
+      </div>
+      <div class="dialogo-acciones"><button class="boton-secundario dialogo-cancelar">Cancelar</button></div>
+    `);
+    const cerrar = (valor) => { overlay.remove(); resolve(valor); };
+    overlay.querySelectorAll('.dialogo-opcion').forEach((b) => b.addEventListener('click', () => cerrar(opciones[Number(b.dataset.i)].valor)));
+    overlay.querySelector('.dialogo-cancelar').addEventListener('click', () => cerrar(null));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(null); });
+  });
+}
+
 export function pedirTexto(mensaje, { placeholder = '', valorInicial = '' } = {}) {
   return new Promise((resolve) => {
     const overlay = crearOverlay(`

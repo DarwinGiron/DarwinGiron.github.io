@@ -1,4 +1,4 @@
-import { listarPersonal, guardarPersona, crearPersonas } from '../firebase.js';
+import { listarPersonal, guardarPersona, crearPersonas, registrarHistorial } from '../firebase.js';
 import { textos } from '../textos.js';
 
 const PERSONAL_INICIAL = [
@@ -161,7 +161,12 @@ export async function render(contenedor) {
       const correo = correoIngresado || correoPlaceholder(personaExistente?.codigo_empleado ?? Date.now().toString());
 
       try {
-        await guardarPersona(personaExistente?.id ?? null, { nombre, puesto, grupo, correo, activo, codigo_empleado: personaExistente?.codigo_empleado ?? null });
+        const id = await guardarPersona(personaExistente?.id ?? null, { nombre, puesto, grupo, correo, activo, codigo_empleado: personaExistente?.codigo_empleado ?? null });
+        await registrarHistorial({
+          accion: 'personal',
+          texto: `${personaExistente ? 'Ficha actualizada' : 'Persona agregada'}: ${nombre} (${puesto}, Turno ${grupo}${activo ? '' : ', inactivo'})`,
+          persona: { id, nombre, correo },
+        });
         document.getElementById('form-nuevo').hidden = true;
         await pintarLista();
       } catch (e) {

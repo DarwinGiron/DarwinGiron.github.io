@@ -6,10 +6,12 @@
 //   horarios_config/principal   semana de referencia de la rotación
 //   horarios_feriados/{fecha}   feriados (el id es la fecha)
 //   horarios_solicitudes/{id}   solicitudes de cambio, permiso, etc.
+//   horarios_historial/{id}     cada cambio hecho en la app (quién, qué y cuándo)
 // Los campos conservan los nombres originales (snake_case) para no tocar las páginas.
 
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, updateDoc, query, where, writeBatch,
+  orderBy, limit,
 } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import { auth, db } from '../../js/firebase-config.js';
@@ -138,6 +140,57 @@ export async function guardarTurnosAuto(turnos, desde, hasta) {
     await lote.commit();
   }
   return porEscribir.length;
+}
+
+/** Guarda turnos puestos a mano (origen "manual": "Generar mes" ya no los pisa). */
+export async function guardarTurnosManuales(turnos) {
+  const lote = writeBatch(db);
+  for (const t of turnos) {
+    lote.set(doc(db, 'horarios_turnos', idTurno(t.fecha, t.usuario_id)), {
+      ...t, origen: 'manual', actualizado_en: new Date().toISOString(), actualizado_por: usuarioActual?.correo ?? null,
+    });
+  }
+  await lote.commit();
+}
+
+/** Borra turnos (para volver a lo planificado: después se regenera el mes). */
+export async function eliminarTurnos(ids) {
+  const lote = writeBatch(db);
+  for (const id of ids) lote.delete(doc(db, 'horarios_turnos', id));
+  await lote.commit();
+}
+
+// ---------- historial ----------
+
+/**
+ * Registra un movimiento. `entrada` = { accion, texto, persona? ({ id, nombre, correo }), fecha? }.
+ * Si falla (p. ej. reglas sin publicar) no interrumpe la acción que ya se hizo.
+ */
+export async function registrarHistorial({ accion, texto, persona = null, fecha = null }) {
+  try {
+    await addDoc(collection(db, 'horarios_historial'), {
+      accion,
+      texto,
+      fecha,
+      persona_id: persona?.id ?? null,
+      persona_nombre: persona?.nombre ?? null,
+      persona_correo: persona?.correo ? normalizarCorreo(persona.correo) : null,
+      actor_correo: usuarioActual?.correo ?? null,
+      actor_nombre: usuarioActual?.nombre ?? null,
+      creado_en: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.warn('No se pudo registrar en el historial:', error);
+  }
+}
+
+/** Coordinador: los últimos movimientos de todos. Trabajador: solo los que lo involucran. */
+export async function listarHistorial() {
+  const consulta = esCoordinador()
+    ? query(collection(db, 'horarios_historial'), orderBy('creado_en', 'desc'), limit(300))
+    : query(collection(db, 'horarios_historial'), where('persona_correo', '==', usuarioActual.correo));
+  const { docs } = await getDocs(consulta);
+  return docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => b.creado_en.localeCompare(a.creado_en));
 }
 
 // ---------- configuración y feriados ----------

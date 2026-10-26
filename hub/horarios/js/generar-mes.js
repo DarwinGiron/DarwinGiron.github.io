@@ -1,7 +1,7 @@
 // "Generar mes": aplica rotacion.js + horas.js y guarda los turnos en Firestore
 // (nunca pisa un turno puesto a mano o por solicitud: ver guardarTurnosAuto en firebase.js).
 
-import { obtenerConfig, guardarConfig, listarPersonal, listarFeriados, guardarTurnosAuto } from './firebase.js';
+import { obtenerConfig, listarPersonal, listarFeriados, guardarTurnosAuto } from './firebase.js';
 import { letraBaseDelDia, coberturaDomingo, esDomingo } from './rotacion.js';
 import { calcularHoras } from './horas.js';
 import { isoALocal, localAIso, primerDiaDelMes, diasEnElMes } from './utilidades/fechas.js';
@@ -32,11 +32,6 @@ export async function generarMes(mesIso) {
   const feriados = await listarFeriados(primerDia, ultimoDiaIso);
   const feriadosSet = new Set((feriados ?? []).map((f) => f.fecha));
 
-  let alternancia = {
-    ultimoPuestoDomingoDia: config.ultimo_puesto_domingo_dia ?? 'encargado',
-    ultimoPuestoDomingoNoche: config.ultimo_puesto_domingo_noche ?? 'encargado',
-  };
-
   const turnosGenerados = [];
 
   for (let dia = 1; dia <= totalDias; dia++) {
@@ -45,7 +40,7 @@ export async function generarMes(mesIso) {
     const esFeriado = feriadosSet.has(fechaIso);
 
     if (esDomingo(fecha)) {
-      const coberturas = coberturaDomingo(fecha, referencia, alternancia);
+      const coberturas = coberturaDomingo(fecha, referencia);
       const cubrePorGrupo = {};
       for (const c of coberturas) cubrePorGrupo[c.grupo] = c;
 
@@ -80,18 +75,6 @@ export async function generarMes(mesIso) {
         }
       }
 
-      const grupoEnE = coberturas.find((c) => c.letraReportada === 'E1')?.grupo;
-      const grupoEnD = coberturas.find((c) => c.letraReportada === 'D')?.grupo;
-      const elegidoDia = grupoEnE != null
-        ? (porGrupo[grupoEnE].find((p) => p.puesto === cubrePorGrupo[grupoEnE].puesto) ?? porGrupo[grupoEnE][0])
-        : null;
-      const elegidoNoche = grupoEnD != null
-        ? (porGrupo[grupoEnD].find((p) => p.puesto === cubrePorGrupo[grupoEnD].puesto) ?? porGrupo[grupoEnD][0])
-        : null;
-      alternancia = {
-        ultimoPuestoDomingoDia: elegidoDia?.puesto ?? alternancia.ultimoPuestoDomingoDia,
-        ultimoPuestoDomingoNoche: elegidoNoche?.puesto ?? alternancia.ultimoPuestoDomingoNoche,
-      };
       continue;
     }
 
@@ -112,11 +95,6 @@ export async function generarMes(mesIso) {
       }
     }
   }
-
-  await guardarConfig({
-    ultimo_puesto_domingo_dia: alternancia.ultimoPuestoDomingoDia,
-    ultimo_puesto_domingo_noche: alternancia.ultimoPuestoDomingoNoche,
-  });
 
   const creados = await guardarTurnosAuto(turnosGenerados, primerDia, ultimoDiaIso);
   return { creados };

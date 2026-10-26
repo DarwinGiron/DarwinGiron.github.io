@@ -42,17 +42,20 @@ export function letraBaseDelDia(fecha, referencia) {
 }
 
 /**
- * Regla del domingo: el grupo en E cubre 06–18 (reportado E1, 11 h), el grupo en D
- * cubre 18–06 (reportado D, 12 h), alternando inspector/encargado dentro de cada grupo.
- * `alternancia` = { ultimoPuestoDomingoDia, ultimoPuestoDomingoNoche } ('inspector'|'encargado')
+ * Regla del domingo: el grupo en E cubre 06–18 (reportado E1, 11 h) y el grupo en D cubre
+ * 18–06 (reportado D, 12 h). Cada domingo trabajan un inspector y un encargado: si de día va
+ * el inspector, de noche va el encargado, y el domingo siguiente se intercambian.
+ * Depende solo de la semana (no de lo generado antes), así que volver a generar un mes da
+ * siempre el mismo resultado.
  */
-export function coberturaDomingo(fecha, referencia, alternancia) {
+export function coberturaDomingo(fecha, referencia) {
   const letras = letraBaseDelDia(fecha, referencia);
   const grupoEnD = Number(Object.keys(letras).find((g) => letras[g] === 'D'));
   const grupoEnE = Number(Object.keys(letras).find((g) => letras[g] === 'E'));
 
-  const puestoDia = alternancia.ultimoPuestoDomingoDia === 'inspector' ? 'encargado' : 'inspector';
-  const puestoNoche = alternancia.ultimoPuestoDomingoNoche === 'inspector' ? 'encargado' : 'inspector';
+  const semanas = Math.round((lunesDeLaSemana(fecha) - lunesDeLaSemana(referencia.semanaReferenciaLunes)) / MS_POR_SEMANA);
+  const puestoDia = ((semanas % 2) + 2) % 2 === 0 ? 'inspector' : 'encargado';
+  const puestoNoche = puestoDia === 'inspector' ? 'encargado' : 'inspector';
 
   return [
     { grupo: grupoEnE, puesto: puestoDia, franja: '06:00-18:00', letraReportada: 'E1', horas: 11 },

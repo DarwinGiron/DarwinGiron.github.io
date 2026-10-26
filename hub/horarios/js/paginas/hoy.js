@@ -4,6 +4,7 @@
 import { textos } from '../textos.js';
 import { LETRAS, listarPersonal, listarTurnos } from '../firebase.js';
 import { hoyIso, fechaConDiaLargo, isoALocal, localAIso } from '../utilidades/fechas.js';
+import { trabaja } from '../ajustes-turno.js';
 
 const LETRAS_DE_COBERTURA = ['D', 'E', 'F'];
 let diaVisible = null;
@@ -72,8 +73,10 @@ export async function render(contenedor) {
 function pintarCobertura(personal, turnoDe, esDomingo, t) {
   const tarjetas = LETRAS_DE_COBERTURA.map((codigo) => {
     const letra = LETRAS.find((l) => l.codigo === codigo);
-    const quienes = personal.filter((p) => turnoDe.get(p.id)?.letra_reportada?.[0] === codigo);
-    const hueco = quienes.length === 0 && !esDomingo;
+    const deLaLetra = (p) => turnoDe.get(p.id)?.letra_reportada?.[0] === codigo;
+    const quienes = personal.filter((p) => deLaLetra(p) && trabaja(turnoDe.get(p.id)));
+    const ausentes = personal.filter((p) => deLaLetra(p) && turnoDe.get(p.id)?.tipo_cobertura === 'ausencia');
+    const hueco = quienes.length === 0 && (!esDomingo || ausentes.length > 0);
 
     const detalle = quienes.length
       ? quienes.map((p) => {
@@ -82,6 +85,7 @@ function pintarCobertura(personal, turnoDe, esDomingo, t) {
         return `<div class="hoy-persona">${escapar(primerNombre(p.nombre))}<span class="hoy-persona-rol">${escapar(p.puesto)}${extra}</span></div>`;
       }).join('')
       : `<div class="hoy-persona hoy-persona-vacio">${hueco ? t.textoHueco(codigo) : 'Nadie asignado'}</div>`;
+    const lineaAusentes = ausentes.map((p) => `<div class="hoy-persona hoy-persona-ausente">${escapar(primerNombre(p.nombre))}<span class="hoy-persona-rol">${escapar(textos.ausencias[turnoDe.get(p.id).ausencia_tipo] ?? 'Ausente')}</span></div>`).join('');
 
     return `
       <div class="tarjeta-persona hoy-tarjeta ${hueco ? 'hoy-tarjeta-hueco' : ''}">
@@ -89,6 +93,7 @@ function pintarCobertura(personal, turnoDe, esDomingo, t) {
         <div class="tarjeta-persona-info">
           <div class="tarjeta-persona-nombre">${escapar(letra.nombre)} · ${hora(letra.hora_ini)}–${hora(letra.hora_fin)}</div>
           ${detalle}
+          ${lineaAusentes}
         </div>
         ${hueco ? `<span class="badge badge-roja">${t.badgeHueco}</span>` : ''}
       </div>`;

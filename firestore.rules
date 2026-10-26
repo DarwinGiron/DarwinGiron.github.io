@@ -14,7 +14,7 @@ rules_version = '2';
 //      sigfo111Config, registrosTarimas (SIG-FO-118), liberaciones
 //      (SIG-FO-101), sigfo101Config, verificaciones_transporte,
 //      proveedores_transporte, horarios_personal, horarios_turnos, horarios_config,
-//      horarios_feriados, horarios_solicitudes (app de Horarios, hub/horarios).
+//      horarios_feriados, horarios_solicitudes, horarios_historial (app de Horarios, hub/horarios).
 // Un proyecto de Firebase publica un ÚNICO archivo de reglas para TODA la
 // base de datos, así que ESTE archivo es el único que existe y el único que
 // se publica. Antes había copias "de referencia" en hub/ y hub/sig-fo-101/;
@@ -519,6 +519,19 @@ service cloud.firestore {
 
       allow update: if esGestor();
       allow delete: if esGestor();
+    }
+
+    // Bitácora de Horarios: cada cambio queda registrado y no se edita ni se
+    // borra. El coordinador la ve completa; cada persona, lo que la involucra.
+    match /horarios_historial/{movimientoId} {
+      allow read: if esGestor()
+        || (esUsuarioActivo()
+            && resource.data.persona_correo == request.auth.token.email.lower());
+
+      allow create: if esUsuarioActivo()
+        && request.resource.data.actor_correo == request.auth.token.email.lower();
+
+      allow update, delete: if false;
     }
 
     // ---- proveedores_transporte (catálogo que se llena solo) ------

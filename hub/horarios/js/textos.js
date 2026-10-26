@@ -54,6 +54,7 @@ export const textos = {
     enfermedad: 'Enfermedad / suspensión IGSS',
     permiso: 'Permiso personal',
     capacitacion: 'Capacitación',
+    falta: 'No se presentó',
     otro: 'Otro',
   },
 

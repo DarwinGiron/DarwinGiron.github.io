@@ -507,3 +507,34 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .tabla-hoy { border-collapse: collapse; width: 100%; font-size: 13px; white-space: nowrap; }
 .tabla-hoy th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700; color: var(--color-texto-suave); border-bottom: 1px solid var(--color-borde); }
 .tabla-hoy td { padding: 10px; border-bottom: 1px solid var(--color-borde-suave); }
+
+/* ---------- planificador editable ---------- */
+.ayuda-planificador { margin: 12px 0 0; font-size: 12.5px; color: var(--color-texto-suave); }
+.dia-numero-boton {
+  align-self: flex-start; border: none; background: transparent; cursor: pointer; font: inherit;
+  font-size: 11px; font-weight: 800; color: var(--color-texto); padding: 2px 6px; border-radius: 6px;
+}
+.dia-numero-boton:hover { background: var(--color-superficie-alt); }
+[data-persona-id] { cursor: pointer; transition: box-shadow var(--transicion); }
+[data-persona-id]:hover { box-shadow: 0 0 0 1px var(--color-texto); }
+.dia-persona-libre { background: var(--color-superficie-alt); color: var(--color-texto-tenue); border: 1px dashed var(--color-borde); }
+
+/* ---------- diálogo con opciones ---------- */
+.dialogo-subtitulo { font-size: 13px; color: var(--color-texto-suave); margin: -8px 0 12px; }
+.dialogo-opciones { display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow-y: auto; margin-bottom: 14px; }
+.dialogo-opcion {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; text-align: left;
+  min-height: 48px; padding: 10px 14px; border-radius: var(--radio); border: 1px solid var(--color-borde);
+  background: var(--color-superficie); color: var(--color-texto); font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: border-color var(--transicion), background var(--transicion);
+}
+.dialogo-opcion:hover { border-color: var(--color-texto); background: var(--color-superficie-alt); }
+.dialogo-opcion-detalle { font-size: 12.5px; font-weight: 500; color: var(--color-texto-suave); white-space: nowrap; }
+.dialogo-opcion-peligro { color: var(--color-alerta-texto); border-color: var(--color-alerta-borde); }
+
+/* ---------- Hoy: ausentes ---------- */
+.hoy-persona-ausente { color: var(--color-alerta-texto); text-decoration: line-through; }
+.hoy-persona-ausente .hoy-persona-rol { color: var(--color-alerta-texto); text-decoration: none; }
+
+/* ---------- historial ---------- */
+.filtros-historial { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; padding: 16px 20px 0; }
