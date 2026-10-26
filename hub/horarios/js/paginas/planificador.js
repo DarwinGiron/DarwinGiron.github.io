@@ -114,7 +114,7 @@ export async function render(contenedor) {
 
     try {
       if (opcion === 'restaurar') {
-        const manuales = usuarios.filter((p) => turnos[p.id]?.origen === 'manual');
+        const manuales = usuarios.filter((p) => ['manual', 'solicitud'].includes(turnos[p.id]?.origen));
         if (manuales.length === 0) {
           avisar(`El ${fechaCorta(fecha)} no tiene cambios hechos a mano.`);
           return;

@@ -538,3 +538,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 /* ---------- historial ---------- */
 .filtros-historial { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; padding: 16px 20px 0; }
+
+/* ---------- solicitudes (coordinador) ---------- */
+.encabezado-subtitulo { font-size: 13px; color: var(--color-texto-suave); margin-top: 2px; }
+.tarjeta-solicitud-resuelta { box-shadow: none; }

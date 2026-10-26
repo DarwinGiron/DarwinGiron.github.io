@@ -142,12 +142,15 @@ export async function guardarTurnosAuto(turnos, desde, hasta) {
   return porEscribir.length;
 }
 
-/** Guarda turnos puestos a mano (origen "manual": "Generar mes" ya no los pisa). */
-export async function guardarTurnosManuales(turnos) {
+/**
+ * Guarda turnos puestos a mano (origen "manual") o por una solicitud aprobada (origen "solicitud").
+ * "Generar mes" no pisa ninguno de los dos.
+ */
+export async function guardarTurnosManuales(turnos, { origen = 'manual', solicitudId = null } = {}) {
   const lote = writeBatch(db);
   for (const t of turnos) {
     lote.set(doc(db, 'horarios_turnos', idTurno(t.fecha, t.usuario_id)), {
-      ...t, origen: 'manual', actualizado_en: new Date().toISOString(), actualizado_por: usuarioActual?.correo ?? null,
+      ...t, origen, solicitud_id: solicitudId, actualizado_en: new Date().toISOString(), actualizado_por: usuarioActual?.correo ?? null,
     });
   }
   await lote.commit();
@@ -228,6 +231,25 @@ export async function crearSolicitud(datos) {
     solicitante_correo: usuarioActual.correo,
     estado: 'pendiente',
     creado_en: new Date().toISOString(),
+  });
+}
+
+/** Todas las solicitudes (solo coordinador): pendientes primero, luego las más recientes. */
+export async function listarSolicitudes() {
+  const { docs } = await getDocs(collection(db, 'horarios_solicitudes'));
+  const orden = { pendiente: 0, aprobada: 1, rechazada: 1 };
+  return docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (orden[a.estado] ?? 1) - (orden[b.estado] ?? 1) || b.creado_en.localeCompare(a.creado_en));
+}
+
+export async function resolverSolicitud(id, estado, comentario) {
+  await updateDoc(doc(db, 'horarios_solicitudes', id), {
+    estado,
+    comentario_resolucion: comentario || null,
+    resuelto_en: new Date().toISOString(),
+    resuelto_por: usuarioActual?.correo ?? null,
+    resuelto_por_nombre: usuarioActual?.nombre ?? null,
   });
 }
 

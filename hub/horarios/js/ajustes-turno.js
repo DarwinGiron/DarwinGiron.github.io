@@ -21,7 +21,7 @@ export function opcionesPersona(turno) {
     { valor: 'libre', texto: 'No trabaja este día', detalle: 'Se quita del día y queda libre' },
     ...AUSENCIAS.map((tipo) => ({ valor: `ausencia:${tipo}`, texto: textos.ausencias[tipo], detalle: tipo === 'falta' ? 'Estaba programado y no llegó' : 'Ausencia justificada' })),
   ];
-  if (turno?.origen === 'manual') {
+  if (turno?.origen === 'manual' || turno?.origen === 'solicitud') {
     opciones.push({ valor: 'restaurar', texto: 'Volver a lo planificado', detalle: 'Deshace el cambio hecho a mano', peligro: true });
   }
   return opciones;
