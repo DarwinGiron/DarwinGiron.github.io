@@ -9,6 +9,7 @@ import * as personal from './paginas/personal.js';
 import * as configuracion from './paginas/configuracion.js';
 import * as mas from './paginas/mas.js';
 import * as solicitudes from './paginas/solicitudes.js';
+import * as hoy from './paginas/hoy.js';
 import * as proximamente from './paginas/proximamente.js';
 
 const rutas = {
@@ -18,7 +19,7 @@ const rutas = {
   '#/personal': { render: personal.render, coordinador: true },
   '#/configuracion': { render: configuracion.render, coordinador: true },
   '#/mas': { render: mas.render, coordinador: true },
-  '#/hoy': { render: (c) => proximamente.render(c, textos.paginas.hoy.titulo), coordinador: true },
+  '#/hoy': { render: hoy.render, coordinador: true },
   '#/solicitudes': { render: solicitudes.render },
   '#/reportes': { render: (c) => proximamente.render(c, textos.paginas.reportes.titulo), coordinador: true },
   '#/historial': { render: (c) => proximamente.render(c, textos.paginas.historial.titulo) },
