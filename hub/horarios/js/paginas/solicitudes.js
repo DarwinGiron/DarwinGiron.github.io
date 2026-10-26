@@ -1,9 +1,6 @@
-import { supabase, getUsuarioActual } from '../supabase.js';
+import { getUsuarioActual, crearSolicitud, listarMisSolicitudes } from '../firebase.js';
 import { textos } from '../textos.js';
-import { guardarConCola, listarColaPorTabla, estaEnLinea } from '../offline.js';
 import { fechaCorta } from '../utilidades/fechas.js';
-
-let manejadorColaActualizada = null;
 
 export async function render(contenedor) {
   const t = textos.paginas.solicitudes;
@@ -48,10 +45,6 @@ export async function render(contenedor) {
 
   document.getElementById('sol-enviar').addEventListener('click', () => enviarSolicitud(usuario));
 
-  if (manejadorColaActualizada) document.removeEventListener('cola:actualizada', manejadorColaActualizada);
-  manejadorColaActualizada = () => pintarLista(usuario);
-  document.addEventListener('cola:actualizada', manejadorColaActualizada);
-
   await pintarLista(usuario);
 }
 
@@ -75,19 +68,15 @@ async function enviarSolicitud(usuario) {
   boton.disabled = true;
 
   try {
-    const { enviado } = await guardarConCola(supabase, {
-      tabla: 'solicitudes',
-      tipo: 'insert',
-      payload: {
-        tipo,
-        solicitante_id: usuario.id,
-        detalle: { fecha_inicio: fechaInicio, fecha_fin: fechaFin },
-        motivo: motivo || null,
-        estado: 'pendiente',
-      },
+    await crearSolicitud({
+      tipo,
+      solicitante_id: usuario.id ?? null,
+      solicitante_nombre: usuario.nombre,
+      detalle: { fecha_inicio: fechaInicio, fecha_fin: fechaFin },
+      motivo: motivo || null,
     });
 
-    infoEl.textContent = enviado ? t().toastEnviada : 'Sin conexión. La solicitud se guardó y se enviará sola al reconectar.';
+    infoEl.textContent = t().toastEnviada;
     infoEl.hidden = false;
     document.getElementById('sol-motivo').value = '';
     await pintarLista(usuario);
@@ -109,37 +98,17 @@ async function pintarLista(usuario) {
   if (!lista) return; // la página ya cambió
   lista.innerHTML = '<div class="mensaje-cargando">Cargando...</div>';
 
-  const pendientesCola = await listarColaPorTabla('solicitudes');
-  const propiasEnCola = pendientesCola.filter((item) => item.payload?.solicitante_id === usuario.id);
-
   let desdeServidor = [];
-  if (estaEnLinea()) {
-    const { data, error } = await supabase
-      .from('solicitudes')
-      .select('*')
-      .eq('solicitante_id', usuario.id)
-      .order('creado_en', { ascending: false });
-    if (!error) desdeServidor = data ?? [];
+  try {
+    desdeServidor = await listarMisSolicitudes();
+  } catch (error) {
+    console.error(error);
   }
 
-  if (propiasEnCola.length === 0 && desdeServidor.length === 0) {
+  if (desdeServidor.length === 0) {
     lista.innerHTML = `<div class="estado-vacio">${t().estadoVacioTrabajador}</div>`;
     return;
   }
-
-  const filasEnCola = propiasEnCola.map((item) => `
-    <div class="tarjeta-solicitud tarjeta-solicitud-pendiente">
-      <div class="tarjeta-solicitud-fila">
-        <div class="tarjeta-solicitud-tipo">${textos.tiposSolicitud[item.payload.tipo] ?? item.payload.tipo}</div>
-        <div class="badge badge-amarillo">Sin enviar</div>
-      </div>
-      <div class="tarjeta-solicitud-detalle">
-        ${fechaCorta(item.payload.detalle.fecha_inicio)} – ${fechaCorta(item.payload.detalle.fecha_fin)}
-        ${item.payload.motivo ? `· "${item.payload.motivo}"` : ''}
-      </div>
-      <div class="tarjeta-solicitud-pie">Se enviará sola en cuanto haya conexión</div>
-    </div>
-  `).join('');
 
   const filasServidor = desdeServidor.map((s) => {
     const estadoInfo = { pendiente: 'badge-amarillo', aprobada: 'badge-verde', rechazada: 'badge-roja' };
@@ -156,5 +125,5 @@ async function pintarLista(usuario) {
       </div>`;
   }).join('');
 
-  lista.innerHTML = filasEnCola + filasServidor;
+  lista.innerHTML = filasServidor;
 }

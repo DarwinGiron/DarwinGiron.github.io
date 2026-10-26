@@ -219,7 +219,7 @@ export const textos = {
   },
 
   errores: {
-    sinConexion: 'Sin conexión. Los cambios se enviarán al reconectar.',
+    sinConexion: 'Sin conexión. Vuelve a conectarte para ver y guardar cambios.',
     enviandoCola: 'Enviando los cambios pendientes...',
     colaEnviada: 'Listo. Todos tus cambios se guardaron.',
     conflicto: 'Este cambio ya no aplica porque alguien más editó ese día. Revisa el turno antes de intentar de nuevo.',

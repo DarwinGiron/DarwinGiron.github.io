@@ -1,9 +1,7 @@
-import { obtenerSesion, getUsuarioActual } from './supabase.js';
+import { getUsuarioActual } from './firebase.js';
 import { pintarNav } from './nav.js';
 import { textos } from './textos.js';
 
-import * as entrar from './paginas/entrar.js';
-import * as crearContrasena from './paginas/crear-contrasena.js';
 import * as miHorario from './paginas/mi-horario.js';
 import * as mes from './paginas/mes.js';
 import * as planificador from './paginas/planificador.js';
@@ -14,8 +12,6 @@ import * as solicitudes from './paginas/solicitudes.js';
 import * as proximamente from './paginas/proximamente.js';
 
 const rutas = {
-  '#/entrar': { render: entrar.render, publica: true },
-  '#/crear-contrasena': { render: crearContrasena.render, publica: true },
   '#/mi-horario': { render: miHorario.render },
   '#/mes': { render: mes.render },
   '#/planificador': { render: planificador.render, coordinador: true },
@@ -38,25 +34,14 @@ export async function iniciarRouter() {
 
 export async function manejarRuta() {
   const hash = (location.hash || '#/mi-horario').split('?')[0];
-  const sesion = await obtenerSesion();
+  const usuario = getUsuarioActual();
   const ruta = rutas[hash];
 
   if (!ruta) {
-    location.hash = sesion ? '#/mi-horario' : '#/entrar';
-    return;
-  }
-
-  if (!ruta.publica && !sesion) {
-    location.hash = '#/entrar';
-    return;
-  }
-
-  if (sesion && ruta.publica) {
     location.hash = '#/mi-horario';
     return;
   }
 
-  const usuario = getUsuarioActual();
   if (ruta.coordinador && usuario?.puesto !== 'coordinador') {
     location.hash = '#/mi-horario';
     return;

@@ -1,7 +1,6 @@
-import { supabase } from '../supabase.js';
+import { listarPersonal, listarTurnos, listarFeriados } from '../firebase.js';
 import { textos } from '../textos.js';
 import { estado } from '../estado.js';
-import { guardarCacheLectura, leerCacheLectura } from '../offline.js';
 import {
   isoALocal, localAIso, diasEnElMes, sumarMeses, nombreMes,
 } from '../utilidades/fechas.js';
@@ -82,33 +81,18 @@ export async function pintarCuadricula(cuadricula) {
   const primerDiaCuadricula = lunesAnteriorOIgual(isoALocal(primerDiaMes));
   const ultimoDiaCuadricula = domingoSiguienteOIgual(isoALocal(ultimoDiaMes));
 
-  let usuarios; let turnos; let feriados; let desdeCache = false;
+  let usuarios; let turnos; let feriados;
 
-  const [respUsuarios, respTurnos, respFeriados] = await Promise.all([
-    supabase.from('usuarios').select('id, nombre, puesto, grupo, activo').eq('activo', true).neq('puesto', 'coordinador').order('grupo'),
-    supabase.from('turnos').select('fecha, usuario_id, letra_reportada, tipo_cobertura, ausencia_tipo')
-      .gte('fecha', localAIso(primerDiaCuadricula)).lte('fecha', localAIso(ultimoDiaCuadricula)),
-    supabase.from('feriados').select('fecha, nombre')
-      .gte('fecha', localAIso(primerDiaCuadricula)).lte('fecha', localAIso(ultimoDiaCuadricula)),
-  ]);
-
-  if (respUsuarios.error || respTurnos.error || respFeriados.error) {
-    console.error(respUsuarios.error || respTurnos.error || respFeriados.error);
-    const cache = await leerCacheLectura();
-    if (!cache) {
-      cuadricula.innerHTML = `<div class="mensaje-cargando">${textos.errores.genericoAlGuardar}</div>`;
-      return;
-    }
-    usuarios = cache.usuarios;
-    turnos = cache.turnos;
-    feriados = cache.feriados;
-    desdeCache = true;
-  } else {
-    usuarios = respUsuarios.data;
-    turnos = respTurnos.data;
-    feriados = respFeriados.data;
-    // Guarda esta copia para poder dibujar el mes sin conexión más adelante.
-    guardarCacheLectura({ mesIso, turnos, usuarios, feriados });
+  try {
+    [usuarios, turnos, feriados] = await Promise.all([
+      listarPersonal({ soloActivos: true }),
+      listarTurnos(localAIso(primerDiaCuadricula), localAIso(ultimoDiaCuadricula)),
+      listarFeriados(localAIso(primerDiaCuadricula), localAIso(ultimoDiaCuadricula)),
+    ]);
+  } catch (error) {
+    console.error(error);
+    cuadricula.innerHTML = `<div class="mensaje-cargando">${textos.errores.genericoAlGuardar}</div>`;
+    return;
   }
 
   if (!usuarios || usuarios.length === 0) {
@@ -143,7 +127,6 @@ export async function pintarCuadricula(cuadricula) {
   const celdas = dias.map((dia) => celdaDia(dia, usuarios, turnosPorPersonaFecha)).join('');
 
   cuadricula.innerHTML = `
-    ${desdeCache ? '<div class="aviso-cache">Mostrando la última copia guardada en este celular.</div>' : ''}
     <div class="calendario-mes">
       <div class="calendario-encabezado">${encabezado}</div>
       <div class="calendario-cuerpo">${celdas}</div>

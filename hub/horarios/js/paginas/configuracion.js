@@ -1,4 +1,4 @@
-import { supabase } from '../supabase.js';
+import { LETRAS, obtenerConfig, guardarConfig as guardarConfigDatos, listarFeriados, agregarFeriado as agregarFeriadoDatos, eliminarFeriado } from '../firebase.js';
 import { textos } from '../textos.js';
 import { fechaLarga } from '../utilidades/fechas.js';
 import { confirmar, pedirTexto } from '../utilidades/dialogo.js';
@@ -57,13 +57,9 @@ export async function render(contenedor) {
   document.getElementById('boton-guardar-config').addEventListener('click', guardarConfig);
 
   async function pintarLetras() {
-    const { data, error } = await supabase.from('letras').select('*').order('codigo');
+    const data = LETRAS;
     const el = document.getElementById('lista-letras');
-    if (error) {
-      el.innerHTML = `<div class="mensaje-cargando">${textos.errores.genericoAlGuardar}</div>`;
-      return;
-    }
-    el.innerHTML = (data ?? []).map((letra) => `
+    el.innerHTML = data.map((letra) => `
       <div class="fila-letra">
         <div class="fila-letra-badge" style="background:var(--color-${letra.codigo.toLowerCase()}-bg, var(--color-l-bg));color:var(--color-${letra.codigo.toLowerCase()}-texto, var(--color-l-texto))">${letra.codigo}</div>
         <div class="fila-letra-texto">${letra.nombre} ${letra.hora_ini ? `· ${letra.hora_ini.slice(0, 5)}–${letra.hora_fin.slice(0, 5)}` : ''} · ${letra.horas_ordinarias} h ordinarias</div>
@@ -71,8 +67,10 @@ export async function render(contenedor) {
   }
 
   async function pintarConfig() {
-    const { data, error } = await supabase.from('config').select('*').maybeSingle();
-    if (error) {
+    let data = null;
+    try {
+      data = await obtenerConfig();
+    } catch (error) {
       console.error(error);
       return;
     }
@@ -119,12 +117,7 @@ export async function render(contenedor) {
     }
 
     try {
-      const { data: existente } = await supabase.from('config').select('id').maybeSingle();
-      const payload = { id: true, semana_referencia_lunes: lunes, grupo_en_d: grupoSeleccionado };
-      const { error } = existente
-        ? await supabase.from('config').update(payload).eq('id', true)
-        : await supabase.from('config').insert(payload);
-      if (error) throw error;
+      await guardarConfigDatos({ semana_referencia_lunes: lunes, grupo_en_d: grupoSeleccionado });
 
       mensajeEl.textContent = 'Semana de referencia guardada.';
       mensajeEl.hidden = false;
@@ -136,9 +129,12 @@ export async function render(contenedor) {
   }
 
   async function pintarFeriados() {
-    const { data, error } = await supabase.from('feriados').select('*').order('fecha');
     const el = document.getElementById('lista-feriados');
-    if (error) {
+    let data;
+    try {
+      data = await listarFeriados();
+    } catch (error) {
+      console.error(error);
       el.innerHTML = `<div class="mensaje-cargando">${textos.errores.genericoAlGuardar}</div>`;
       return;
     }
@@ -162,8 +158,10 @@ export async function render(contenedor) {
         const fecha = fila.querySelector('div').textContent;
         const confirmado = await confirmar(t.confirmarEliminarFeriado(fecha), { textoConfirmar: 'Quitar' });
         if (!confirmado) return;
-        const { error } = await supabase.from('feriados').delete().eq('id', id);
-        if (error) {
+        try {
+          await eliminarFeriado(id);
+        } catch (error) {
+          console.error(error);
           await confirmar(textos.errores.genericoAlGuardar, { textoConfirmar: 'Entendido', textoCancelar: 'Cerrar' });
           return;
         }
@@ -177,8 +175,14 @@ export async function render(contenedor) {
     if (!fecha) return;
     const nombre = await pedirTexto('Nombre del feriado', { placeholder: 'Ej. Independencia' });
     if (!nombre) return;
-    const { error } = await supabase.from('feriados').insert({ fecha, nombre });
-    if (error) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      await confirmar('La fecha debe verse así: AAAA-MM-DD (por ejemplo 2026-12-25).', { textoConfirmar: 'Entendido', textoCancelar: 'Cerrar' });
+      return;
+    }
+    try {
+      await agregarFeriadoDatos(fecha, nombre);
+    } catch (error) {
+      console.error(error);
       await confirmar(textos.errores.genericoAlGuardar, { textoConfirmar: 'Entendido', textoCancelar: 'Cerrar' });
       return;
     }

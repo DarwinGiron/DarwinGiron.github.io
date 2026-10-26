@@ -13,7 +13,8 @@ rules_version = '2';
 //      supervisores_hisopado, areas_maquina_hisopado, hisopadoContadores, registrosVidrio (SIG-FO-111),
 //      sigfo111Config, registrosTarimas (SIG-FO-118), liberaciones
 //      (SIG-FO-101), sigfo101Config, verificaciones_transporte,
-//      proveedores_transporte.
+//      proveedores_transporte, horarios_personal, horarios_turnos, horarios_config,
+//      horarios_feriados, horarios_solicitudes (app de Horarios, hub/horarios).
 // Un proyecto de Firebase publica un ÚNICO archivo de reglas para TODA la
 // base de datos, así que ESTE archivo es el único que existe y el único que
 // se publica. Antes había copias "de referencia" en hub/ y hub/sig-fo-101/;
@@ -479,6 +480,45 @@ service cloud.firestore {
       allow create: if esUsuarioActivo()
         && request.resource.data.eliminadoPor == request.auth.uid;
       allow update, delete: if false;
+    }
+
+    // ---- Horarios (hub/horarios) -------------------------------
+    // Rotación de turnos del personal. Cualquier usuario activo del hub ve el
+    // calendario del equipo; solo un gestor (admin / coordinador) arma el
+    // personal, la configuración, los feriados y los turnos. Las solicitudes
+    // las crea cada persona a su nombre (se identifica por el correo de su
+    // sesión) y las resuelve un gestor.
+    match /horarios_personal/{personaId} {
+      allow read: if esUsuarioActivo();
+      allow write: if esGestor();
+    }
+
+    match /horarios_turnos/{turnoId} {
+      allow read: if esUsuarioActivo();
+      allow write: if esGestor();
+    }
+
+    match /horarios_config/{configId} {
+      allow read: if esUsuarioActivo();
+      allow write: if esGestor();
+    }
+
+    match /horarios_feriados/{feriadoId} {
+      allow read: if esUsuarioActivo();
+      allow write: if esGestor();
+    }
+
+    match /horarios_solicitudes/{solicitudId} {
+      allow read: if esGestor()
+        || (esUsuarioActivo()
+            && resource.data.solicitante_correo == request.auth.token.email.lower());
+
+      allow create: if esUsuarioActivo()
+        && request.resource.data.solicitante_correo == request.auth.token.email.lower()
+        && request.resource.data.estado == 'pendiente';
+
+      allow update: if esGestor();
+      allow delete: if esGestor();
     }
 
     // ---- proveedores_transporte (catálogo que se llena solo) ------

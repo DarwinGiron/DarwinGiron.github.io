@@ -1,4 +1,4 @@
-import { supabase } from '../supabase.js';
+import { listarPersonal, guardarPersona, crearPersonas } from '../firebase.js';
 import { textos } from '../textos.js';
 
 const PERSONAL_INICIAL = [
@@ -39,13 +39,10 @@ export async function render(contenedor) {
     const lista = document.getElementById('lista-personal');
     lista.innerHTML = '<div class="mensaje-cargando">Cargando...</div>';
 
-    const { data, error } = await supabase
-      .from('usuarios')
-      .select('*')
-      .neq('puesto', 'coordinador')
-      .order('grupo');
-
-    if (error) {
+    let data;
+    try {
+      data = await listarPersonal();
+    } catch (error) {
       console.error(error);
       lista.innerHTML = `<div class="mensaje-cargando">${textos.errores.genericoAlGuardar}</div>`;
       return;
@@ -164,16 +161,7 @@ export async function render(contenedor) {
       const correo = correoIngresado || correoPlaceholder(personaExistente?.codigo_empleado ?? Date.now().toString());
 
       try {
-        if (personaExistente) {
-          const { error } = await supabase.from('usuarios')
-            .update({ nombre, puesto, grupo, correo, activo })
-            .eq('id', personaExistente.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from('usuarios')
-            .insert({ nombre, puesto, grupo, correo, activo });
-          if (error) throw error;
-        }
+        await guardarPersona(personaExistente?.id ?? null, { nombre, puesto, grupo, correo, activo, codigo_empleado: personaExistente?.codigo_empleado ?? null });
         document.getElementById('form-nuevo').hidden = true;
         await pintarLista();
       } catch (e) {
@@ -191,10 +179,7 @@ export async function render(contenedor) {
     mensaje.hidden = true;
 
     try {
-      const { data: existentes, error: errExistentes } = await supabase
-        .from('usuarios').select('codigo_empleado');
-      if (errExistentes) throw errExistentes;
-      const codigosExistentes = new Set((existentes ?? []).map((u) => u.codigo_empleado));
+      const codigosExistentes = new Set((await listarPersonal()).map((u) => u.codigo_empleado));
 
       const nuevos = PERSONAL_INICIAL
         .filter((p) => !codigosExistentes.has(p.codigo_empleado))
@@ -206,10 +191,9 @@ export async function render(contenedor) {
         return;
       }
 
-      const { error } = await supabase.from('usuarios').insert(nuevos);
-      if (error) throw error;
+      await crearPersonas(nuevos);
 
-      mensaje.textContent = `Se cargaron ${nuevos.length} personas. Completa el correo real de cada una antes de que entren por primera vez.`;
+      mensaje.textContent = `Se cargaron ${nuevos.length} personas. Completa el correo real de cada una (el mismo con el que entra al hub) para que vea su horario.`;
       mensaje.hidden = false;
       await pintarLista();
     } catch (e) {

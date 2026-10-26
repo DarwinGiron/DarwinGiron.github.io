@@ -1,4 +1,4 @@
-import { supabase, getUsuarioActual } from '../supabase.js';
+import { getUsuarioActual, listarTurnos } from '../firebase.js';
 import { textos } from '../textos.js';
 import { hoyIso, semanaDe, fechaCorta, fechaConDiaLargo } from '../utilidades/fechas.js';
 import { sePuedeInstalar, alCambiarInstalable, instalar } from '../instalador.js';
@@ -61,15 +61,15 @@ export async function render(contenedor) {
   pintarBannerInstalar();
   alCambiarInstalable(() => pintarBannerInstalar());
 
-  if (!usuario) return;
+  if (!usuario?.id) {
+    document.getElementById('tarjeta-hoy').innerHTML = 'Tu correo todavía no está en el personal de Horarios. Pídele al coordinador que lo agregue; mientras tanto puedes ver el <a href="#/mes">calendario del equipo</a>.';
+    return;
+  }
 
-  const { data: turnos, error } = await supabase
-    .from('turnos')
-    .select('fecha, letra_reportada, hora_ini, hora_fin, tipo_cobertura')
-    .eq('usuario_id', usuario.id)
-    .in('fecha', dias);
-
-  if (error) {
+  let turnos;
+  try {
+    turnos = (await listarTurnos(dias[0], dias[dias.length - 1])).filter((t) => t.usuario_id === usuario.id);
+  } catch (error) {
     console.error(error);
     document.getElementById('tarjeta-hoy').textContent = textos.errores.genericoAlGuardar;
     return;

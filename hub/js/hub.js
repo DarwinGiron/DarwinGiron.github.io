@@ -14,7 +14,6 @@ const linkAdminSuperior = document.getElementById("link-admin-superior");
 const perfilMenu = document.getElementById("perfil-menu");
 const perfilMenuPanel = document.getElementById("perfil-menu-panel");
 const perfilMenuNombre = document.getElementById("perfil-menu-nombre");
-const linkHorarios = document.getElementById("link-horarios");
 
 const seccionGestionSgi = document.getElementById("seccion-gestion-sgi");
 const seccionAdministracion = document.getElementById("seccion-administracion");
@@ -28,10 +27,6 @@ const btnModalHistorial = document.getElementById("btn-modal-historial-completo"
 
 protegerPagina({}, ({ user, perfil }) => {
   const nombreVisible = perfil.nombre || user.email;
-  // La app de horarios tiene su propio inicio de sesión: se le pasa el correo para que llegue escrito.
-  if (linkHorarios && user.email) {
-    linkHorarios.href = `horarios/index.html?correo=${encodeURIComponent(user.email)}#/mes`;
-  }
   textoUsuario.textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;
   avatarUsuario.textContent = iniciales(nombreVisible);
   perfilMenuNombre.textContent = `${nombreVisible} · ${etiquetaRol(perfil.rol)}`;

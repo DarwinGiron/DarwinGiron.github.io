@@ -1,7 +1,7 @@
-// "Generar mes": aplica rotacion.js + horas.js y sube cada turno con generar_turno_auto()
-// (upsert que nunca pisa origen manual o de solicitud — ver sección 8 de 04-DISENO-SISTEMA.md).
+// "Generar mes": aplica rotacion.js + horas.js y guarda los turnos en Firestore
+// (nunca pisa un turno puesto a mano o por solicitud: ver guardarTurnosAuto en firebase.js).
 
-import { supabase } from './supabase.js';
+import { obtenerConfig, guardarConfig, listarPersonal, listarFeriados, guardarTurnosAuto } from './firebase.js';
 import { letraBaseDelDia, coberturaDomingo, esDomingo } from './rotacion.js';
 import { calcularHoras } from './horas.js';
 import { isoALocal, localAIso, primerDiaDelMes, diasEnElMes } from './utilidades/fechas.js';
@@ -9,8 +9,7 @@ import { isoALocal, localAIso, primerDiaDelMes, diasEnElMes } from './utilidades
 const HORAS_LETRA = { D: ['06:00', '14:00'], E: ['14:00', '21:00'], F: ['21:00', '06:00'] };
 
 export async function generarMes(mesIso) {
-  const { data: config, error: errConfig } = await supabase.from('config').select('*').maybeSingle();
-  if (errConfig) throw errConfig;
+  const config = await obtenerConfig();
   if (!config) throw new Error('Configura primero la semana de referencia en Configuración.');
 
   const referencia = {
@@ -18,12 +17,7 @@ export async function generarMes(mesIso) {
     grupoEnD: config.grupo_en_d,
   };
 
-  const { data: usuarios, error: errUsuarios } = await supabase
-    .from('usuarios')
-    .select('id, nombre, puesto, grupo')
-    .eq('activo', true)
-    .neq('puesto', 'coordinador');
-  if (errUsuarios) throw errUsuarios;
+  const usuarios = await listarPersonal({ soloActivos: true });
 
   const porGrupo = { 1: [], 2: [], 3: [] };
   for (const u of usuarios) {
@@ -35,12 +29,7 @@ export async function generarMes(mesIso) {
   const totalDias = diasEnElMes(primerDia);
   const ultimoDiaIso = localAIso(new Date(baseDate.getFullYear(), baseDate.getMonth(), totalDias));
 
-  const { data: feriados, error: errFeriados } = await supabase
-    .from('feriados')
-    .select('fecha')
-    .gte('fecha', primerDia)
-    .lte('fecha', ultimoDiaIso);
-  if (errFeriados) throw errFeriados;
+  const feriados = await listarFeriados(primerDia, ultimoDiaIso);
   const feriadosSet = new Set((feriados ?? []).map((f) => f.fecha));
 
   let alternancia = {
@@ -48,7 +37,7 @@ export async function generarMes(mesIso) {
     ultimoPuestoDomingoNoche: config.ultimo_puesto_domingo_noche ?? 'encargado',
   };
 
-  let creados = 0;
+  const turnosGenerados = [];
 
   for (let dia = 1; dia <= totalDias; dia++) {
     const fecha = new Date(baseDate.getFullYear(), baseDate.getMonth(), dia);
@@ -76,19 +65,18 @@ export async function generarMes(mesIso) {
             const { horasReales, horasOrdinarias, horasExtra } = calcularHoras({
               tipoCobertura, letraBase, horaIni, horaFin, esFeriado,
             });
-            await llamarGenerarTurno({
+            turnosGenerados.push(armarTurno({
               fecha: fechaIso, usuarioId: persona.id, letraBase,
               letraReportada: cobertura.letraReportada, tipoCobertura,
               horaIni, horaFin, horasReales, horasOrdinarias, horasExtra, esFeriado,
-            });
+            }));
           } else {
-            await llamarGenerarTurno({
+            turnosGenerados.push(armarTurno({
               fecha: fechaIso, usuarioId: persona.id, letraBase: 'L',
               letraReportada: 'L', tipoCobertura: 'libre',
               horaIni: null, horaFin: null, horasReales: 0, horasOrdinarias: 0, horasExtra: 0, esFeriado: false,
-            });
+            }));
           }
-          creados++;
         }
       }
 
@@ -116,41 +104,39 @@ export async function generarMes(mesIso) {
         tipoCobertura: 'normal', letraBase, horaIni, horaFin, esFeriado,
       });
       for (const persona of porGrupo[grupo]) {
-        await llamarGenerarTurno({
+        turnosGenerados.push(armarTurno({
           fecha: fechaIso, usuarioId: persona.id, letraBase,
           letraReportada: letraBase, tipoCobertura: 'normal',
           horaIni, horaFin, horasReales, horasOrdinarias, horasExtra, esFeriado,
-        });
-        creados++;
+        }));
       }
     }
   }
 
-  const { error: errConfigUpdate } = await supabase.from('config').update({
+  await guardarConfig({
     ultimo_puesto_domingo_dia: alternancia.ultimoPuestoDomingoDia,
     ultimo_puesto_domingo_noche: alternancia.ultimoPuestoDomingoNoche,
-  }).eq('id', true);
-  if (errConfigUpdate) throw errConfigUpdate;
+  });
 
+  const creados = await guardarTurnosAuto(turnosGenerados, primerDia, ultimoDiaIso);
   return { creados };
 }
 
-async function llamarGenerarTurno({
+function armarTurno({
   fecha, usuarioId, letraBase, letraReportada, tipoCobertura,
   horaIni, horaFin, horasReales, horasOrdinarias, horasExtra, esFeriado,
 }) {
-  const { error } = await supabase.rpc('generar_turno_auto', {
-    p_fecha: fecha,
-    p_usuario_id: usuarioId,
-    p_letra_base: letraBase,
-    p_letra_reportada: letraReportada,
-    p_tipo_cobertura: tipoCobertura,
-    p_hora_ini: horaIni,
-    p_hora_fin: horaFin,
-    p_horas_reales: horasReales,
-    p_horas_ordinarias: horasOrdinarias,
-    p_horas_extra: horasExtra,
-    p_es_feriado: esFeriado,
-  });
-  if (error) throw error;
+  return {
+    fecha,
+    usuario_id: usuarioId,
+    letra_base: letraBase,
+    letra_reportada: letraReportada,
+    tipo_cobertura: tipoCobertura,
+    hora_ini: horaIni,
+    hora_fin: horaFin,
+    horas_reales: horasReales,
+    horas_ordinarias: horasOrdinarias,
+    horas_extra: horasExtra,
+    es_feriado: esFeriado,
+  };
 }

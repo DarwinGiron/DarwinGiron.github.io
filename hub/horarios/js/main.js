@@ -1,51 +1,26 @@
-import { supabase, vincularYCargarUsuario, cerrarSesion, setUsuarioActual } from './supabase.js';
-import { iniciarRouter, manejarRuta } from './router.js';
+import { iniciarSesionHorarios } from './firebase.js';
+import { iniciarRouter } from './router.js';
 import { textos } from './textos.js';
-import { procesarColaEscritura } from './offline.js';
-import './instalador.js'; // se importa temprano para no perder el evento beforeinstallprompt
 
 async function iniciar() {
   document.getElementById('aviso-offline').textContent = textos.errores.sinConexion;
 
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (session) {
-    try {
-      const usuario = await vincularYCargarUsuario();
-      if (!usuario) {
-        await cerrarSesion();
-      }
-    } catch (e) {
-      // Sin conexión al abrir la app: no se puede vincular/leer el usuario todavía,
-      // pero la sesión guardada sigue siendo válida — no la cerramos por un error de red.
-      console.error(e);
-    }
+  // El inicio de sesión es el del hub: si no hay sesión, esto redirige a su pantalla de acceso.
+  const usuario = await iniciarSesionHorarios();
+  if (!usuario) {
+    document.getElementById('contenido').innerHTML = `<div class="estado-vacio">${textos.errores.genericoAlGuardar}</div>`;
+    return;
   }
 
   await iniciarRouter();
   configurarAvisoConexion();
-
-  supabase.auth.onAuthStateChange((_evento, sesionNueva) => {
-    if (!sesionNueva) {
-      setUsuarioActual(null);
-      manejarRuta();
-    }
-  });
 }
 
 function configurarAvisoConexion() {
   const aviso = document.getElementById('aviso-offline');
   aviso.hidden = navigator.onLine;
-
-  window.addEventListener('online', () => {
-    aviso.hidden = true;
-    procesarColaEscritura(supabase);
-  });
-  window.addEventListener('offline', () => {
-    aviso.hidden = false;
-  });
-
-  if (navigator.onLine) procesarColaEscritura(supabase); // por si quedó algo pendiente de la sesión anterior
+  window.addEventListener('online', () => { aviso.hidden = true; });
+  window.addEventListener('offline', () => { aviso.hidden = false; });
 }
 
 iniciar();
