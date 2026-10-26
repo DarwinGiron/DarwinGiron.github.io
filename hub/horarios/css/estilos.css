@@ -628,3 +628,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .cambio-nota-alerta { color: var(--color-alerta-texto); font-weight: 600; }
 .campo-texto-largo { min-height: 72px; border-radius: var(--radio); border: 1px solid var(--color-borde-fuerte); padding: 10px 14px; font: inherit; font-size: 16px; color: var(--color-texto); background: var(--color-fondo); resize: vertical; }
 .campo-texto-largo:focus { border-color: var(--color-texto); box-shadow: 0 0 0 1px var(--color-texto); outline: none; }
+
+/* ---------- vacaciones: cobertura propuesta ---------- */
+.plan-vacaciones { margin: 0 0 14px; padding: 12px 14px; border-radius: var(--radio); background: var(--color-superficie-alt); border: 1px solid var(--color-borde-suave); }
+.plan-titulo { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.plan-lista { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--color-texto); max-height: 40vh; overflow-y: auto; }

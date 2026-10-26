@@ -3,6 +3,7 @@ import {
   registrarHistorial, listarTurnos, listarFeriados, guardarTurnosManuales, listarPersonal,
 } from '../firebase.js';
 import { formularioCambioHtml, enlazarFormularioCambio, aplicarCambio, textoCambio } from './cambio-turno.js';
+import { planDeCobertura, turnosDeCobertura, textoPlan, validarRangoVacaciones } from '../vacaciones.js';
 import { textos } from '../textos.js';
 import { fechaCorta, isoALocal, localAIso } from '../utilidades/fechas.js';
 import { confirmar, pedirTexto } from '../utilidades/dialogo.js';
@@ -49,7 +50,9 @@ export async function render(contenedor) {
             <input id="sol-fecha-inicio" type="date" style="flex:1;" aria-label="Fecha inicial">
             <input id="sol-fecha-fin" type="date" style="flex:1;" aria-label="Fecha final">
           </div>
+          <div id="sol-nota-vacaciones" class="tarjeta-ayuda" hidden style="margin:8px 0 0;">Máximo 3 semanas seguidas (21 días).</div>
         </div>
+        <div id="sol-plan" class="plan-vacaciones" hidden></div>
         <div class="campo">
           <label for="sol-motivo">${t.campoMotivo}</label>
           <input id="sol-motivo" type="text" placeholder="${t.motivoPlaceholder}">
@@ -68,6 +71,9 @@ export async function render(contenedor) {
 
   document.getElementById('sol-enviar').addEventListener('click', () => enviarSolicitud(usuario));
   document.getElementById('cambio-abrir').addEventListener('click', () => abrirCambioTrabajador(usuario));
+  ['sol-tipo', 'sol-fecha-inicio', 'sol-fecha-fin'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', () => mostrarPlanVacaciones(usuario));
+  });
   if (location.hash.includes('tipo=cambio_turno')) abrirCambioTrabajador(usuario);
 
   await pintarLista(usuario);
@@ -87,6 +93,14 @@ async function enviarSolicitud(usuario) {
     errorEl.textContent = textos.errores.campoFaltante('la fecha');
     errorEl.hidden = false;
     return;
+  }
+  if (tipo === 'vacaciones') {
+    const error = validarRangoVacaciones(fechaInicio, document.getElementById('sol-fecha-fin').value);
+    if (error) {
+      errorEl.textContent = error;
+      errorEl.hidden = false;
+      return;
+    }
   }
 
   const boton = document.getElementById('sol-enviar');
@@ -123,6 +137,36 @@ async function enviarSolicitud(usuario) {
 
 function t() {
   return textos.paginas.solicitudes;
+}
+
+/** Lista de la cobertura propuesta, para mostrarla en una tarjeta o en una confirmación. */
+function htmlPlan(plan) {
+  return `<ul class="plan-lista">${textoPlan(plan).map((l) => `<li>${escapar(l)}</li>`).join('')}</ul>`;
+}
+
+/** Al pedir vacaciones: valida el rango y muestra cómo cubrirían los compañeros. */
+async function mostrarPlanVacaciones(usuario) {
+  const tipo = document.getElementById('sol-tipo').value;
+  const zona = document.getElementById('sol-plan');
+  document.getElementById('sol-nota-vacaciones').hidden = tipo !== 'vacaciones';
+  if (tipo !== 'vacaciones' || !usuario.id) { zona.hidden = true; return; }
+  const desde = document.getElementById('sol-fecha-inicio').value;
+  const hasta = document.getElementById('sol-fecha-fin').value;
+  if (!desde || !hasta) { zona.hidden = true; return; }
+  const error = validarRangoVacaciones(desde, hasta);
+  zona.hidden = false;
+  if (error) {
+    zona.innerHTML = `<div class="mensaje-error" style="margin:0;">${escapar(error)}</div>`;
+    return;
+  }
+  zona.innerHTML = '<div class="mensaje-cargando">Calculando la cobertura...</div>';
+  try {
+    const plan = await planDeCobertura({ personaId: usuario.id, desde, hasta });
+    zona.innerHTML = `<div class="plan-titulo">Así cubrirían tus compañeros (lo confirma el coordinador)</div>${htmlPlan(plan)}`;
+  } catch (e) {
+    console.error(e);
+    zona.hidden = true;
+  }
 }
 
 async function abrirCambioTrabajador(usuario) {
@@ -406,16 +450,37 @@ async function renderCoordinador(contenedor) {
     const persona = personaDe(s);
     const esCambio = s.tipo === 'cambio_turno' && s.detalle?.companero_id && s.solicitante_id;
     const esAusencia = s.tipo === 'permiso' || s.tipo === 'vacaciones';
+    let plan = null;
+    if (s.tipo === 'vacaciones' && s.solicitante_id) {
+      try {
+        plan = await planDeCobertura({ personaId: s.solicitante_id, desde: s.detalle.fecha_inicio, hasta: s.detalle.fecha_fin || s.detalle.fecha_inicio });
+      } catch (error) {
+        console.error(error);
+      }
+    }
     const pregunta = esAusencia
       ? `¿Aprobar ${s.tipo === 'vacaciones' ? 'las vacaciones' : 'el permiso'} de ${persona.nombre} del ${fechaCorta(s.detalle.fecha_inicio)} al ${fechaCorta(s.detalle.fecha_fin || s.detalle.fecha_inicio)}? Esos días quedan marcados en el horario.`
       : esCambio
         ? `${t.confirmarAprobar.cambio_turno(persona.nombre, s.detalle.companero_nombre, fechaCorta(s.detalle.fecha_inicio))} Quedará: ${textoCambio(s.detalle, persona.nombre)}.`
         : `¿Aprobar "${textos.tiposSolicitud[s.tipo] ?? s.tipo}" de ${persona.nombre} (${rangoTexto(s)})?`;
-    if (!await confirmar(pregunta, { textoConfirmar: 'Aprobar' })) return;
+    const textoConfirmacion = plan
+      ? `${escapar(pregunta)}<div class="plan-titulo" style="margin-top:12px;">Cobertura que se aplicará</div>${htmlPlan(plan)}`
+      : escapar(pregunta);
+    if (!await confirmar(textoConfirmacion, { textoConfirmar: 'Aprobar' })) return;
 
     boton.disabled = true;
     try {
       const marcados = esAusencia ? await aplicarAusencia(s) : 0;
+      if (plan?.cambios.length) {
+        await guardarTurnosManuales(await turnosDeCobertura(plan), { origen: 'solicitud', solicitudId: s.id });
+        for (const c of plan.cambios) {
+          await registrarHistorial({
+            accion: 'turno_editado',
+            texto: `${c.persona.nombre} cubre vacaciones de ${persona.nombre} el ${fechaCorta(c.fecha)}`,
+            persona: c.persona, fecha: c.fecha,
+          });
+        }
+      }
       if (esCambio) {
         await aplicarCambio({
           fecha: s.detalle.fecha_inicio,
@@ -442,7 +507,9 @@ async function renderCoordinador(contenedor) {
       await renderCoordinador(contenedor);
       if (esAusencia) {
         const nombreTipo = s.tipo === 'vacaciones' ? 'Vacaciones aprobadas' : 'Permiso aprobado';
-        avisar(marcados ? `${nombreTipo}: ${marcados} día(s) marcados en el horario.` : `${nombreTipo}. La persona no está en Personal, así que no se marcó en el horario.`);
+        const cobertura = plan?.cambios.length ? ` Cobertura aplicada: ${plan.cambios.length} turno(s) de compañeros ajustados.` : '';
+        const revisar = plan?.pendientes.length ? ` Revisa a mano: ${plan.pendientes.map(fechaCorta).join(', ')}.` : '';
+        avisar(marcados ? `${nombreTipo}: ${marcados} día(s) marcados en el horario.${cobertura}${revisar}` : `${nombreTipo}. La persona no está en Personal, así que no se marcó en el horario.`);
       } else if (esCambio) {
         avisar(`Cambio de turno aprobado y aplicado en el horario: ${textoCambio(s.detalle, persona.nombre)}.`);
       } else {

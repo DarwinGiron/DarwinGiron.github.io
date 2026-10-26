@@ -185,7 +185,7 @@ export async function render(contenedor) {
       await registrarHistorial({ accion: 'turno_editado', texto: `${p.nombre}: turno ${letras[p.grupo]} (domingo de 3 turnos) el ${fechaCorta(fecha)}`, persona: p, fecha });
     }
     await repintar();
-    avisar(`El ${fechaCorta(fecha)} quedó con 3 turnos. Si alguien no puede, tócalo y elige "Doble D + F" o una ausencia.`);
+    avisar(`El ${fechaCorta(fecha)} quedó con 3 turnos. Si alguien no puede, toca a quien lo cubre y elige "Doble (mañana y noche)", y a quien falta, la ausencia.`);
   }
 
   await repintar();

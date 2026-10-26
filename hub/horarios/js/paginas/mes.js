@@ -1,5 +1,5 @@
 import { listarPersonal, listarTurnos, listarFeriados } from '../firebase.js';
-import { etiquetaTurno, horarioCorto, claveOrdenHora } from '../ajustes-turno.js';
+import { etiquetaTurno, horarioCorto, claveOrdenHora, tramosDe } from '../ajustes-turno.js';
 import { exportarMesPdf, exportarMesExcel } from '../utilidades/exportar-mes.js';
 import { textos } from '../textos.js';
 import { estado } from '../estado.js';
@@ -242,15 +242,17 @@ function celdaDia(dia, usuarios, turnosPorPersonaFecha, editable) {
         };
       }
 
+      // Un doble se pinta dos veces (misma letra, cada horario) y cada tramo se ordena por su hora.
       const color = COLOR_LETRA[turno.letra_reportada?.[0]] ?? COLOR_LETRA.L;
-      return {
-        orden: `${claveOrdenHora(turno)}_${primerNombreCap}`,
+      return tramosDe(turno).map((tramo) => ({
+        orden: `${claveOrdenHora(tramo)}_${primerNombreCap}`,
         html: `
           <div class="dia-persona" style="background:${color.bg}; color:${color.texto};" ${tocable}>
-            ${iconoRol(persona.puesto)}<span>${primerNombreCap}</span><span class="dia-persona-letra">${etiquetaTurno(turno)}</span>${horarioCorto(turno) ? `<span class="dia-persona-horario"><span class="horario-largo">${horarioCorto(turno)}</span><span class="horario-compacto">${horarioCorto(turno, { compacto: true })}</span></span>` : ''}
+            ${iconoRol(persona.puesto)}<span>${primerNombreCap}</span><span class="dia-persona-letra">${etiquetaTurno(tramo)}</span>${horarioCorto(tramo) ? `<span class="dia-persona-horario"><span class="horario-largo">${horarioCorto(tramo)}</span><span class="horario-compacto">${horarioCorto(tramo, { compacto: true })}</span></span>` : ''}
           </div>`,
-      };
+      }));
     })
+    .flat()
     .filter(Boolean)
     .sort((a, b) => (a.orden < b.orden ? -1 : a.orden > b.orden ? 1 : 0))
     .map((fila) => fila.html)

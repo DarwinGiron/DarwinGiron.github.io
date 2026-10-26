@@ -18,7 +18,7 @@ export function opcionesPersona(turno) {
     { valor: 'F', texto: 'F · Noche', detalle: '21:00 – 06:00' },
     { valor: '6a6dia', texto: '6 a 6 día', detalle: '06:00 – 18:00' },
     { valor: '6a6noche', texto: '6 a 6 noche', detalle: '18:00 – 06:00' },
-    { valor: 'doble:D+F', texto: 'Doble D + F', detalle: '06:00 – 14:00 y 21:00 – 06:00' },
+    { valor: 'doble:D+F', texto: 'Doble (mañana y noche)', detalle: '06:00 – 14:00 y 21:00 – 06:00, con su letra' },
     { valor: 'horario-manual', texto: 'Horario a mano', detalle: 'Escribes la entrada y la salida' },
     { valor: 'libre', texto: 'No trabaja este día', detalle: 'Se quita del día y queda libre' },
     ...AUSENCIAS.map((tipo) => ({ valor: `ausencia:${tipo}`, texto: textos.ausencias[tipo], detalle: tipo === 'falta' ? 'Estaba programado y no llegó' : 'Ausencia justificada' })),
@@ -50,7 +50,7 @@ export function describirOpcion(opcion) {
   if (opcion.startsWith('ausencia:')) return textos.ausencias[opcion.split(':')[1]].toLowerCase();
   if (opcion === '6a6dia') return '6 a 6 día';
   if (opcion === '6a6noche') return '6 a 6 noche';
-  if (opcion === 'doble:D+F') return 'doble D + F (06–14 y 21–06)';
+  if (opcion === 'doble:D+F') return 'doble 06–14 y 21–06';
   if (opcion.startsWith('horario:')) return `horario ${opcion.slice(8).replace('-', '–')}`;
   return `turno ${opcion}`;
 }
@@ -86,11 +86,13 @@ export function armarTurnoManual({ persona, fecha, opcion, turnoActual, esFeriad
   }
 
   if (opcion === 'doble:D+F') {
-    const tramo = { tipoCobertura: 'doblar', letraBase: 'D', horaIni: '06:00', horaFin: '14:00', splitIni: '21:00', splitFin: '06:00', esFeriado };
+    // Cubre 06–14 y 21–06 conservando SU letra (de ella salen sus horas ordinarias).
+    const letra = baseActual ?? letraSemana ?? 'D';
+    const tramo = { tipoCobertura: 'doblar', letraBase: letra, horaIni: '06:00', horaFin: '14:00', splitIni: '21:00', splitFin: '06:00', esFeriado };
     const { horasReales, horasOrdinarias, horasExtra } = calcularHoras(tramo);
     return {
       ...comun,
-      letra_base: 'D', letra_reportada: 'D', tipo_cobertura: 'doblar',
+      letra_base: letra, letra_reportada: letra, tipo_cobertura: 'doblar',
       hora_ini: '06:00', hora_fin: '14:00', split_ini: '21:00', split_fin: '06:00',
       horas_reales: horasReales, horas_ordinarias: horasOrdinarias, horas_extra: horasExtra,
     };
@@ -151,17 +153,34 @@ export function franjasDe(turno) {
   const base = turno.letra_reportada?.[0];
   if (!['D', 'E', 'F'].includes(base)) return [];
   if (turno.tipo_cobertura === 'doblar' && turno.split_ini) {
-    const segunda = letraDeHora(turno.split_ini);
-    return segunda === base ? [base] : [base, segunda];
+    // Un doble cubre las franjas de sus dos tramos, sea cual sea la letra que conserva.
+    const tramos = [letraDeHora(turno.hora_ini ?? '06:00'), letraDeHora(turno.split_ini)];
+    return tramos[0] === tramos[1] ? [tramos[0]] : tramos;
   }
   return [base];
 }
 
-/** Etiqueta corta para el calendario: "D", "E1", "D+F"... */
+/**
+ * Letra que se muestra y se reporta: siempre la de la persona ("D", "E1"...). Un doble no
+ * lleva "D+F": la persona aparece dos veces en el día, con la misma letra y cada horario.
+ */
 export function etiquetaTurno(turno) {
-  const franjas = franjasDe(turno);
-  if (turno?.tipo_cobertura === 'doblar' && franjas.length === 2) return franjas.join('+');
   return turno?.letra_reportada ?? '';
+}
+
+/**
+ * Tramos de un turno para mostrarlo en el calendario: uno normalmente, dos en un doble
+ * (cada uno como un turno con su propio horario, para ordenarlo y pintarlo por separado).
+ */
+export function tramosDe(turno) {
+  if (turno?.tipo_cobertura === 'doblar' && turno.split_ini && turno.split_fin) {
+    const comun = { ...turno, tipo_cobertura: 'normal', split_ini: null, split_fin: null };
+    return [
+      { ...comun, hora_ini: turno.hora_ini, hora_fin: turno.hora_fin },
+      { ...comun, hora_ini: turno.split_ini, hora_fin: turno.split_fin },
+    ];
+  }
+  return [turno];
 }
 
 // ---------- horarios de un cambio de turno ----------

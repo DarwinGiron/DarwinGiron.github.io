@@ -20,7 +20,7 @@ const primerNombre = (nombre) => {
 let promesaConfig = null;
 
 /** Letra de la semana de una persona (por su grupo), para quien ese día está libre o sin turno. */
-async function letraDeSemana(fecha, persona) {
+export async function letraDeSemana(fecha, persona) {
   if (!persona?.grupo) return null;
   promesaConfig ??= obtenerConfig().catch(() => null);
   const config = await promesaConfig;

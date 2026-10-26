@@ -1,10 +1,10 @@
 // Exporta el calendario de un mes (personas × días) a Excel y a PDF, con los mismos colores
-// de la app. Cada celda lleva la letra que se reporta (D, E1, D+F...), o la ausencia.
+// de la app. Cada celda lleva la letra que se reporta (D, E1...), o la ausencia.
 
 import { listarPersonal, listarTurnos, listarFeriados } from '../firebase.js';
 import { textos } from '../textos.js';
 import { isoALocal, localAIso, diasEnElMes, nombreMes } from './fechas.js';
-import { etiquetaTurno, trabaja, horarioCorto, claveOrdenHora } from '../ajustes-turno.js';
+import { etiquetaTurno, trabaja, horarioCorto, claveOrdenHora, tramosDe } from '../ajustes-turno.js';
 import { cargarExcelJS, cargarJsPDF, descargarArchivo } from './cargar-script.js';
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -131,12 +131,16 @@ function renglonesDelDia(dia, personal, turnoDe, nombres) {
           horario: textos.ausencias[turno.ausencia_tipo] ?? 'Ausente', color: COLORES.ausencia, puesto: p.puesto,
         };
       }
-      const letra = etiquetaTurno(turno);
-      return {
-        orden: claveOrdenHora(turno), letra, nombre: nombres.get(p.id), horario: horarioCorto(turno), horarioCompacto: horarioCorto(turno, { compacto: true }),
-        color: COLORES[letra[0]] ?? COLORES.L, puesto: p.puesto,
-      };
+      // Un doble va en dos renglones: misma letra, cada horario.
+      return tramosDe(turno).map((tramo) => {
+        const letra = etiquetaTurno(tramo);
+        return {
+          orden: claveOrdenHora(tramo), letra, nombre: nombres.get(p.id), horario: horarioCorto(tramo), horarioCompacto: horarioCorto(tramo, { compacto: true }),
+          color: COLORES[letra[0]] ?? COLORES.L, puesto: p.puesto,
+        };
+      });
     })
+    .flat()
     .filter(Boolean)
     .sort((a, b) => a.orden.localeCompare(b.orden) || a.nombre.localeCompare(b.nombre));
 }
