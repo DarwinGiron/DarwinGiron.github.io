@@ -47,8 +47,8 @@ export async function render(contenedor) {
       <div class="acciones-columna">
         <button id="boton-solicitar" class="boton-principal">${t.botonSolicitar}</button>
         <div class="acciones-fila">
-          <button class="boton-secundario">${t.botonCalendario}</button>
-          <button class="boton-secundario">${t.botonPDF}</button>
+          <a href="#/solicitudes?tipo=cambio_turno" class="boton-secundario boton-enlace">Pedir cambio de turno</a>
+          <a href="#/mes" class="boton-secundario boton-enlace">Ver el mes</a>
         </div>
       </div>
     </div>

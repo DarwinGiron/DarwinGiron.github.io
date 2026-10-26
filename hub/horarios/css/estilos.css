@@ -594,3 +594,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .dia-celda { min-height: 148px; padding: 10px 8px 12px; }
   .dia-persona { font-size: 12px; padding: 4px 7px; }
 }
+
+/* ---------- cambio de turno ---------- */
+.boton-enlace { display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+.cambio-manual { display: flex; gap: 10px; margin-top: 8px; }
+.cambio-manual[hidden] { display: none; }
+.cambio-manual label { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--color-texto-suave); }
+.cambio-manual input { min-height: 48px; border-radius: var(--radio); border: 1px solid var(--color-borde-fuerte); padding: 0 12px; font-size: 16px; color: var(--color-texto); background: var(--color-fondo); }
+.c-actual { margin: -4px 0 14px; padding: 10px 12px; border-radius: var(--radio); background: var(--color-superficie-alt); }
+.dialogo-horario { display: flex; gap: 12px; }
+.dialogo-horario .campo { flex: 1; }
+.dialogo-horario span { font-size: 13px; font-weight: 600; color: var(--color-texto-suave); }
+
+/* ---------- exportar el mes ---------- */
+.encabezado-acciones { display: flex; gap: 8px; }
+.boton-compacto { flex: none; min-height: 48px; padding: 0 16px; }

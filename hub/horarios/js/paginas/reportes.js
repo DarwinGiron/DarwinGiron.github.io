@@ -6,8 +6,8 @@ import { estado } from '../estado.js';
 import { listarPersonal, listarTurnos } from '../firebase.js';
 import { nombreMes, sumarMeses, isoALocal, localAIso, diasEnElMes, fechaCorta } from '../utilidades/fechas.js';
 import { trabaja } from '../ajustes-turno.js';
+import { cargarExcelJS, descargarArchivo } from '../utilidades/cargar-script.js';
 
-const URL_EXCELJS = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
 
 const COLUMNAS = [
   'Persona', 'Puesto', 'Grupo', 'Días trabajados', 'Horas ordinarias', 'Horas extra',
@@ -121,19 +121,6 @@ export async function render(contenedor) {
   });
 }
 
-let promesaExcelJS = null;
-function cargarExcelJS() {
-  if (window.ExcelJS) return Promise.resolve(window.ExcelJS);
-  promesaExcelJS ??= new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = URL_EXCELJS;
-    script.onload = () => resolve(window.ExcelJS);
-    script.onerror = () => { promesaExcelJS = null; reject(new Error('No se pudo cargar ExcelJS')); };
-    document.head.appendChild(script);
-  });
-  return promesaExcelJS;
-}
-
 function hojaConTabla(libro, nombreHoja, titulo, encabezados, filas, anchos) {
   const hoja = libro.addWorksheet(nombreHoja, { views: [{ state: 'frozen', ySplit: 3 }] });
   hoja.getCell('A1').value = titulo;
@@ -175,12 +162,5 @@ async function descargarExcel(nombreMesTexto, resumen, personal, turnos) {
     detalle, [12, 12, 10, 32, 8, 9, 9, 14, 22, 11, 13, 10, 14, 14]);
 
   const datos = await libro.xlsx.writeBuffer();
-  const url = URL.createObjectURL(new Blob([datos], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-  const enlace = document.createElement('a');
-  enlace.href = url;
-  enlace.download = `Horarios_${nombreMesTexto.replace(/\s+/g, '_')}.xlsx`;
-  document.body.appendChild(enlace);
-  enlace.click();
-  enlace.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  descargarArchivo(new Blob([datos], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Horarios_${nombreMesTexto.replace(/\s+/g, '_')}.xlsx`);
 }

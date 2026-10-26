@@ -50,6 +50,32 @@ export function elegirOpcion(titulo, opciones, { subtitulo = '' } = {}) {
   });
 }
 
+/** Pide una hora de entrada y una de salida. Devuelve { hora_ini, hora_fin } ('HH:MM') o null. */
+export function pedirHorario(titulo, { horaIni = '06:00', horaFin = '14:00' } = {}) {
+  return new Promise((resolve) => {
+    const overlay = crearOverlay(`
+      <div class="dialogo-texto">${titulo}</div>
+      <div class="dialogo-horario">
+        <label class="campo"><span>Entrada</span><input class="dialogo-input h-ini" type="time" value="${horaIni}"></label>
+        <label class="campo"><span>Salida</span><input class="dialogo-input h-fin" type="time" value="${horaFin}"></label>
+      </div>
+      <div class="dialogo-acciones">
+        <button class="boton-secundario dialogo-cancelar">Cancelar</button>
+        <button class="boton-principal dialogo-confirmar">Guardar</button>
+      </div>
+    `);
+    const cerrar = (valor) => { overlay.remove(); resolve(valor); };
+    overlay.querySelector('.dialogo-cancelar').addEventListener('click', () => cerrar(null));
+    overlay.querySelector('.dialogo-confirmar').addEventListener('click', () => {
+      const hora_ini = overlay.querySelector('.h-ini').value;
+      const hora_fin = overlay.querySelector('.h-fin').value;
+      if (!hora_ini || !hora_fin || hora_ini === hora_fin) return;
+      cerrar({ hora_ini, hora_fin });
+    });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(null); });
+  });
+}
+
 export function pedirTexto(mensaje, { placeholder = '', valorInicial = '' } = {}) {
   return new Promise((resolve) => {
     const overlay = crearOverlay(`

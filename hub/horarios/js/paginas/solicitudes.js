@@ -1,7 +1,8 @@
 import {
   getUsuarioActual, esCoordinador, crearSolicitud, listarMisSolicitudes, listarSolicitudes, resolverSolicitud,
-  registrarHistorial, listarTurnos, listarFeriados, guardarTurnosManuales,
+  registrarHistorial, listarTurnos, listarFeriados, guardarTurnosManuales, listarPersonal,
 } from '../firebase.js';
+import { formularioCambioHtml, enlazarFormularioCambio, aplicarCambio, textoCambio } from './cambio-turno.js';
 import { textos } from '../textos.js';
 import { fechaCorta, isoALocal, localAIso } from '../utilidades/fechas.js';
 import { confirmar, pedirTexto } from '../utilidades/dialogo.js';
@@ -26,11 +27,20 @@ export async function render(contenedor) {
       </div>
 
       <div class="tarjeta">
+        <div class="tarjeta-titulo-fila">
+          <div class="tarjeta-titulo">Cambio de turno</div>
+          <button id="cambio-abrir" class="boton-chip">+ Pedir cambio de turno</button>
+        </div>
+        <div class="tarjeta-ayuda">Elige la fecha, con quién cambias y qué horario hará cada uno.</div>
+        <div id="cambio-form" hidden></div>
+      </div>
+
+      <div class="tarjeta">
         <div class="tarjeta-titulo">${t.formTitulo}</div>
         <div class="campo">
           <label for="sol-tipo">${t.campoTipo}</label>
           <select id="sol-tipo">
-            ${Object.entries(textos.tiposSolicitud).map(([clave, texto]) => `<option value="${clave}">${texto}</option>`).join('')}
+            ${Object.entries(textos.tiposSolicitud).filter(([clave]) => clave !== 'cambio_turno').map(([clave, texto]) => `<option value="${clave}">${texto}</option>`).join('')}
           </select>
         </div>
         <div class="campo">
@@ -57,6 +67,8 @@ export async function render(contenedor) {
   `;
 
   document.getElementById('sol-enviar').addEventListener('click', () => enviarSolicitud(usuario));
+  document.getElementById('cambio-abrir').addEventListener('click', () => abrirCambioTrabajador(usuario));
+  if (location.hash.includes('tipo=cambio_turno')) abrirCambioTrabajador(usuario);
 
   await pintarLista(usuario);
 }
@@ -113,6 +125,81 @@ function t() {
   return textos.paginas.solicitudes;
 }
 
+async function abrirCambioTrabajador(usuario) {
+  const zona = document.getElementById('cambio-form');
+  if (!zona) return;
+  zona.hidden = false;
+  if (!usuario.id) {
+    zona.innerHTML = '<div class="mensaje-error">Tu correo no está en el personal de Horarios, así que no puedes pedir cambios todavía. Pídele al coordinador que te agregue.</div>';
+    return;
+  }
+  if (zona.dataset.listo) return;
+  zona.dataset.listo = '1';
+
+  let personal = [];
+  try {
+    personal = await listarPersonal({ soloActivos: true });
+  } catch (error) {
+    console.error(error);
+  }
+  const yo = personal.find((p) => p.id === usuario.id) ?? { id: usuario.id, nombre: usuario.nombre, correo: usuario.correo };
+  zona.innerHTML = `
+    ${formularioCambioHtml({ idp: 'cambio', personal, solicitante: yo })}
+    <div class="campo">
+      <label for="cambio-motivo">${t().campoMotivo} (opcional)</label>
+      <input id="cambio-motivo" type="text" placeholder="${t().motivoPlaceholder}">
+    </div>
+    <div id="cambio-error" class="mensaje-error" hidden></div>
+    <div id="cambio-info" class="mensaje-info" hidden></div>
+    <button id="cambio-enviar" class="boton-principal">Enviar cambio de turno</button>
+  `;
+  const leer = enlazarFormularioCambio(zona, { personal, solicitante: yo });
+
+  document.getElementById('cambio-enviar').addEventListener('click', async () => {
+    const errorEl = document.getElementById('cambio-error');
+    const infoEl = document.getElementById('cambio-info');
+    errorEl.hidden = true; infoEl.hidden = true;
+    const datos = leer();
+    if (datos.error) {
+      errorEl.textContent = datos.error;
+      errorEl.hidden = false;
+      return;
+    }
+    const boton = document.getElementById('cambio-enviar');
+    boton.disabled = true;
+    try {
+      const detalle = {
+        fecha_inicio: datos.fecha,
+        fecha_fin: datos.fecha,
+        companero_id: datos.b.id,
+        companero_nombre: datos.b.nombre,
+        companero_correo: datos.b.correo ?? null,
+        horario_solicitante: datos.horarioA,
+        horario_companero: datos.horarioB,
+      };
+      await crearSolicitud({
+        tipo: 'cambio_turno',
+        solicitante_id: usuario.id,
+        solicitante_nombre: usuario.nombre,
+        detalle,
+        motivo: document.getElementById('cambio-motivo').value.trim() || null,
+      });
+      const texto = `${usuario.nombre} pidió cambio de turno el ${fechaCorta(datos.fecha)}: ${textoCambio(detalle, usuario.nombre)}`;
+      await registrarHistorial({ accion: 'solicitud', texto, persona: { id: usuario.id, nombre: usuario.nombre, correo: usuario.correo }, fecha: datos.fecha });
+      await registrarHistorial({ accion: 'solicitud', texto, persona: datos.b, fecha: datos.fecha });
+      infoEl.textContent = t().toastEnviada;
+      infoEl.hidden = false;
+      await pintarLista(usuario);
+    } catch (error) {
+      console.error(error);
+      errorEl.textContent = textos.errores.genericoAlGuardar;
+      errorEl.hidden = false;
+    } finally {
+      boton.disabled = false;
+    }
+  });
+}
+
 async function pintarLista(usuario) {
   const lista = document.getElementById('sol-lista');
   if (!lista) return; // la página ya cambió
@@ -139,7 +226,8 @@ async function pintarLista(usuario) {
           <div class="badge ${estadoInfo[s.estado] ?? 'badge-gris'}">${textos.estadosSolicitud[s.estado] ?? s.estado}</div>
         </div>
         <div class="tarjeta-solicitud-detalle">
-          ${s.detalle?.fecha_inicio ? `${fechaCorta(s.detalle.fecha_inicio)} – ${fechaCorta(s.detalle.fecha_fin)}` : ''}
+          ${s.detalle?.fecha_inicio ? (s.detalle.fecha_fin && s.detalle.fecha_fin !== s.detalle.fecha_inicio ? `${fechaCorta(s.detalle.fecha_inicio)} – ${fechaCorta(s.detalle.fecha_fin)}` : fechaCorta(s.detalle.fecha_inicio)) : ''}
+          ${s.tipo === 'cambio_turno' && s.detalle?.companero_nombre ? `<br>${escapar(textoCambio(s.detalle, s.solicitante_nombre || 'Tú'))}` : ''}
           ${s.motivo ? `· "${escapar(s.motivo)}"` : ''}
         </div>
         ${s.comentario_resolucion ? `<div class="tarjeta-solicitud-pie">Respuesta: ${escapar(s.comentario_resolucion)}</div>` : ''}
@@ -200,6 +288,14 @@ async function renderCoordinador(contenedor) {
         </div>
       </div>
       <div id="sol-aviso" class="mensaje-info" hidden style="margin:12px 20px 0;"></div>
+      <div class="tarjeta">
+        <div class="tarjeta-titulo-fila">
+          <div class="tarjeta-titulo">Cambio de turno</div>
+          <button id="cambio-registrar" class="boton-chip">+ Registrar cambio de turno</button>
+        </div>
+        <div class="tarjeta-ayuda">Lo aplicas directo en el horario, sin que nadie tenga que pedirlo.</div>
+        <div id="cambio-form-coord" hidden></div>
+      </div>
       <div class="lista-columna">
         <div class="tarjeta-titulo">Pendientes</div>
         <div id="sol-pendientes"><div class="mensaje-cargando">Cargando...</div></div>
@@ -236,6 +332,7 @@ async function renderCoordinador(contenedor) {
       </div>
       <div class="tarjeta-solicitud-detalle">
         ${escapar(textos.tiposSolicitud[s.tipo] ?? s.tipo)} · ${rangoTexto(s)}
+        ${s.tipo === 'cambio_turno' && s.detalle?.companero_nombre ? `<br>${escapar(textoCambio(s.detalle, s.solicitante_nombre))}` : ''}
         ${s.motivo ? `<br>"${escapar(s.motivo)}"` : ''}
       </div>
       ${s.comentario_resolucion ? `<div class="tarjeta-solicitud-pie">Respuesta: ${escapar(s.comentario_resolucion)}</div>` : ''}
@@ -256,17 +353,73 @@ async function renderCoordinador(contenedor) {
 
   const porId = new Map(solicitudes.map((s) => [s.id, s]));
 
+  document.getElementById('cambio-registrar').addEventListener('click', async () => {
+    const zona = document.getElementById('cambio-form-coord');
+    zona.hidden = false;
+    if (zona.dataset.listo) return;
+    zona.dataset.listo = '1';
+    const personal = await listarPersonal({ soloActivos: true });
+    zona.innerHTML = `
+      ${formularioCambioHtml({ idp: 'cambio-coord', personal })}
+      <div id="cambio-coord-error" class="mensaje-error" hidden></div>
+      <button id="cambio-coord-guardar" class="boton-principal">Aplicar cambio</button>
+    `;
+    const leer = enlazarFormularioCambio(zona, { personal });
+    document.getElementById('cambio-coord-guardar').addEventListener('click', async () => {
+      const errorEl = document.getElementById('cambio-coord-error');
+      errorEl.hidden = true;
+      const datos = leer();
+      if (datos.error) { errorEl.textContent = datos.error; errorEl.hidden = false; return; }
+      const boton = document.getElementById('cambio-coord-guardar');
+      boton.disabled = true;
+      try {
+        await aplicarCambio({ ...datos, origen: 'manual' });
+        const detalle = { companero_nombre: datos.b.nombre, horario_solicitante: datos.horarioA, horario_companero: datos.horarioB };
+        const texto = `Cambio de turno el ${fechaCorta(datos.fecha)}: ${textoCambio(detalle, datos.a.nombre)}`;
+        await registrarHistorial({ accion: 'turno_editado', texto, persona: datos.a, fecha: datos.fecha });
+        await registrarHistorial({ accion: 'turno_editado', texto, persona: datos.b, fecha: datos.fecha });
+        await renderCoordinador(contenedor);
+        avisar(`${texto}. Ya quedó en el horario.`);
+      } catch (error) {
+        console.error(error);
+        boton.disabled = false;
+        errorEl.textContent = textos.errores.genericoAlGuardar;
+        errorEl.hidden = false;
+      }
+    });
+  });
+
   document.querySelectorAll('#sol-pendientes .sol-aprobar').forEach((boton) => boton.addEventListener('click', async () => {
     const s = porId.get(boton.closest('[data-id]').dataset.id);
     const persona = personaDe(s);
+    const esCambio = s.tipo === 'cambio_turno' && s.detalle?.companero_id && s.solicitante_id;
     const pregunta = s.tipo === 'permiso'
       ? t.confirmarAprobar.permiso(persona.nombre, fechaCorta(s.detalle.fecha_inicio), fechaCorta(s.detalle.fecha_fin || s.detalle.fecha_inicio))
-      : `¿Aprobar "${textos.tiposSolicitud[s.tipo] ?? s.tipo}" de ${persona.nombre} (${rangoTexto(s)})?`;
+      : esCambio
+        ? `${t.confirmarAprobar.cambio_turno(persona.nombre, s.detalle.companero_nombre, fechaCorta(s.detalle.fecha_inicio))} Quedará: ${textoCambio(s.detalle, persona.nombre)}.`
+        : `¿Aprobar "${textos.tiposSolicitud[s.tipo] ?? s.tipo}" de ${persona.nombre} (${rangoTexto(s)})?`;
     if (!await confirmar(pregunta, { textoConfirmar: 'Aprobar' })) return;
 
     boton.disabled = true;
     try {
       const marcados = s.tipo === 'permiso' ? await aplicarPermiso(s) : 0;
+      if (esCambio) {
+        await aplicarCambio({
+          fecha: s.detalle.fecha_inicio,
+          a: { id: s.solicitante_id },
+          b: { id: s.detalle.companero_id },
+          horarioA: s.detalle.horario_solicitante,
+          horarioB: s.detalle.horario_companero,
+          origen: 'solicitud',
+          solicitudId: s.id,
+        });
+        await registrarHistorial({
+          accion: 'solicitud',
+          texto: `Cambio de turno aprobado el ${fechaCorta(s.detalle.fecha_inicio)}: ${textoCambio(s.detalle, persona.nombre)}`,
+          persona: { id: s.detalle.companero_id, nombre: s.detalle.companero_nombre, correo: s.detalle.companero_correo },
+          fecha: s.detalle.fecha_inicio,
+        });
+      }
       await resolverSolicitud(s.id, 'aprobada', null);
       await registrarHistorial({
         accion: 'solicitud',
@@ -276,6 +429,8 @@ async function renderCoordinador(contenedor) {
       await renderCoordinador(contenedor);
       if (s.tipo === 'permiso') {
         avisar(marcados ? `Permiso aprobado: ${marcados} día(s) marcados en el horario.` : 'Permiso aprobado. La persona no está en Personal, así que no se marcó en el horario.');
+      } else if (esCambio) {
+        avisar(`Cambio de turno aprobado y aplicado en el horario: ${textoCambio(s.detalle, persona.nombre)}.`);
       } else {
         avisar('Solicitud aprobada. Ajusta el turno en Planificar (toca a la persona en ese día).');
       }

@@ -1,5 +1,6 @@
 import { listarPersonal, listarTurnos, listarFeriados } from '../firebase.js';
 import { etiquetaTurno } from '../ajustes-turno.js';
+import { exportarMesPdf, exportarMesExcel } from '../utilidades/exportar-mes.js';
 import { textos } from '../textos.js';
 import { estado } from '../estado.js';
 import {
@@ -30,7 +31,12 @@ export async function render(contenedor) {
     <div class="pagina">
       <div class="encabezado">
         <div class="encabezado-titulo">${t.titulo}</div>
+        <div class="encabezado-acciones">
+          <button id="mes-pdf" class="boton-secundario boton-compacto">PDF</button>
+          <button id="mes-excel" class="boton-chip">Excel</button>
+        </div>
       </div>
+      <div id="mes-exportar-error" class="mensaje-error" hidden style="margin:12px 20px 0;"></div>
       <div class="selector-mes">
         <button id="mes-anterior" class="boton-icono" aria-label="Mes anterior">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#222222" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
@@ -64,6 +70,29 @@ export async function render(contenedor) {
   });
 
   document.getElementById('mes-nombre').textContent = nombreMes(estado.mesVisible);
+
+  const conectarExportar = (id, exportar, texto) => {
+    const boton = document.getElementById(id);
+    boton.addEventListener('click', async () => {
+      const error = document.getElementById('mes-exportar-error');
+      error.hidden = true;
+      boton.disabled = true;
+      boton.textContent = 'Preparando...';
+      try {
+        await exportar(estado.mesVisible);
+      } catch (e) {
+        console.error(e);
+        error.textContent = 'No se pudo generar el archivo. Revisa tu conexión e intenta de nuevo.';
+        error.hidden = false;
+      } finally {
+        boton.disabled = false;
+        boton.textContent = texto;
+      }
+    });
+  };
+  conectarExportar('mes-pdf', exportarMesPdf, 'PDF');
+  conectarExportar('mes-excel', exportarMesExcel, 'Excel');
+
   await pintarCuadricula(document.getElementById('cuadricula-mes'));
 }
 

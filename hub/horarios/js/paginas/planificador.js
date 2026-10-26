@@ -3,7 +3,7 @@ import { estado } from '../estado.js';
 import { nombreMes, sumarMeses, fechaCorta, primerDiaDelMes, isoALocal } from '../utilidades/fechas.js';
 import { generarMes } from '../generar-mes.js';
 import { pintarCuadricula } from './mes.js';
-import { confirmar, elegirOpcion } from '../utilidades/dialogo.js';
+import { confirmar, elegirOpcion, pedirHorario } from '../utilidades/dialogo.js';
 import { guardarTurnosManuales, eliminarTurnos, idTurno, listarFeriados, registrarHistorial, obtenerConfig } from '../firebase.js';
 import { opcionesPersona, OPCIONES_DIA, OPCION_DOMINGO_3_TURNOS, armarTurnoManual, describirOpcion, trabaja } from '../ajustes-turno.js';
 import { letraBaseDelDia } from '../rotacion.js';
@@ -90,8 +90,15 @@ export async function render(contenedor) {
   }
 
   async function alTocarPersona({ persona, fecha, turno }) {
-    const opcion = await elegirOpcion(`${fechaCorta(fecha)} · ${persona.nombre}`, opcionesPersona(turno), { subtitulo: t.hojaSubtitulo });
+    let opcion = await elegirOpcion(`${fechaCorta(fecha)} · ${persona.nombre}`, opcionesPersona(turno), { subtitulo: t.hojaSubtitulo });
     if (!opcion) return;
+    if (opcion === 'horario-manual') {
+      const horario = await pedirHorario(`Horario de ${persona.nombre.split(' ')[0]} · ${fechaCorta(fecha)}`, {
+        horaIni: turno?.hora_ini?.slice(0, 5) || '06:00', horaFin: turno?.hora_fin?.slice(0, 5) || '14:00',
+      });
+      if (!horario) return;
+      opcion = `horario:${horario.hora_ini}-${horario.hora_fin}`;
+    }
 
     try {
       if (opcion === 'restaurar') {

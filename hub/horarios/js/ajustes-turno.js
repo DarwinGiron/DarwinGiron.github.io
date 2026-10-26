@@ -19,6 +19,7 @@ export function opcionesPersona(turno) {
     { valor: '6a6dia', texto: '6 a 6 día', detalle: '06:00 – 18:00' },
     { valor: '6a6noche', texto: '6 a 6 noche', detalle: '18:00 – 06:00' },
     { valor: 'doble:D+F', texto: 'Doble D + F', detalle: '06:00 – 14:00 y 21:00 – 06:00' },
+    { valor: 'horario-manual', texto: 'Horario a mano', detalle: 'Escribes la entrada y la salida' },
     { valor: 'libre', texto: 'No trabaja este día', detalle: 'Se quita del día y queda libre' },
     ...AUSENCIAS.map((tipo) => ({ valor: `ausencia:${tipo}`, texto: textos.ausencias[tipo], detalle: tipo === 'falta' ? 'Estaba programado y no llegó' : 'Ausencia justificada' })),
   ];
@@ -50,6 +51,7 @@ export function describirOpcion(opcion) {
   if (opcion === '6a6dia') return '6 a 6 día';
   if (opcion === '6a6noche') return '6 a 6 noche';
   if (opcion === 'doble:D+F') return 'doble D + F (06–14 y 21–06)';
+  if (opcion.startsWith('horario:')) return `horario ${opcion.slice(8).replace('-', '–')}`;
   return `turno ${opcion}`;
 }
 
@@ -91,7 +93,11 @@ export function armarTurnoManual({ persona, fecha, opcion, turnoActual, esFeriad
   }
 
   let letraBase; let letraReportada; let tipoCobertura; let horaIni; let horaFin;
-  if (opcion === '6a6dia') {
+  if (opcion.startsWith('horario:')) {
+    // Horario escrito a mano: la letra que se reporta es la del turno en que entra.
+    [horaIni, horaFin] = opcion.slice(8).split('-');
+    letraBase = letraDeHora(horaIni); letraReportada = letraBase; tipoCobertura = 'normal';
+  } else if (opcion === '6a6dia') {
     letraBase = baseActual ?? 'E'; letraReportada = `${letraBase}1`; tipoCobertura = '6a6dia'; [horaIni, horaFin] = ['06:00', '18:00'];
   } else if (opcion === '6a6noche') {
     letraBase = baseActual ?? 'D'; letraReportada = letraBase; tipoCobertura = '6a6noche'; [horaIni, horaFin] = ['18:00', '06:00'];
@@ -142,4 +148,40 @@ export function etiquetaTurno(turno) {
   const franjas = franjasDe(turno);
   if (turno?.tipo_cobertura === 'doblar' && franjas.length === 2) return franjas.join('+');
   return turno?.letra_reportada ?? '';
+}
+
+// ---------- horarios de un cambio de turno ----------
+// Un horario es { tipo: 'letra', letra: 'D'|'E'|'F' } | { tipo: 'manual', hora_ini, hora_fin } | { tipo: 'libre' }.
+
+export const HORARIOS_PREDEFINIDOS = [
+  { valor: 'D', texto: '06:00 – 14:00 (D)' },
+  { valor: 'E', texto: '14:00 – 21:00 (E)' },
+  { valor: 'F', texto: '21:00 – 06:00 (F)' },
+];
+
+/** Opción de armarTurnoManual que corresponde a un horario. */
+export function opcionDeHorario(horario) {
+  if (horario?.tipo === 'libre') return 'libre';
+  if (horario?.tipo === 'manual') return `horario:${horario.hora_ini}-${horario.hora_fin}`;
+  return horario?.letra ?? 'libre';
+}
+
+export function describirHorario(horario) {
+  if (!horario) return '—';
+  if (horario.tipo === 'libre') return 'libre';
+  if (horario.tipo === 'manual') return `${horario.hora_ini}–${horario.hora_fin}`;
+  const predefinido = HORARIOS_PREDEFINIDOS.find((h) => h.valor === horario.letra);
+  return predefinido ? predefinido.texto.replace(/ /g, '') : horario.letra;
+}
+
+/** Horario que tiene alguien en un turno guardado (para proponer el intercambio). */
+export function horarioDeTurno(turno) {
+  if (!trabaja(turno)) return { tipo: 'libre' };
+  const base = turno.letra_reportada?.[0];
+  const predefinido = HORARIOS_PREDEFINIDOS.find((h) => h.valor === base);
+  const ini = String(turno.hora_ini ?? '').slice(0, 5);
+  const fin = String(turno.hora_fin ?? '').slice(0, 5);
+  if (predefinido && turno.tipo_cobertura === 'normal' && predefinido.texto.startsWith(ini)) return { tipo: 'letra', letra: base };
+  if (ini && fin) return { tipo: 'manual', hora_ini: ini, hora_fin: fin };
+  return predefinido ? { tipo: 'letra', letra: base } : { tipo: 'libre' };
 }
