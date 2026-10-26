@@ -197,3 +197,14 @@ export function horarioCorto(turno, { compacto = false } = {}) {
   if (turno.tipo_cobertura === 'doblar' && turno.split_ini && turno.split_fin) texto += ` y ${h(turno.split_ini)}–${h(turno.split_fin)}`;
   return texto;
 }
+
+/**
+ * Clave para ordenar a la gente de un día por hora de entrada (el día empieza a las 06:00):
+ * un domingo va primero quien entra a las 06:00 aunque su letra sea E1, y después la noche.
+ * La letra no cambia: solo el orden en que se muestra.
+ */
+export function claveOrdenHora(turno) {
+  const [h, m] = String(turno?.hora_ini ?? '99:99').slice(0, 5).split(':').map(Number);
+  const minutos = Number.isFinite(h) ? ((h < 6 ? h + 24 : h) * 60 + (m || 0)) : 9999;
+  return `${String(minutos).padStart(4, '0')}_${turno?.letra_reportada ?? ''}`;
+}

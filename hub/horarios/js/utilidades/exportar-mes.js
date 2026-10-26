@@ -4,7 +4,7 @@
 import { listarPersonal, listarTurnos, listarFeriados } from '../firebase.js';
 import { textos } from '../textos.js';
 import { isoALocal, localAIso, diasEnElMes, nombreMes } from './fechas.js';
-import { etiquetaTurno, trabaja, horarioCorto } from '../ajustes-turno.js';
+import { etiquetaTurno, trabaja, horarioCorto, claveOrdenHora } from '../ajustes-turno.js';
 import { cargarExcelJS, cargarJsPDF, descargarArchivo } from './cargar-script.js';
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -133,7 +133,7 @@ function renglonesDelDia(dia, personal, turnoDe, nombres) {
       }
       const letra = etiquetaTurno(turno);
       return {
-        orden: letra, letra, nombre: nombres.get(p.id), horario: horarioCorto(turno), horarioCompacto: horarioCorto(turno, { compacto: true }),
+        orden: claveOrdenHora(turno), letra, nombre: nombres.get(p.id), horario: horarioCorto(turno), horarioCompacto: horarioCorto(turno, { compacto: true }),
         color: COLORES[letra[0]] ?? COLORES.L, puesto: p.puesto,
       };
     })

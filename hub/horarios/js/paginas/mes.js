@@ -1,5 +1,5 @@
 import { listarPersonal, listarTurnos, listarFeriados } from '../firebase.js';
-import { etiquetaTurno, horarioCorto } from '../ajustes-turno.js';
+import { etiquetaTurno, horarioCorto, claveOrdenHora } from '../ajustes-turno.js';
 import { exportarMesPdf, exportarMesExcel } from '../utilidades/exportar-mes.js';
 import { textos } from '../textos.js';
 import { estado } from '../estado.js';
@@ -196,8 +196,8 @@ function celdaDia(dia, usuarios, turnosPorPersonaFecha, editable) {
     return `<div class="${clasesCelda}"><div class="dia-numero">${dia.numero}</div></div>`;
   }
 
-  // Se ordena por letra (D y D1 primero, luego alfabético: E, E1, F, F1...) para que
-  // la rotación se lea de un vistazo; los huecos y ausencias (sin letra) van al final.
+  // Se ordena por hora de entrada (06:00 primero, la noche al final): así un domingo va
+  // primero quien entra de día aunque su letra sea E1. Huecos y ausencias van al final.
   const filas = usuarios
     .map((persona) => {
       const turno = turnosPorPersonaFecha[`${persona.id}_${dia.iso}`];
@@ -244,7 +244,7 @@ function celdaDia(dia, usuarios, turnosPorPersonaFecha, editable) {
 
       const color = COLOR_LETRA[turno.letra_reportada?.[0]] ?? COLOR_LETRA.L;
       return {
-        orden: turno.letra_reportada,
+        orden: `${claveOrdenHora(turno)}_${primerNombreCap}`,
         html: `
           <div class="dia-persona" style="background:${color.bg}; color:${color.texto};" ${tocable}>
             ${iconoRol(persona.puesto)}<span>${primerNombreCap}</span><span class="dia-persona-letra">${etiquetaTurno(turno)}</span>${horarioCorto(turno) ? `<span class="dia-persona-horario"><span class="horario-largo">${horarioCorto(turno)}</span><span class="horario-compacto">${horarioCorto(turno, { compacto: true })}</span></span>` : ''}
