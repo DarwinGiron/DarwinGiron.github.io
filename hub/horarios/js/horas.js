@@ -1,7 +1,8 @@
 // Cálculo de horas — función pura, sin dependencias de Supabase.
 // Ver sección 7 de 04-DISENO-SISTEMA.md.
 
-const HORAS_ORDINARIAS_LETRA = { D: 8, E: 7, F: 9, L: 0 };
+// Horas ordinarias por letra: D diurna 8, E mixta 7, F nocturna 6 (21:00–06:00 = 6 + 3 extra).
+export const HORAS_ORDINARIAS_LETRA = { D: 8, E: 7, F: 6, L: 0 };
 
 export function horasEntre(horaIni, horaFin) {
   // horaIni/horaFin: 'HH:MM'. Si horaFin <= horaIni, cruza medianoche.

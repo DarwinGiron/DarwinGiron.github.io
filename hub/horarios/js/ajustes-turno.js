@@ -2,7 +2,7 @@
 // marcarlo libre ("no trabaja este día") o ausente ("no se presentó", vacaciones, permiso...).
 // Todo se guarda con origen "manual", así que "Generar mes" ya no lo pisa.
 
-import { calcularHoras } from './horas.js';
+import { calcularHoras, horasEntre, HORAS_ORDINARIAS_LETRA } from './horas.js';
 import { textos } from './textos.js';
 
 const HORAS_LETRA = { D: ['06:00', '14:00'], E: ['14:00', '21:00'], F: ['21:00', '06:00'] };
@@ -94,9 +94,12 @@ export function armarTurnoManual({ persona, fecha, opcion, turnoActual, esFeriad
 
   let letraBase; let letraReportada; let tipoCobertura; let horaIni; let horaFin;
   if (opcion.startsWith('horario:')) {
-    // Horario escrito a mano: la letra que se reporta es la del turno en que entra.
+    // Cambio de horario (a mano o por cambio de turno): la letra NO se mueve, porque de ella
+    // salen las horas ordinarias. Solo si no tenía turno se toma la del horario en que entra.
     [horaIni, horaFin] = opcion.slice(8).split('-');
-    letraBase = letraDeHora(horaIni); letraReportada = letraBase; tipoCobertura = 'normal';
+    letraBase = baseActual ?? letraDeHora(horaIni);
+    letraReportada = trabaja(turnoActual) ? turnoActual.letra_reportada : letraBase;
+    tipoCobertura = 'normal';
   } else if (opcion === '6a6dia') {
     letraBase = baseActual ?? 'E'; letraReportada = `${letraBase}1`; tipoCobertura = '6a6dia'; [horaIni, horaFin] = ['06:00', '18:00'];
   } else if (opcion === '6a6noche') {
@@ -151,39 +154,74 @@ export function etiquetaTurno(turno) {
 }
 
 // ---------- horarios de un cambio de turno ----------
-// Un horario es { tipo: 'letra', letra: 'D'|'E'|'F' } | { tipo: 'manual', hora_ini, hora_fin } | { tipo: 'libre' }.
+// En un cambio cada persona conserva su letra (y con ella sus horas ordinarias); lo que cambia
+// es el horario, que debe alcanzar esas horas: D (8 h) de tarde entra 13:00–21:00, E (7 h) de
+// mañana va 06:00–13:00. La noche siempre es 21:00–06:00.
+// Un horario es { tipo: 'manual', hora_ini, hora_fin } | { tipo: 'libre' }.
 
-export const HORARIOS_PREDEFINIDOS = [
-  { valor: 'D', texto: '06:00 – 14:00 (D)' },
-  { valor: 'E', texto: '14:00 – 21:00 (E)' },
-  { valor: 'F', texto: '21:00 – 06:00 (F)' },
+export const HORARIOS_CAMBIO = [
+  { valor: '06:00-13:00', texto: '06:00 – 13:00 (mañana, 7 h)' },
+  { valor: '06:00-14:00', texto: '06:00 – 14:00 (mañana, 8 h)' },
+  { valor: '13:00-21:00', texto: '13:00 – 21:00 (tarde, 8 h)' },
+  { valor: '14:00-21:00', texto: '14:00 – 21:00 (tarde, 7 h)' },
+  { valor: '21:00-06:00', texto: '21:00 – 06:00 (noche)' },
 ];
 
-/** Opción de armarTurnoManual que corresponde a un horario. */
+/** Franja de un horario por su hora de entrada: 'manana' | 'tarde' | 'noche'. */
+export function franjaDeHorario(horario) {
+  if (horario?.tipo !== 'manual') return null;
+  const h = Number(horario.hora_ini.slice(0, 2));
+  if (h >= 6 && h < 13) return 'manana';
+  if (h >= 13 && h < 21) return 'tarde';
+  return 'noche';
+}
+
+/** Horario que le corresponde a quien tiene `letra` si pasa a `franja`, para cumplir sus horas. */
+export function horarioSugerido(franja, letra) {
+  if (franja === 'noche') return { tipo: 'manual', hora_ini: '21:00', hora_fin: '06:00' };
+  const ocho = letra === 'D'; // D: 8 h ordinarias; E: 7 h; F: 6 h, cabe en cualquiera
+  if (franja === 'manana') return { tipo: 'manual', hora_ini: '06:00', hora_fin: ocho ? '14:00' : '13:00' };
+  if (franja === 'tarde') return { tipo: 'manual', hora_ini: ocho ? '13:00' : '14:00', hora_fin: '21:00' };
+  return null;
+}
+
 export function opcionDeHorario(horario) {
-  if (horario?.tipo === 'libre') return 'libre';
   if (horario?.tipo === 'manual') return `horario:${horario.hora_ini}-${horario.hora_fin}`;
-  return horario?.letra ?? 'libre';
+  if (horario?.tipo === 'letra') return horario.letra; // solicitudes guardadas con el formato anterior
+  return 'libre';
 }
 
 export function describirHorario(horario) {
   if (!horario) return '—';
   if (horario.tipo === 'libre') return 'libre';
   if (horario.tipo === 'manual') return `${horario.hora_ini}–${horario.hora_fin}`;
-  const predefinido = HORARIOS_PREDEFINIDOS.find((h) => h.valor === horario.letra);
-  return predefinido ? predefinido.texto.replace(/ /g, '') : horario.letra;
+  if (horario.tipo === 'letra') return `turno ${horario.letra}`;
+  return '—';
 }
 
-/** Horario que tiene alguien en un turno guardado (para proponer el intercambio). */
+/** Horario que tiene alguien en un turno guardado. */
 export function horarioDeTurno(turno) {
   if (!trabaja(turno)) return { tipo: 'libre' };
-  const base = turno.letra_reportada?.[0];
-  const predefinido = HORARIOS_PREDEFINIDOS.find((h) => h.valor === base);
-  const ini = String(turno.hora_ini ?? '').slice(0, 5);
-  const fin = String(turno.hora_fin ?? '').slice(0, 5);
-  if (predefinido && turno.tipo_cobertura === 'normal' && predefinido.texto.startsWith(ini)) return { tipo: 'letra', letra: base };
-  if (ini && fin) return { tipo: 'manual', hora_ini: ini, hora_fin: fin };
-  return predefinido ? { tipo: 'letra', letra: base } : { tipo: 'libre' };
+  if (turno.hora_ini && turno.hora_fin) {
+    return { tipo: 'manual', hora_ini: String(turno.hora_ini).slice(0, 5), hora_fin: String(turno.hora_fin).slice(0, 5) };
+  }
+  // Turno sin horas guardadas: se usa el horario normal de su letra.
+  const [hora_ini, hora_fin] = HORAS_LETRA[turno.letra_reportada?.[0]] ?? [];
+  return hora_ini ? { tipo: 'manual', hora_ini, hora_fin } : { tipo: 'libre' };
+}
+
+/** Letra base de un turno (la que fija sus horas ordinarias). */
+export function letraBaseDe(turno) {
+  if (!trabaja(turno)) return null;
+  return ['D', 'E', 'F'].includes(turno.letra_base) ? turno.letra_base : (turno.letra_reportada?.[0] ?? null);
+}
+
+/** Horas ordinarias de una letra y si un horario las alcanza. */
+export function revisarHorasOrdinarias(letra, horario) {
+  const ordinarias = HORAS_ORDINARIAS_LETRA[letra] ?? 0;
+  if (!ordinarias || horario?.tipo !== 'manual') return { ordinarias, horas: 0, cumple: true };
+  const horas = horasEntre(horario.hora_ini, horario.hora_fin);
+  return { ordinarias, horas, cumple: horas >= ordinarias };
 }
 
 /**

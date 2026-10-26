@@ -62,6 +62,7 @@ export const textos = {
     cambio_turno: 'Cambio de turno con un compañero',
     cobertura_6a6: 'Cobertura 6 a 6',
     permiso: 'Permiso o ausencia',
+    vacaciones: 'Vacaciones',
     evento_extra: 'Evento extra',
   },
 

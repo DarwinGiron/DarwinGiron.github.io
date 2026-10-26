@@ -1,9 +1,13 @@
-// Formulario de cambio de turno: fecha, con quién y qué horario hace cada uno (06–14, 14–21,
-// 21–06, a mano o libre). Lo usan el trabajador (crea una solicitud) y el coordinador (registra
-// el cambio directo). Al elegir fecha y compañero se propone el intercambio de sus turnos.
+// Formulario de cambio de turno: fecha, con quién y qué horario hace cada uno. Cada persona
+// conserva su letra (de ella salen sus horas ordinarias); el horario propuesto alcanza esas
+// horas: D (8 h) de tarde 13:00–21:00, E (7 h) de mañana 06:00–13:00, noche 21:00–06:00.
+// Lo usan el trabajador (crea una solicitud) y el coordinador (registra el cambio directo).
 
 import { listarTurnos, listarFeriados, guardarTurnosManuales } from '../firebase.js';
-import { HORARIOS_PREDEFINIDOS, horarioDeTurno, opcionDeHorario, armarTurnoManual, describirHorario } from '../ajustes-turno.js';
+import {
+  HORARIOS_CAMBIO, horarioDeTurno, opcionDeHorario, armarTurnoManual, describirHorario,
+  franjaDeHorario, horarioSugerido, revisarHorasOrdinarias, letraBaseDe,
+} from '../ajustes-turno.js';
 import { fechaCorta } from '../utilidades/fechas.js';
 
 const escapar = (texto) => String(texto ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -17,10 +21,11 @@ function selectorHorario(clase, etiqueta, idp) {
     <div class="campo">
       <label for="${idp}-${clase}" class="${clase}-etiqueta">${etiqueta}</label>
       <select id="${idp}-${clase}" class="${clase}">
-        ${HORARIOS_PREDEFINIDOS.map((h) => `<option value="${h.valor}">${h.texto}</option>`).join('')}
+        ${HORARIOS_CAMBIO.map((h) => `<option value="${h.valor}">${h.texto}</option>`).join('')}
         <option value="manual">Otro horario (escribir entrada y salida)</option>
         <option value="libre">No trabaja (libre)</option>
       </select>
+      <div class="${clase}-nota cambio-nota" hidden></div>
       <div class="${clase}-manual cambio-manual" hidden>
         <label>Entrada <input type="time" class="${clase}-ini" value="06:00"></label>
         <label>Salida <input type="time" class="${clase}-fin" value="14:00"></label>
@@ -65,17 +70,34 @@ function leerHorario(raiz, clase) {
     if (!hora_ini || !hora_fin || hora_ini === hora_fin) return null;
     return { tipo: 'manual', hora_ini, hora_fin };
   }
-  return { tipo: 'letra', letra: valor };
+  const [hora_ini, hora_fin] = valor.split('-');
+  return { tipo: 'manual', hora_ini, hora_fin };
 }
 
 function ponerHorario(raiz, clase, horario) {
   const select = raiz.querySelector(`.${clase}`);
-  select.value = horario.tipo === 'letra' ? horario.letra : horario.tipo;
-  if (horario.tipo === 'manual') {
+  const clave = horario.tipo === 'manual' ? `${horario.hora_ini}-${horario.hora_fin}` : horario.tipo;
+  if ([...select.options].some((o) => o.value === clave)) {
+    select.value = clave;
+  } else {
+    select.value = 'manual';
     raiz.querySelector(`.${clase}-ini`).value = horario.hora_ini;
     raiz.querySelector(`.${clase}-fin`).value = horario.hora_fin;
   }
   raiz.querySelector(`.${clase}-manual`).hidden = select.value !== 'manual';
+}
+
+/** Muestra la letra de la persona y avisa si el horario no alcanza sus horas ordinarias. */
+function pintarNota(raiz, clase, letra) {
+  const nota = raiz.querySelector(`.${clase}-nota`);
+  if (!letra || letra === 'L') { nota.hidden = true; return true; }
+  const horario = leerHorario(raiz, clase);
+  const { ordinarias, horas, cumple } = revisarHorasOrdinarias(letra, horario);
+  const base = `Conserva su letra ${letra} (${ordinarias} h ordinarias).`;
+  nota.textContent = horario?.tipo === 'manual' && !cumple ? `${base} Este horario da ${horas} h: no completa sus horas.` : base;
+  nota.classList.toggle('cambio-nota-alerta', horario?.tipo === 'manual' && !cumple);
+  nota.hidden = false;
+  return cumple || horario?.tipo !== 'manual';
 }
 
 /** Conecta el formulario: muestra la hora a mano cuando hace falta y propone el intercambio. */
@@ -84,10 +106,17 @@ export function enlazarFormularioCambio(raiz, { personal, solicitante = null }) 
   const personaA = () => solicitante ?? porId.get(raiz.querySelector('.c-a')?.value);
   const personaB = () => porId.get(raiz.querySelector('.c-b').value);
 
+  // Letra planificada de cada uno ese día (se conserva en el cambio).
+  const letras = { 'c-ha': null, 'c-hb': null };
+  const refrescarNotas = () => ['c-ha', 'c-hb'].every((clase) => pintarNota(raiz, clase, letras[clase]));
+
   for (const clase of ['c-ha', 'c-hb']) {
     raiz.querySelector(`.${clase}`).addEventListener('change', (e) => {
       raiz.querySelector(`.${clase}-manual`).hidden = e.target.value !== 'manual';
+      refrescarNotas();
     });
+    raiz.querySelector(`.${clase}-ini`).addEventListener('change', refrescarNotas);
+    raiz.querySelector(`.${clase}-fin`).addEventListener('change', refrescarNotas);
   }
 
   async function proponer() {
@@ -104,10 +133,21 @@ export function enlazarFormularioCambio(raiz, { personal, solicitante = null }) 
       const ta = turnos.find((t) => t.usuario_id === a.id) ?? null;
       const tb = turnos.find((t) => t.usuario_id === b.id) ?? null;
       const ha = horarioDeTurno(ta); const hb = horarioDeTurno(tb);
-      actual.textContent = `Lo planificado el ${fechaCorta(fecha)}: ${primerNombre(a.nombre)} ${describirHorario(ha)} · ${primerNombre(b.nombre)} ${describirHorario(hb)}. Se propone intercambiarlos; puedes cambiar cualquiera.`;
+      letras['c-ha'] = letraBaseDe(ta);
+      letras['c-hb'] = letraBaseDe(tb);
+      const etiqueta = (t, h) => (t?.letra_reportada && h.tipo === 'manual' ? `${t.letra_reportada} ${describirHorario(h)}` : describirHorario(h));
+      actual.textContent = `Lo planificado el ${fechaCorta(fecha)}: ${primerNombre(a.nombre)} ${etiqueta(ta, ha)} · ${primerNombre(b.nombre)} ${etiqueta(tb, hb)}. Se propone que intercambien el turno conservando cada uno su letra; puedes cambiar cualquiera.`;
       actual.hidden = false;
-      ponerHorario(raiz, 'c-ha', hb);
-      ponerHorario(raiz, 'c-hb', ha);
+      // Cada uno pasa a la franja del otro, con el horario que completa SUS horas ordinarias.
+      // Un 6 a 6 o un doble se intercambia tal cual.
+      const propuesta = (horarioDelOtro, turnoDelOtro, letraPropia) => {
+        if (horarioDelOtro.tipo !== 'manual') return horarioDelOtro;
+        if (turnoDelOtro?.tipo_cobertura && turnoDelOtro.tipo_cobertura !== 'normal') return horarioDelOtro;
+        return horarioSugerido(franjaDeHorario(horarioDelOtro), letraPropia) ?? horarioDelOtro;
+      };
+      ponerHorario(raiz, 'c-ha', propuesta(hb, tb, letras['c-ha']));
+      ponerHorario(raiz, 'c-hb', propuesta(ha, ta, letras['c-hb']));
+      refrescarNotas();
     } catch (error) {
       console.error(error);
     }
@@ -127,6 +167,7 @@ export function enlazarFormularioCambio(raiz, { personal, solicitante = null }) 
     const horarioA = leerHorario(raiz, 'c-ha');
     const horarioB = leerHorario(raiz, 'c-hb');
     if (!horarioA || !horarioB) return { error: 'Revisa el horario escrito a mano: falta la entrada o la salida.' };
+    if (!refrescarNotas()) return { error: 'Algún horario no completa las horas ordinarias de su letra. Ajústalo antes de enviar.' };
     return { fecha, a, b, horarioA, horarioB };
   };
 }

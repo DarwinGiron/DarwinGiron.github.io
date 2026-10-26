@@ -20,7 +20,7 @@ import { obtenerPerfil, esRolDeGestion, cerrarSesion as cerrarSesionHub, obtener
 export const LETRAS = [
   { codigo: 'D', nombre: 'Día', hora_ini: '06:00', hora_fin: '14:00', horas_ordinarias: 8 },
   { codigo: 'E', nombre: 'Tarde', hora_ini: '14:00', hora_fin: '21:00', horas_ordinarias: 7 },
-  { codigo: 'F', nombre: 'Noche', hora_ini: '21:00', hora_fin: '06:00', horas_ordinarias: 9 },
+  { codigo: 'F', nombre: 'Noche', hora_ini: '21:00', hora_fin: '06:00', horas_ordinarias: 6 },
   { codigo: 'L', nombre: 'Libre', hora_ini: null, hora_fin: null, horas_ordinarias: 0 },
 ];
 

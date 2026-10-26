@@ -146,8 +146,8 @@ async function abrirCambioTrabajador(usuario) {
   zona.innerHTML = `
     ${formularioCambioHtml({ idp: 'cambio', personal, solicitante: yo })}
     <div class="campo">
-      <label for="cambio-motivo">${t().campoMotivo} (opcional)</label>
-      <input id="cambio-motivo" type="text" placeholder="${t().motivoPlaceholder}">
+      <label for="cambio-motivo">Justificación del cambio</label>
+      <textarea id="cambio-motivo" class="campo-texto-largo" rows="3" placeholder="Explica por qué necesitas el cambio (obligatorio)"></textarea>
     </div>
     <div id="cambio-error" class="mensaje-error" hidden></div>
     <div id="cambio-info" class="mensaje-info" hidden></div>
@@ -162,6 +162,12 @@ async function abrirCambioTrabajador(usuario) {
     const datos = leer();
     if (datos.error) {
       errorEl.textContent = datos.error;
+      errorEl.hidden = false;
+      return;
+    }
+    const justificacion = document.getElementById('cambio-motivo').value.trim();
+    if (justificacion.length < 5) {
+      errorEl.textContent = 'Escribe la justificación del cambio de turno.';
       errorEl.hidden = false;
       return;
     }
@@ -182,7 +188,7 @@ async function abrirCambioTrabajador(usuario) {
         solicitante_id: usuario.id,
         solicitante_nombre: usuario.nombre,
         detalle,
-        motivo: document.getElementById('cambio-motivo').value.trim() || null,
+        motivo: justificacion,
       });
       const texto = `${usuario.nombre} pidió cambio de turno el ${fechaCorta(datos.fecha)}: ${textoCambio(detalle, usuario.nombre)}`;
       await registrarHistorial({ accion: 'solicitud', texto, persona: { id: usuario.id, nombre: usuario.nombre, correo: usuario.correo }, fecha: datos.fecha });
@@ -228,7 +234,7 @@ async function pintarLista(usuario) {
         <div class="tarjeta-solicitud-detalle">
           ${s.detalle?.fecha_inicio ? (s.detalle.fecha_fin && s.detalle.fecha_fin !== s.detalle.fecha_inicio ? `${fechaCorta(s.detalle.fecha_inicio)} – ${fechaCorta(s.detalle.fecha_fin)}` : fechaCorta(s.detalle.fecha_inicio)) : ''}
           ${s.tipo === 'cambio_turno' && s.detalle?.companero_nombre ? `<br>${escapar(textoCambio(s.detalle, s.solicitante_nombre || 'Tú'))}` : ''}
-          ${s.motivo ? `· "${escapar(s.motivo)}"` : ''}
+          ${s.motivo ? `<br>${s.tipo === 'cambio_turno' ? 'Justificación' : 'Motivo'}: "${escapar(s.motivo)}"` : ''}
         </div>
         ${s.comentario_resolucion ? `<div class="tarjeta-solicitud-pie">Respuesta: ${escapar(s.comentario_resolucion)}</div>` : ''}
       </div>`;
@@ -258,8 +264,8 @@ const rangoTexto = (s) => (s.detalle?.fecha_inicio
 
 const personaDe = (s) => ({ id: s.solicitante_id, nombre: s.solicitante_nombre || s.solicitante_correo, correo: s.solicitante_correo });
 
-/** Al aprobar un permiso, marca esos días del solicitante como "Permiso personal" en el horario. */
-async function aplicarPermiso(s) {
+/** Al aprobar un permiso o vacaciones, marca esos días del solicitante con esa ausencia en el horario. */
+async function aplicarAusencia(s) {
   if (!s.solicitante_id) return 0;
   const dias = diasEntre(s.detalle.fecha_inicio, s.detalle.fecha_fin);
   const [turnos, feriados] = await Promise.all([
@@ -270,7 +276,7 @@ async function aplicarPermiso(s) {
   const esFeriado = new Set(feriados.map((f) => f.fecha));
   const persona = { id: s.solicitante_id };
   const nuevos = dias.map((fecha) => armarTurnoManual({
-    persona, fecha, opcion: 'ausencia:permiso', turnoActual: propios.get(fecha) ?? null, esFeriado: esFeriado.has(fecha),
+    persona, fecha, opcion: `ausencia:${s.tipo === 'vacaciones' ? 'vacaciones' : 'permiso'}`, turnoActual: propios.get(fecha) ?? null, esFeriado: esFeriado.has(fecha),
   }));
   await guardarTurnosManuales(nuevos, { origen: 'solicitud', solicitudId: s.id });
   return nuevos.length;
@@ -333,7 +339,7 @@ async function renderCoordinador(contenedor) {
       <div class="tarjeta-solicitud-detalle">
         ${escapar(textos.tiposSolicitud[s.tipo] ?? s.tipo)} · ${rangoTexto(s)}
         ${s.tipo === 'cambio_turno' && s.detalle?.companero_nombre ? `<br>${escapar(textoCambio(s.detalle, s.solicitante_nombre))}` : ''}
-        ${s.motivo ? `<br>"${escapar(s.motivo)}"` : ''}
+        ${s.motivo ? `<br>${s.tipo === 'cambio_turno' ? 'Justificación' : 'Motivo'}: "${escapar(s.motivo)}"` : ''}
       </div>
       ${s.comentario_resolucion ? `<div class="tarjeta-solicitud-pie">Respuesta: ${escapar(s.comentario_resolucion)}</div>` : ''}
       ${s.resuelto_en ? `<div class="tarjeta-solicitud-pie">${s.estado === 'aprobada' ? 'Aprobada' : 'Rechazada'} por ${escapar(s.resuelto_por_nombre || s.resuelto_por || '—')}</div>` : ''}
@@ -361,6 +367,10 @@ async function renderCoordinador(contenedor) {
     const personal = await listarPersonal({ soloActivos: true });
     zona.innerHTML = `
       ${formularioCambioHtml({ idp: 'cambio-coord', personal })}
+      <div class="campo">
+        <label for="cambio-coord-motivo">Justificación del cambio</label>
+        <textarea id="cambio-coord-motivo" class="campo-texto-largo" rows="2" placeholder="Por qué se hace el cambio (obligatorio)"></textarea>
+      </div>
       <div id="cambio-coord-error" class="mensaje-error" hidden></div>
       <button id="cambio-coord-guardar" class="boton-principal">Aplicar cambio</button>
     `;
@@ -370,16 +380,18 @@ async function renderCoordinador(contenedor) {
       errorEl.hidden = true;
       const datos = leer();
       if (datos.error) { errorEl.textContent = datos.error; errorEl.hidden = false; return; }
+      const justificacion = document.getElementById('cambio-coord-motivo').value.trim();
+      if (justificacion.length < 5) { errorEl.textContent = 'Escribe la justificación del cambio de turno.'; errorEl.hidden = false; return; }
       const boton = document.getElementById('cambio-coord-guardar');
       boton.disabled = true;
       try {
         await aplicarCambio({ ...datos, origen: 'manual' });
         const detalle = { companero_nombre: datos.b.nombre, horario_solicitante: datos.horarioA, horario_companero: datos.horarioB };
-        const texto = `Cambio de turno el ${fechaCorta(datos.fecha)}: ${textoCambio(detalle, datos.a.nombre)}`;
+        const texto = `Cambio de turno el ${fechaCorta(datos.fecha)}: ${textoCambio(detalle, datos.a.nombre)}. Justificación: ${justificacion}`;
         await registrarHistorial({ accion: 'turno_editado', texto, persona: datos.a, fecha: datos.fecha });
         await registrarHistorial({ accion: 'turno_editado', texto, persona: datos.b, fecha: datos.fecha });
         await renderCoordinador(contenedor);
-        avisar(`${texto}. Ya quedó en el horario.`);
+        avisar(`Cambio de turno del ${fechaCorta(datos.fecha)} aplicado en el horario: ${textoCambio(detalle, datos.a.nombre)}.`);
       } catch (error) {
         console.error(error);
         boton.disabled = false;
@@ -393,8 +405,9 @@ async function renderCoordinador(contenedor) {
     const s = porId.get(boton.closest('[data-id]').dataset.id);
     const persona = personaDe(s);
     const esCambio = s.tipo === 'cambio_turno' && s.detalle?.companero_id && s.solicitante_id;
-    const pregunta = s.tipo === 'permiso'
-      ? t.confirmarAprobar.permiso(persona.nombre, fechaCorta(s.detalle.fecha_inicio), fechaCorta(s.detalle.fecha_fin || s.detalle.fecha_inicio))
+    const esAusencia = s.tipo === 'permiso' || s.tipo === 'vacaciones';
+    const pregunta = esAusencia
+      ? `¿Aprobar ${s.tipo === 'vacaciones' ? 'las vacaciones' : 'el permiso'} de ${persona.nombre} del ${fechaCorta(s.detalle.fecha_inicio)} al ${fechaCorta(s.detalle.fecha_fin || s.detalle.fecha_inicio)}? Esos días quedan marcados en el horario.`
       : esCambio
         ? `${t.confirmarAprobar.cambio_turno(persona.nombre, s.detalle.companero_nombre, fechaCorta(s.detalle.fecha_inicio))} Quedará: ${textoCambio(s.detalle, persona.nombre)}.`
         : `¿Aprobar "${textos.tiposSolicitud[s.tipo] ?? s.tipo}" de ${persona.nombre} (${rangoTexto(s)})?`;
@@ -402,7 +415,7 @@ async function renderCoordinador(contenedor) {
 
     boton.disabled = true;
     try {
-      const marcados = s.tipo === 'permiso' ? await aplicarPermiso(s) : 0;
+      const marcados = esAusencia ? await aplicarAusencia(s) : 0;
       if (esCambio) {
         await aplicarCambio({
           fecha: s.detalle.fecha_inicio,
@@ -427,8 +440,9 @@ async function renderCoordinador(contenedor) {
         persona, fecha: s.detalle?.fecha_inicio ?? null,
       });
       await renderCoordinador(contenedor);
-      if (s.tipo === 'permiso') {
-        avisar(marcados ? `Permiso aprobado: ${marcados} día(s) marcados en el horario.` : 'Permiso aprobado. La persona no está en Personal, así que no se marcó en el horario.');
+      if (esAusencia) {
+        const nombreTipo = s.tipo === 'vacaciones' ? 'Vacaciones aprobadas' : 'Permiso aprobado';
+        avisar(marcados ? `${nombreTipo}: ${marcados} día(s) marcados en el horario.` : `${nombreTipo}. La persona no está en Personal, así que no se marcó en el horario.`);
       } else if (esCambio) {
         avisar(`Cambio de turno aprobado y aplicado en el horario: ${textoCambio(s.detalle, persona.nombre)}.`);
       } else {
