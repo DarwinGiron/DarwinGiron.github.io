@@ -146,11 +146,30 @@ function renglonesDelDia(dia, personal, turnoDe, nombres) {
     .sort((a, b) => a.orden.localeCompare(b.orden) || a.nombre.localeCompare(b.nombre));
 }
 
-/** Marca del puesto: círculo = inspector, cuadrado = encargado (se distinguen en blanco y negro). */
+/**
+ * Ícono del puesto, el mismo que en pantalla: lupa = inspector, cruz = encargado.
+ * Se dibuja en vectores (contorno) con las proporciones del ícono de 24×24 de la app.
+ * (x, y) = esquina izquierda y centro vertical; `tam` = lado del ícono en mm.
+ */
 function marcaPuesto(pdf, puesto, x, y, tam, color = [70, 70, 70]) {
-  pdf.setFillColor(...color);
-  if (puesto === 'inspector') pdf.circle(x + tam / 2, y, tam / 2, 'F');
-  else pdf.rect(x, y - tam / 2, tam, tam, 'F');
+  const e = tam / 24; // escala: 1 unidad del ícono de 24
+  const ox = x;
+  const oy = y - tam / 2;
+  const p = (ux, uy) => [ox + ux * e, oy + uy * e];
+  pdf.setDrawColor(...color);
+  pdf.setLineWidth(Math.max(0.18, tam * 0.11));
+  if (puesto === 'inspector') {
+    const [cx, cy] = p(10, 10);
+    pdf.circle(cx, cy, 6.2 * e, 'S');
+    const [x1, y1] = p(14.6, 14.6);
+    const [x2, y2] = p(21, 21);
+    pdf.line(x1, y1, x2, y2);
+    return;
+  }
+  // Cruz (brazo superior corto, inferior largo), como el ícono de encargado de la app.
+  const puntos = [[9, 2], [15, 2], [15, 6], [20.5, 6], [20.5, 12], [15, 12], [15, 22], [9, 22], [9, 12], [3.5, 12], [3.5, 6], [9, 6]].map(([ux, uy]) => p(ux, uy));
+  const segmentos = puntos.slice(1).map(([px, py], i) => [px - puntos[i][0], py - puntos[i][1]]);
+  pdf.lines(segmentos, puntos[0][0], puntos[0][1], [1, 1], 'S', true);
 }
 
 // Paleta del documento: sobria, con el color de marca solo como acento.
@@ -225,12 +244,12 @@ function leyenda(pdf, { x, y, ancho }) {
     pdf.text(item.texto, cursor + anchoLetra + 1.2, y);
     cursor += anchoLetra + 1.2 + pdf.getTextWidth(item.texto) + 4.5;
   }
-  marcaPuesto(pdf, 'inspector', cursor, y - 0.8, 1.8);
-  pdf.text('Inspector', cursor + 2.6, y);
-  cursor += 2.6 + pdf.getTextWidth('Inspector') + 3.5;
-  marcaPuesto(pdf, 'encargado', cursor, y - 0.8, 1.8);
-  pdf.text('Encargado', cursor + 2.6, y);
-  cursor += 2.6 + pdf.getTextWidth('Encargado') + 4.5;
+  marcaPuesto(pdf, 'inspector', cursor, y - 0.9, 2.6);
+  pdf.text('Inspector', cursor + 3.4, y);
+  cursor += 3.4 + pdf.getTextWidth('Inspector') + 3.5;
+  marcaPuesto(pdf, 'encargado', cursor, y - 0.9, 2.6);
+  pdf.text('Encargado', cursor + 3.4, y);
+  cursor += 3.4 + pdf.getTextWidth('Encargado') + 4.5;
 
   const ausencias = Object.entries(ABREV_AUSENCIA).map(([k, a]) => `${a} ${textos.ausencias[k] ?? k}`).join(' · ');
   const lineas = pdf.splitTextToSize(`Ausencias: ${ausencias}`, Math.max(40, x + ancho - cursor));
@@ -331,11 +350,11 @@ export async function exportarMesPdf(mesIso) {
         pdf.setFillColor(...hex(r.color.texto));
         pdf.rect(xIni, yR, 0.7, alturaFila, 'F');
 
-        marcaPuesto(pdf, r.puesto, xIni + 1.6, centro, Math.min(1.5, alturaFila * 0.42), hex(r.color.texto));
+        marcaPuesto(pdf, r.puesto, xIni + 1.4, centro, Math.min(2.3, alturaFila * 0.7), hex(r.color.texto));
         pdf.setFontSize(tamLetra);
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(...hex(r.color.texto));
-        const xLetra = xIni + 3.6;
+        const xLetra = xIni + 4.1;
         pdf.text(r.letra, xLetra, base);
         const xNombre = xLetra + Math.max(pdf.getTextWidth('E1'), pdf.getTextWidth(r.letra)) + 1.4;
 
