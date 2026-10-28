@@ -344,11 +344,9 @@ export async function exportarMesPdf(mesIso) {
         const xIni = x + 1.4;
         const xFin = x + anchoCelda - 1.6;
 
-        // Fondo muy tenue y barra de color a la izquierda
+        // Tarjeta de color, igual que en la pantalla (sin barra al inicio)
         pdf.setFillColor(...hex(r.color.fondo));
         pdf.roundedRect(xIni, yR, xFin - xIni + 0.2, alturaFila, 0.7, 0.7, 'F');
-        pdf.setFillColor(...hex(r.color.texto));
-        pdf.rect(xIni, yR, 0.7, alturaFila, 'F');
 
         marcaPuesto(pdf, r.puesto, xIni + 1.4, centro, Math.min(2.3, alturaFila * 0.7), hex(r.color.texto));
         pdf.setFontSize(tamLetra);
