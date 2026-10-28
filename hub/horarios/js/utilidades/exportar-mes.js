@@ -6,7 +6,6 @@ import { textos } from '../textos.js';
 import { isoALocal, localAIso, diasEnElMes, nombreMes } from './fechas.js';
 import { etiquetaTurno, trabaja, horarioCorto, claveOrdenHora, tramosDe } from '../ajustes-turno.js';
 import { cargarExcelJS, cargarJsPDF, descargarArchivo } from './cargar-script.js';
-import { resumirMes } from '../paginas/reportes.js';
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const COLORES = {
@@ -99,7 +98,7 @@ export async function exportarMesExcel(mesIso) {
   descargarArchivo(new Blob([datosExcel], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Horarios_${titulo.replace(/\s+/g, '_')}.xlsx`);
 }
 
-// ---------- PDF: calendario (hoja 1) y resumen de horas con firmas (hoja 2) ----------
+// ---------- PDF: el calendario del mes en una hoja ----------
 
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const hex = (h) => [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
@@ -272,7 +271,7 @@ export async function exportarMesPdf(mesIso) {
   const ancho = pdf.internal.pageSize.getWidth();
   const alto = pdf.internal.pageSize.getHeight();
   const margen = 9;
-  const totalPaginas = 2;
+  const totalPaginas = 1;
   const textoPie = 'Inspección y monitoreo de salud · Letra = la que se reporta en el sistema institucional';
 
   // ===================== Hoja 1: calendario =====================
@@ -380,116 +379,6 @@ export async function exportarMesPdf(mesIso) {
   pdf.line(margen, yCabecera, ancho - margen, yCabecera);
   pie(pdf, { ancho, alto, margen, pagina: 1, total: totalPaginas, texto: textoPie });
 
-  // ===================== Hoja 2: resumen por persona =====================
-  pdf.addPage('letter', 'landscape');
-  const y2 = encabezado(pdf, { titulo: `Resumen del mes · ${titulo}`, subtitulo: 'Horas por persona', ancho, margen, generado });
-  const turnosDelMes = [...turnoDe.values()].filter((t) => t.fecha >= dias[0].iso && t.fecha <= dias[dias.length - 1].iso);
-  const resumen = resumirMes(personal, turnosDelMes).map((r) => ({
-    ...r,
-    horasReales: Math.round(turnosDelMes.filter((t) => t.usuario_id === r.persona.id).reduce((acc, t) => acc + (Number(t.horas_reales) || 0), 0) * 10) / 10,
-  }));
-
-  const columnas = [
-    { titulo: 'Persona', ancho: 58, alinear: 'left', valor: (r) => r.persona.nombre },
-    { titulo: 'Puesto', ancho: 24, alinear: 'left', valor: (r) => capital(r.persona.puesto ?? '') },
-    { titulo: 'Grupo', ancho: 16, valor: (r) => (r.persona.grupo ? `Turno ${r.persona.grupo}` : '—') },
-    { titulo: 'Días trab.', ancho: 18, valor: (r) => r.diasTrabajados },
-    { titulo: 'Horas reales', ancho: 21, valor: (r) => r.horasReales },
-    { titulo: 'Ordinarias', ancho: 20, valor: (r) => r.horasOrdinarias },
-    { titulo: 'Extra', ancho: 16, valor: (r) => r.horasExtra },
-    { titulo: 'Turnos F', ancho: 16, valor: (r) => r.turnosF },
-    { titulo: 'Domingos', ancho: 17, valor: (r) => r.domingos },
-    { titulo: 'Vacac./Aus.', ancho: 20, valor: (r) => r.ausencias },
-    { titulo: 'Permisos', ancho: 16, valor: (r) => r.permisos },
-    { titulo: 'No se presentó', ancho: 19.4, valor: (r) => r.faltas },
-  ];
-  const anchoTabla = columnas.reduce((s, c) => s + c.ancho, 0);
-  const xTabla = margen + (ancho - 2 * margen - anchoTabla) / 2;
-  let y = y2 + 8;
-  const altoFila = 8;
-
-  // Cabecera de la tabla
-  pdf.setFillColor(...TINTA);
-  pdf.roundedRect(xTabla, y, anchoTabla, altoFila, 1.2, 1.2, 'F');
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(7.2);
-  pdf.setTextColor(255, 255, 255);
-  let cx = xTabla;
-  for (const col of columnas) {
-    const tx = col.alinear === 'left' ? cx + 2.5 : cx + col.ancho / 2;
-    pdf.text(col.titulo, tx, y + 5.2, { align: col.alinear === 'left' ? 'left' : 'center' });
-    cx += col.ancho;
-  }
-  y += altoFila;
-
-  const totales = { diasTrabajados: 0, horasReales: 0, horasOrdinarias: 0, horasExtra: 0 };
-  resumen.forEach((r, i) => {
-    if (i % 2 === 1) {
-      pdf.setFillColor(...FONDO_SUAVE);
-      pdf.rect(xTabla, y, anchoTabla, altoFila, 'F');
-    }
-    let x = xTabla;
-    columnas.forEach((col, j) => {
-      pdf.setFont('helvetica', j === 0 ? 'bold' : 'normal');
-      pdf.setFontSize(7.6);
-      pdf.setTextColor(...(j === 0 ? TINTA : [60, 60, 60]));
-      const valor = String(col.valor(r) ?? '');
-      const tx = col.alinear === 'left' ? x + 2.5 : x + col.ancho / 2;
-      pdf.text(valor, tx, y + 5.2, { align: col.alinear === 'left' ? 'left' : 'center', maxWidth: col.ancho - 3 });
-      x += col.ancho;
-    });
-    pdf.setDrawColor(...LINEA);
-    pdf.setLineWidth(0.2);
-    pdf.line(xTabla, y + altoFila, xTabla + anchoTabla, y + altoFila);
-    totales.diasTrabajados += r.diasTrabajados;
-    totales.horasReales += r.horasReales;
-    totales.horasOrdinarias += r.horasOrdinarias;
-    totales.horasExtra += r.horasExtra;
-    y += altoFila;
-  });
-
-  // Fila de totales
-  pdf.setFillColor(...hex('FCE8EC'));
-  pdf.rect(xTabla, y, anchoTabla, altoFila, 'F');
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(7.6);
-  pdf.setTextColor(...TINTA);
-  pdf.text('Total del equipo', xTabla + 2.5, y + 5.2);
-  const redondear = (n) => Math.round(n * 10) / 10;
-  const valoresTotales = { 3: totales.diasTrabajados, 4: redondear(totales.horasReales), 5: redondear(totales.horasOrdinarias), 6: redondear(totales.horasExtra) };
-  let tx = xTabla;
-  columnas.forEach((col, j) => {
-    if (valoresTotales[j] !== undefined) pdf.text(String(valoresTotales[j]), tx + col.ancho / 2, y + 5.2, { align: 'center' });
-    tx += col.ancho;
-  });
-  y += altoFila + 6;
-
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7);
-  pdf.setTextColor(...TINTA_SUAVE);
-  const notas = 'Horas ordinarias por letra: D 8 h · E 7 h · F 6 h. Lo que pasa de esas horas se cuenta como extra; en feriado todas las horas son extra. '
-    + 'El domingo de 6 a 6 de día (06:00–18:00) descuenta 1 h de almuerzo.';
-  pdf.text(pdf.splitTextToSize(notas, anchoTabla), xTabla, y);
-
-  // Firmas
-  const yFirmas = alto - margen - 22;
-  const anchoFirma = 62;
-  const separacion = (anchoTabla - 3 * anchoFirma) / 2;
-  ['Elaboró', 'Revisó', 'Aprobó'].forEach((rotulo, i) => {
-    const xf = xTabla + i * (anchoFirma + separacion);
-    pdf.setDrawColor(...TINTA_SUAVE);
-    pdf.setLineWidth(0.3);
-    pdf.line(xf, yFirmas, xf + anchoFirma, yFirmas);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(7.5);
-    pdf.setTextColor(...TINTA);
-    pdf.text(rotulo, xf + anchoFirma / 2, yFirmas + 4.2, { align: 'center' });
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(6.5);
-    pdf.setTextColor(...TINTA_SUAVE);
-    pdf.text('Nombre, firma y fecha', xf + anchoFirma / 2, yFirmas + 7.8, { align: 'center' });
-  });
-  pie(pdf, { ancho, alto, margen, pagina: 2, total: totalPaginas, texto: textoPie });
 
   pdf.save(`Horarios_${titulo.replace(/\s+/g, '_')}.pdf`);
 }
