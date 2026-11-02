@@ -32,6 +32,18 @@ export function letraBaseSemanal(grupo, fecha, referencia) {
   return ORDEN_ROTACION[indice];
 }
 
+/** Semanas completas entre la semana de `desde` y la de `hasta` (negativo si `hasta` es antes). */
+export function semanasEntre(desde, hasta) {
+  return Math.round((lunesDeLaSemana(hasta) - lunesDeLaSemana(desde)) / MS_POR_SEMANA);
+}
+
+/** La letra que toca `semanas` semanas después de `letra`, siguiendo D → F → E → D. */
+export function letraTrasSemanas(letra, semanas) {
+  const i = ORDEN_ROTACION.indexOf(letra);
+  if (i < 0) return null;
+  return ORDEN_ROTACION[(((i + semanas) % 3) + 3) % 3];
+}
+
 /** Letra base de los 3 grupos para una fecha dada (lunes a sábado). */
 export function letraBaseDelDia(fecha, referencia) {
   return {
