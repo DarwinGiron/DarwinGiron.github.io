@@ -775,6 +775,17 @@ export async function listarRegistrosTarimas(filtros = {}) {
     condiciones.push(where("inspectorUid", "==", filtros.inspectorUid));
   }
 
+  // Con un día concreto basta la igualdad (no pide índice compuesto); el
+  // orden por hora de guardado se hace aquí, más reciente primero.
+  if (filtros.fecha) {
+    condiciones.push(where("fecha", "==", filtros.fecha));
+    const snap = await getDocs(query(collection(db, "registrosTarimas"), ...condiciones));
+    const marca = (r) => (r.creadoEn && r.creadoEn.toMillis ? r.creadoEn.toMillis() : Date.now());
+    return snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => marca(b) - marca(a));
+  }
+
   const consulta = query(
     collection(db, "registrosTarimas"),
     ...condiciones,

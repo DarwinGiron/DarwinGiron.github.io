@@ -7,9 +7,9 @@
 // Cada registro se guarda como un documento en registrosTarimas.
 // =========================================================
 
-import { protegerPagina, cerrarSesion, etiquetaRol } from "./auth.js";
-import { crearRegistroTarimas } from "./firestore.js";
-import { escaparHtml, fechaHoyISO, iniciales, mostrarToast } from "./utils.js";
+import { protegerPagina, cerrarSesion, esRolDeGestion, etiquetaRol } from "./auth.js";
+import { crearRegistroTarimas, listarRegistrosTarimas } from "./firestore.js";
+import { escaparHtml, fechaHoyISO, formatearFechaISOCorta, iniciales, mostrarToast } from "./utils.js";
 
 const HALLAZGOS_BASE = [
   { v: "AS", d: "Astillada" },
@@ -35,7 +35,10 @@ const estado = {
   conteo: { madera: 0, plastica: 0 },
   hallazgos: new Set(),
   personalizados: [],
-  sesion: [],
+  // Registros guardados en la nube para la fecha del formulario (de todos
+  // los evaluadores si es gestión; del propio inspector si no, por las reglas).
+  delDia: [],
+  cargaDia: 0,
 };
 
 protegerPagina({}, ({ user, perfil }) => {
@@ -55,6 +58,7 @@ protegerPagina({}, ({ user, perfil }) => {
 
   pintarChips();
   pintarContadores();
+  cargarDelDia();
 });
 
 $("btn-salir").addEventListener("click", () => cerrarSesion());
@@ -63,6 +67,7 @@ $("btn-salir").addEventListener("click", () => cerrarSesion());
 );
 campoCallejon.addEventListener("input", () => { campoCallejon.value = campoCallejon.value.toUpperCase(); });
 campoTotal.addEventListener("input", pintarContadores);
+campoFecha.addEventListener("change", cargarDelDia);
 campoBodega.addEventListener("change", () => {
   try { localStorage.setItem("sig-fo-118-bodega", campoBodega.value); } catch (_) {}
 });
@@ -248,8 +253,10 @@ btnGuardar.addEventListener("click", async () => {
   btnGuardar.disabled = true;
   try {
     const id = await crearRegistroTarimas(registro);
-    estado.sesion.unshift({ id, ...registro });
-    pintarSesion();
+    if (fecha === campoFecha.value) {
+      estado.delDia.unshift({ id, ...registro });
+      pintarDelDia();
+    }
     mostrarToast(`Guardado — ${callejon}: ${danadas} dañadas de ${total}`, "exito");
     reiniciarFormulario();
   } catch (error) {
@@ -275,18 +282,62 @@ function reiniciarFormulario() {
   campoCallejon.focus();
 }
 
-function pintarSesion() {
-  $("contador-sesion").textContent = estado.sesion.length;
-  $("lista-sesion").innerHTML = estado.sesion
+/* ---------- Registros del día (desde la nube) ---------- */
+
+async function cargarDelDia() {
+  const fecha = campoFecha.value;
+  const turno = ++estado.cargaDia; // descarta respuestas de una fecha anterior
+  $("titulo-dia").textContent = fecha === fechaHoyISO()
+    ? "Registros de hoy"
+    : `Registros del ${formatearFechaISOCorta(fecha)}`;
+  if (!fecha) { estado.delDia = []; return pintarDelDia(); }
+  $("lista-sesion").innerHTML = '<p class="texto-suave texto-sm">Cargando registros del día…</p>';
+  try {
+    const filtros = { fecha };
+    if (!esRolDeGestion(estado.perfil.rol)) filtros.inspectorUid = estado.usuario.uid;
+    const registros = await listarRegistrosTarimas(filtros);
+    if (turno !== estado.cargaDia) return;
+    estado.delDia = registros;
+    pintarDelDia();
+  } catch (error) {
+    if (turno !== estado.cargaDia) return;
+    console.error("No se pudieron cargar los registros del día:", error);
+    $("lista-sesion").innerHTML = '<p class="texto-suave texto-sm">No se pudieron cargar los registros del día.</p>';
+  }
+}
+
+function pintarDelDia() {
+  const regs = estado.delDia;
+  $("contador-sesion").textContent = regs.length;
+  if (!regs.length) {
+    $("lista-sesion").innerHTML = '<p class="texto-suave texto-sm">Aún no hay registros para esta fecha.</p>';
+    return;
+  }
+  const total = regs.reduce((s, r) => s + (r.totalInspeccionadas || 0), 0);
+  const madera = regs.reduce((s, r) => s + (r.cntMadera || 0), 0);
+  const plastica = regs.reduce((s, r) => s + (r.cntPlastica || 0), 0);
+  const pctDia = total ? ((madera + plastica) / total) * 100 : 0;
+  const resumen = `<div class="editor-item flex-entre" style="margin-bottom: var(--e2);">
+      <div style="min-width:0;">
+        <strong>Total del día</strong>
+        <div class="texto-suave texto-sm">${regs.length} callejón(es) · ${total} insp. · 🪵 ${madera} · 🔵 ${plastica}</div>
+      </div>
+      <span class="badge ${claseBadge(pctDia)}">${pctDia.toFixed(1)}%</span>
+    </div>`;
+  $("lista-sesion").innerHTML = resumen + regs
     .map((r) => {
-      const nivel = r.porcentajeDano > 15 ? "badge-error" : r.porcentajeDano > 5 ? "badge-dorado" : "badge-exito";
+      const pct = Number(r.porcentajeDano) || 0;
       return `<div class="editor-item flex-entre" style="margin-bottom: var(--e2);">
         <div style="min-width:0;">
           <strong>${escaparHtml(r.callejon)}</strong> · <span class="texto-sm">${escaparHtml(r.bodega)}</span>
-          <div class="texto-suave texto-sm">${r.totalInspeccionadas} insp. · 🪵 ${r.cntMadera} · 🔵 ${r.cntPlastica}</div>
+          <div class="texto-suave texto-sm">${r.totalInspeccionadas} insp. · 🪵 ${r.cntMadera} · 🔵 ${r.cntPlastica} · ${escaparHtml(r.evaluador || r.inspectorNombre || "")}</div>
         </div>
-        <span class="badge ${nivel}">${r.porcentajeDano.toFixed(1)}%</span>
+        <span class="badge ${claseBadge(pct)}">${pct.toFixed(1)}%</span>
       </div>`;
     })
     .join("");
+}
+
+function claseBadge(pct) {
+  return pct > 15 ? "badge-error" : pct > 5 ? "badge-dorado" : "badge-exito";
 }
