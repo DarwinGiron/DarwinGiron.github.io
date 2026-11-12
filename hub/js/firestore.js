@@ -850,6 +850,54 @@ export async function eliminarCallejonTarimas(fecha, clave) {
   }
 }
 
+/**
+ * Reemplaza los datos de un callejón del día (solo gestión, ver firestore.rules).
+ * Conserva quién lo capturó y cuándo; deja constancia de quién lo editó.
+ */
+export async function editarCallejonTarimas(fecha, clave, cambios) {
+  const referencia = doc(db, "tarimasDia", fecha);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(referencia);
+    const actual = snap.exists() ? snap.data().callejones?.[clave] : null;
+    if (!actual) throw new Error("El callejón ya no existe en ese día.");
+    tx.update(referencia, {
+      [`callejones.${clave}`]: {
+        ...actual,
+        ...cambios,
+        editadoPor: auth.currentUser?.uid || "",
+        editadoEn: serverTimestamp(),
+      },
+      actualizadoEn: serverTimestamp(),
+    });
+  });
+}
+
+/**
+ * Cambia la fecha de un registro del día completo (solo gestión). Si ya hay
+ * un registro en la fecha nueva, los callejones se juntan con los de ese día.
+ * Todo en una transacción: o se mueve completo o no se mueve nada.
+ */
+export async function moverDiaTarimas(desde, hasta) {
+  if (desde === hasta) return;
+  const origen = doc(db, "tarimasDia", desde);
+  const destino = doc(db, "tarimasDia", hasta);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(origen);
+    if (!snap.exists()) throw new Error("El registro del día ya no existe.");
+    tx.set(
+      destino,
+      {
+        fecha: hasta,
+        periodo: hasta.slice(0, 7),
+        actualizadoEn: serverTimestamp(),
+        callejones: snap.data().callejones || {},
+      },
+      { merge: true }
+    );
+    tx.delete(origen);
+  });
+}
+
 /* --- Registros antiguos (registrosTarimas: un documento por callejón) --- */
 
 /**
