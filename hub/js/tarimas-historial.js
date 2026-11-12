@@ -182,8 +182,11 @@ function tarjetaDia(fecha, regs) {
     detalle = `<div style="margin-top: var(--e3);">${filas}${moverFecha}</div>`;
   }
 
+  // Toda la cabecera de la tarjeta (título, resumen y botón) abre o cierra el registro.
   return `
-    <section class="tarjeta">
+    <section class="tarjeta tarjeta-dia${abierto ? " tarjeta-dia--abierta" : ""}">
+      <div class="tarjeta-dia__cabecera" data-ver="${fechaSegura}" role="button" tabindex="0" aria-expanded="${abierto}"
+        aria-label="${abierto ? "Ocultar" : "Ver"} registro del ${escaparHtml(nombreDia(fecha))}">
       <div class="flex-entre mb-1">
         <h2 class="tarjeta__titulo mb-0">${escaparHtml(nombreDia(fecha))}</h2>
         <span class="badge ${nivel(pct)}">${pct.toFixed(1)}%</span>
@@ -193,9 +196,10 @@ function tarjetaDia(fecha, regs) {
         (🪵 ${suma(regs, "cntMadera")} · 🔵 ${suma(regs, "cntPlastica")})<br />
         ${escaparHtml(unicos((r) => r.bodega))} · ${escaparHtml(unicos((r) => r.evaluador || r.inspectorNombre))}
       </p>
-      <button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-ver="${fechaSegura}" aria-expanded="${abierto}">
+      <span class="btn btn-secundario btn-sm btn-ancho-auto" aria-hidden="true">
         ${abierto ? "Ocultar registro ▴" : "Ver registro ▾"}
-      </button>
+      </span>
+      </div>
       ${detalle}
     </section>`;
 }
@@ -243,7 +247,10 @@ lista.addEventListener("click", async (evento) => {
   if (ver) {
     const f = ver.dataset.ver;
     if (estado.abiertos.has(f)) estado.abiertos.delete(f); else estado.abiertos.add(f);
-    return renderizar();
+    renderizar();
+    const misma = lista.querySelector(`[data-ver="${CSS.escape(f)}"]`);
+    if (misma && ver === document.activeElement) misma.focus();
+    return;
   }
   const editar = evento.target.closest("[data-editar]");
   if (editar) return abrirEdicion(estado.registros.find((r) => r.id === editar.dataset.editar));
@@ -388,6 +395,14 @@ modal.addEventListener("click", (e) => {
     pintarHallazgosEdicion();
   }
 });
+// Teclado: Enter o espacio sobre la cabecera de un día la abre o cierra.
+lista.addEventListener("keydown", (e) => {
+  const ver = e.target.closest("[data-ver]");
+  if (!ver || (e.key !== "Enter" && e.key !== " ")) return;
+  e.preventDefault();
+  ver.click();
+});
+
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !modal.classList.contains("oculto")) cerrarEdicion();
 });

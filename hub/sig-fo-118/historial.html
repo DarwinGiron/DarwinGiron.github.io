@@ -8,6 +8,14 @@
   <meta name="theme-color" content="#0a1f38" />
   <title>Historial SIG-FO-118 · SGI</title>
   <link rel="stylesheet" href="/css/estilos.css" />
+  <style>
+    /* La cabecera de cada día es clickeable: abre o cierra sus callejones. */
+    .tarjeta-dia__cabecera { cursor: pointer; border-radius: 10px; margin: -6px; padding: 6px; transition: background .12s; -webkit-tap-highlight-color: transparent; }
+    .tarjeta-dia__cabecera:hover { background: var(--superficie-2, rgba(10,31,56,.04)); }
+    .tarjeta-dia__cabecera:active { background: rgba(10,31,56,.08); }
+    .tarjeta-dia__cabecera:focus-visible { outline: 2px solid var(--marino-700, #1d3d63); outline-offset: 2px; }
+    .tarjeta-dia__cabecera .btn { pointer-events: none; }
+  </style>
 </head>
 <body class="tema-hub">
   <div class="app-shell">
