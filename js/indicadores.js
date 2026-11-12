@@ -9,7 +9,7 @@
 //   SIG-FO-101  liberaciones              % de liberaciones de imprentas conformes
 //   SIG-FO-116  auditoriasBpm              % de cumplimiento de la auditoría BPM
 //   SIG-FO-111  registrosVidrio            Puntos de vidrio/plástico por nivel de riesgo
-//   SIG-FO-118  registrosTarimas           % de tarimas dañadas (madera / plástica) por bodega
+//   SIG-FO-118  tarimasDia (+ antiguos)    % de tarimas dañadas (madera / plástica) por bodega
 //   Hisopado    hisopados                  % de análisis dentro del límite
 //   Reportes    reportes                   Cantidad de reportes por mes
 //
@@ -142,6 +142,22 @@ async function consultarRangoISO(coleccion, campo, desdeISO, hastaISO) {
     .where(campo, "<=", hastaISO)
     .get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * SIG-FO-118: un documento por día en tarimasDia (callejones en un mapa) más
+ * los registros antiguos de registrosTarimas (uno por callejón) que aún no se
+ * hayan pasado al formato por día. Devuelve una lista plana de callejones.
+ */
+async function cargarTarimas(desdeISO, hastaISO) {
+  const [dias, antiguos] = await Promise.all([
+    consultarRangoISO("tarimasDia", "fecha", desdeISO, hastaISO),
+    consultarRangoISO("registrosTarimas", "fecha", desdeISO, hastaISO),
+  ]);
+  const porDia = dias.flatMap((d) =>
+    Object.entries(d.callejones || {}).map(([clave, c]) => ({ ...c, id: `${d.fecha}/${clave}`, fecha: d.fecha, periodo: d.periodo }))
+  );
+  return [...porDia, ...antiguos];
 }
 
 /** Cuenta (y ordena de mayor a menor) las ocurrencias de cada clave. */
@@ -466,8 +482,8 @@ function calcularVidrio(registros) {
 }
 
 // ---------------------------------------------------------------------------
-// TARIMAS (SIG-FO-118, registrosTarimas) — % de tarimas dañadas
-// Un documento por callejón inspeccionado. A diferencia de los demás
+// TARIMAS (SIG-FO-118, tarimasDia + registrosTarimas) — % de tarimas dañadas
+// Se calcula sobre la lista plana de callejones (ver cargarTarimas). A diferencia de los demás
 // indicadores, aquí MENOS es mejor (es porcentaje de daño, no de cumplimiento).
 // ---------------------------------------------------------------------------
 function calcularTarimas(registros) {
@@ -1035,7 +1051,7 @@ async function cargarIndicadores(desdeISO, hastaISO, todosReportes, opciones = {
     ejecutar("vidrio", "panel-vidrio", async () =>
       renderVidrio(guardar("vidrio", await consultarRangoISO("registrosVidrio", "fecha", desdeISO, hastaISO)), meses)),
     ejecutar("tarimas", "panel-tarimas", async () =>
-      renderTarimas(guardar("tarimas", await consultarRangoISO("registrosTarimas", "fecha", desdeISO, hastaISO)), meses)),
+      renderTarimas(guardar("tarimas", await cargarTarimas(desdeISO, hastaISO)), meses)),
     ejecutar("hisopado", "panel-hisopado", async () =>
       renderHisopado(guardar("hisopado", await consultarRangoISO("hisopados", "fecha", desdeISO, hastaISO)), meses)),
   ]);

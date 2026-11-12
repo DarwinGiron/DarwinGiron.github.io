@@ -11,7 +11,7 @@ rules_version = '2';
 //      colecciones: usuarios (COMPARTIDA con Reportes), checklists,
 //      inspecciones (SIG-FO-115), hisopados, hisopadoConfig,
 //      supervisores_hisopado, areas_maquina_hisopado, hisopadoContadores, registrosVidrio (SIG-FO-111),
-//      sigfo111Config, registrosTarimas (SIG-FO-118), liberaciones
+//      sigfo111Config, registrosTarimas + tarimasDia (SIG-FO-118), liberaciones
 //      (SIG-FO-101), sigfo101Config, verificaciones_transporte,
 //      proveedores_transporte, horarios_personal, horarios_turnos, horarios_config,
 //      horarios_feriados, horarios_solicitudes, horarios_historial (app de Horarios, hub/horarios).
@@ -467,6 +467,47 @@ service cloud.firestore {
         && (resource.data.inspectorUid == request.auth.uid || esGestor())
         && request.resource.data.get('inspectorUid', null) == resource.data.get('inspectorUid', null)
         && request.resource.data.get('fechaCreacion', null) == resource.data.get('fechaCreacion', null);
+
+      allow delete: if esGestor();
+    }
+
+    // ---- tarimasDia (SIG-FO-118, un registro por día) ----------
+    // Un documento por fecha (id = "yyyy-mm-dd"); cada callejón inspeccionado
+    // es una entrada del mapa "callejones". Todos los usuarios activos ven el
+    // registro del día. Un inspector solo puede agregar o corregir SUS propios
+    // callejones, uno por escritura; quitar callejones o borrar el día es de
+    // gestión. (registrosTarimas queda solo para los registros antiguos.)
+    // Cada escritura de un inspector declara en "ultimaClave" qué callejón
+    // agrega o corrige (las reglas no pueden sacar una clave de un conjunto),
+    // y se comprueba que sea lo único que cambia y que sea suyo.
+    function cambioPropioTarimas() {
+      let antes = resource.data.callejones;
+      let despues = request.resource.data.callejones;
+      let k = request.resource.data.ultimaClave;
+      return k is string
+        && despues.diff(antes).affectedKeys().hasOnly([k])
+        && k in despues
+        && despues[k].inspectorUid == request.auth.uid
+        && (!(k in antes) || antes[k].inspectorUid == request.auth.uid);
+    }
+
+    match /tarimasDia/{fecha} {
+      allow read: if esUsuarioActivo();
+
+      allow create: if esUsuarioActivo()
+        && request.resource.data.fecha == fecha
+        && request.resource.data.callejones is map
+        && (esGestor()
+          || (request.resource.data.ultimaClave is string
+            && request.resource.data.callejones.keys().hasOnly([request.resource.data.ultimaClave])
+            && request.resource.data.callejones[request.resource.data.ultimaClave].inspectorUid == request.auth.uid));
+
+      allow update: if esUsuarioActivo()
+        && request.resource.data.fecha == resource.data.fecha
+        && request.resource.data.callejones is map
+        && (esGestor()
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['callejones', 'actualizadoEn', 'periodo', 'ultimaClave'])
+            && cambioPropioTarimas()));
 
       allow delete: if esGestor();
     }

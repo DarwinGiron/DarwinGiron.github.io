@@ -2,13 +2,13 @@
 // tarimas.js
 // Controlador de sig-fo-118/index.html — Inspección de tarimas.
 //
-// Un registro = un callejón: cuántas tarimas se inspeccionaron y cuántas
-// estaban dañadas, separadas en madera y plástica con contadores táctiles.
-// Cada registro se guarda como un documento en registrosTarimas.
+// Un registro por día (tarimasDia/{fecha}). Cada callejón que se guarda se
+// agrega a ese registro: cuántas tarimas se inspeccionaron y cuántas estaban
+// dañadas, separadas en madera y plástica con contadores táctiles.
 // =========================================================
 
-import { protegerPagina, cerrarSesion, esRolDeGestion, etiquetaRol } from "./auth.js";
-import { crearRegistroTarimas, listarRegistrosTarimas } from "./firestore.js";
+import { protegerPagina, cerrarSesion, etiquetaRol } from "./auth.js";
+import { agregarCallejonTarimas, listarTarimasDia } from "./firestore.js";
 import { escaparHtml, fechaHoyISO, formatearFechaISOCorta, iniciales, mostrarToast } from "./utils.js";
 
 const HALLAZGOS_BASE = [
@@ -35,8 +35,7 @@ const estado = {
   conteo: { madera: 0, plastica: 0 },
   hallazgos: new Set(),
   personalizados: [],
-  // Registros guardados en la nube para la fecha del formulario (de todos
-  // los evaluadores si es gestión; del propio inspector si no, por las reglas).
+  // Callejones del registro del día (fecha del formulario), de todos los evaluadores.
   delDia: [],
   cargaDia: 0,
 };
@@ -234,8 +233,6 @@ btnGuardar.addEventListener("click", async () => {
 
   const tipo = madera && plastica ? "Madera + Plástica" : madera ? "Madera" : plastica ? "Plástica" : "—";
   const registro = {
-    fecha,
-    periodo: fecha.slice(0, 7),
     evaluador: campoEvaluador.value.trim(),
     bodega,
     callejon,
@@ -252,9 +249,9 @@ btnGuardar.addEventListener("click", async () => {
 
   btnGuardar.disabled = true;
   try {
-    const id = await crearRegistroTarimas(registro);
+    const clave = await agregarCallejonTarimas(fecha, registro);
     if (fecha === campoFecha.value) {
-      estado.delDia.unshift({ id, ...registro });
+      estado.delDia.unshift({ id: `${fecha}/${clave}`, clave, fecha, ...registro });
       pintarDelDia();
     }
     mostrarToast(`Guardado — ${callejon}: ${danadas} dañadas de ${total}`, "exito");
@@ -293,9 +290,7 @@ async function cargarDelDia() {
   if (!fecha) { estado.delDia = []; return pintarDelDia(); }
   $("lista-sesion").innerHTML = '<p class="texto-suave texto-sm">Cargando registros del día…</p>';
   try {
-    const filtros = { fecha };
-    if (!esRolDeGestion(estado.perfil.rol)) filtros.inspectorUid = estado.usuario.uid;
-    const registros = await listarRegistrosTarimas(filtros);
+    const registros = await listarTarimasDia({ fecha });
     if (turno !== estado.cargaDia) return;
     estado.delDia = registros;
     pintarDelDia();

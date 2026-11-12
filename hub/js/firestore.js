@@ -13,7 +13,8 @@
 //   hisopadoConfig/tabla                       (tabla de muestreo SIG-TA-102)
 //   sigfo111Config/formato                     (puntos y riesgos del SIG-FO-111)
 //   registrosVidrio/{autoId}                   (registro SIG-FO-111)
-//   registrosTarimas/{autoId}                  (registro SIG-FO-118, un callejón)
+//   tarimasDia/{yyyy-mm-dd}                    (registro SIG-FO-118, un día; callejones en un mapa)
+//   registrosTarimas/{autoId}                  (SIG-FO-118 antiguo, un callejón por documento)
 //   registrosEliminados/{autoId}               (copia completa de cada registro borrado + quién y cuándo)
 // =========================================================
 
@@ -28,6 +29,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   collection,
   query,
   where,
@@ -756,17 +758,102 @@ export async function eliminarRegistroVidrio(id) {
    Un documento por callejón inspeccionado.
    --------------------------------------------------------- */
 
-/** Guarda el registro de un callejón. Devuelve su id. */
-export async function crearRegistroTarimas(datos) {
-  const referencia = await addDoc(collection(db, "registrosTarimas"), {
-    ...datos,
-    creadoEn: serverTimestamp(),
-  });
-  return referencia.id;
+/*
+ * Un registro por día: tarimasDia/{fecha} = { fecha, periodo, actualizadoEn,
+ * callejones: { <clave>: { callejon, bodega, evaluador, totalInspeccionadas,
+ * cntMadera, cntPlastica, danadas, porcentajeDano, tipo, hallazgos,
+ * inspectorUid, inspectorNombre, creadoEn } } }.
+ * Cada callejón se agrega con un merge sobre SU clave, así dos personas que
+ * capturan a la vez el mismo día no se pisan.
+ */
+
+/** Convierte un documento del día en la lista plana de callejones. */
+export function aplanarTarimasDia(fecha, datos) {
+  const callejones = (datos && datos.callejones) || {};
+  return Object.entries(callejones).map(([clave, c]) => ({
+    ...c,
+    id: `${fecha}/${clave}`,
+    clave,
+    fecha,
+    periodo: fecha.slice(0, 7),
+  }));
+}
+
+const marcaTarimas = (r) => (r.creadoEn && r.creadoEn.toMillis ? r.creadoEn.toMillis() : Date.now());
+
+/** Agrega un callejón al registro del día (lo crea si no existe). Devuelve su clave. */
+export async function agregarCallejonTarimas(fecha, callejon) {
+  const clave = doc(collection(db, "tarimasDia")).id;
+  await setDoc(
+    doc(db, "tarimasDia", fecha),
+    {
+      fecha,
+      periodo: fecha.slice(0, 7),
+      actualizadoEn: serverTimestamp(),
+      ultimaClave: clave, // las reglas comprueban que solo cambie este callejón
+      callejones: { [clave]: { ...callejon, creadoEn: serverTimestamp() } },
+    },
+    { merge: true }
+  );
+  return clave;
 }
 
 /**
- * Lista registros del SIG-FO-118, del más reciente al más antiguo.
+ * Lista los callejones registrados, aplanados (uno por elemento).
+ * - { fecha }: solo ese día, más reciente primero.
+ * - sin fecha: los últimos días (máx. `dias`, 400 por defecto).
+ */
+export async function listarTarimasDia(filtros = {}) {
+  if (filtros.fecha) {
+    const snap = await getDoc(doc(db, "tarimasDia", filtros.fecha));
+    if (!snap.exists()) return [];
+    return aplanarTarimasDia(filtros.fecha, snap.data()).sort((a, b) => marcaTarimas(b) - marcaTarimas(a));
+  }
+  const snap = await getDocs(
+    query(collection(db, "tarimasDia"), orderBy("fecha", "desc"), limitarA(filtros.dias || 400))
+  );
+  return snap.docs.flatMap((d) => aplanarTarimasDia(d.id, d.data()));
+}
+
+/** Quita un callejón del registro del día, dejando copia en registrosEliminados. */
+export async function eliminarCallejonTarimas(fecha, clave) {
+  const referencia = doc(db, "tarimasDia", fecha);
+  const snap = await getDoc(referencia);
+  const datos = snap.exists() ? snap.data().callejones?.[clave] : null;
+  if (!datos) return;
+  const quitar = { [`callejones.${clave}`]: deleteField(), actualizadoEn: serverTimestamp() };
+
+  const usuario = auth.currentUser;
+  let nombre = usuario?.email || "";
+  try {
+    const perfil = await getDoc(doc(db, "usuarios", usuario.uid));
+    nombre = perfil.data()?.nombre || nombre;
+  } catch (error) { /* el nombre es opcional; queda el correo */ }
+
+  try {
+    const lote = writeBatch(db);
+    lote.set(doc(collection(db, "registrosEliminados")), {
+      modulo: "SIG-FO-118 · Tarimas",
+      coleccion: "tarimasDia",
+      idOriginal: `${fecha}/${clave}`,
+      datos: { fecha, ...datos },
+      eliminadoPor: usuario?.uid || "",
+      eliminadoPorNombre: nombre,
+      eliminadoEn: serverTimestamp(),
+    });
+    lote.update(referencia, quitar);
+    await lote.commit();
+  } catch (error) {
+    if (error?.code !== "permission-denied") throw error;
+    console.warn("Sin permiso para registrosEliminados; se borra sin dejar copia.", error);
+    await updateDoc(referencia, quitar);
+  }
+}
+
+/* --- Registros antiguos (registrosTarimas: un documento por callejón) --- */
+
+/**
+ * Lista registros antiguos del SIG-FO-118, del más reciente al más antiguo.
  * El inspector solo puede consultar los suyos (ver firestore.rules).
  */
 export async function listarRegistrosTarimas(filtros = {}) {
@@ -774,18 +861,6 @@ export async function listarRegistrosTarimas(filtros = {}) {
   if (filtros.inspectorUid) {
     condiciones.push(where("inspectorUid", "==", filtros.inspectorUid));
   }
-
-  // Con un día concreto basta la igualdad (no pide índice compuesto); el
-  // orden por hora de guardado se hace aquí, más reciente primero.
-  if (filtros.fecha) {
-    condiciones.push(where("fecha", "==", filtros.fecha));
-    const snap = await getDocs(query(collection(db, "registrosTarimas"), ...condiciones));
-    const marca = (r) => (r.creadoEn && r.creadoEn.toMillis ? r.creadoEn.toMillis() : Date.now());
-    return snap.docs
-      .map((d) => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => marca(b) - marca(a));
-  }
-
   const consulta = query(
     collection(db, "registrosTarimas"),
     ...condiciones,
@@ -793,12 +868,42 @@ export async function listarRegistrosTarimas(filtros = {}) {
     limitarA(filtros.max || 500)
   );
   const snap = await getDocs(consulta);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data(), legado: true }));
 }
 
-/** Elimina un registro del SIG-FO-118 (solo gestión, ver firestore.rules). */
+/** Elimina un registro antiguo del SIG-FO-118 (solo gestión, ver firestore.rules). */
 export async function eliminarRegistroTarimas(id) {
   await eliminarConRegistro("registrosTarimas", id, "SIG-FO-118 · Tarimas");
+}
+
+/**
+ * Pasa los registros antiguos al formato por día: cada uno entra al día de su
+ * fecha con su mismo id como clave (repetirlo no duplica nada) y después se
+ * borra el documento viejo. Solo gestión. Devuelve cuántos se pasaron.
+ */
+export async function migrarRegistrosTarimas(registros) {
+  const CAMPOS_DIA = ["id", "fecha", "periodo", "legado"];
+  let hechos = 0;
+  for (let i = 0; i < registros.length; i += 200) {
+    const lote = writeBatch(db);
+    registros.slice(i, i + 200).forEach((r) => {
+      const callejon = Object.fromEntries(Object.entries(r).filter(([k]) => !CAMPOS_DIA.includes(k)));
+      lote.set(
+        doc(db, "tarimasDia", r.fecha),
+        {
+          fecha: r.fecha,
+          periodo: r.fecha.slice(0, 7),
+          actualizadoEn: serverTimestamp(),
+          callejones: { [r.id]: callejon },
+        },
+        { merge: true }
+      );
+      lote.delete(doc(db, "registrosTarimas", r.id));
+    });
+    await lote.commit();
+    hechos += Math.min(200, registros.length - i);
+  }
+  return hechos;
 }
 
 /* ---------------------------------------------------------

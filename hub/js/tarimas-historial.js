@@ -4,12 +4,19 @@
 // guardados, agrupados por día (un registro por día con sus callejones),
 // filtrables por período, con el indicador del mes.
 //
-// Alcance: un gestor ve todos; el inspector solo los suyos (las reglas de
-// Firestore rechazan la consulta si un inspector omite el filtro).
+// Fuente: tarimasDia (un documento por día). Mientras queden registros del
+// formato antiguo (registrosTarimas, uno por callejón) también se muestran, y
+// un gestor puede pasarlos al formato por día con un botón.
 // =========================================================
 
 import { protegerPagina, cerrarSesion, esRolDeGestion, etiquetaRol } from "./auth.js";
-import { listarRegistrosTarimas, eliminarRegistroTarimas } from "./firestore.js";
+import {
+  listarTarimasDia,
+  eliminarCallejonTarimas,
+  listarRegistrosTarimas,
+  eliminarRegistroTarimas,
+  migrarRegistrosTarimas,
+} from "./firestore.js";
 import { escaparHtml, formatearFechaISOCorta, iniciales, mostrarCarga, mostrarToast } from "./utils.js";
 
 const $ = (id) => document.getElementById(id);
@@ -18,7 +25,7 @@ const filtroBusqueda = $("filtro-busqueda");
 const lista = $("lista-registros");
 const resumen = $("resumen-periodo");
 
-const estado = { registros: [], puedeEliminar: false };
+const estado = { registros: [], puedeEliminar: false, usuario: null, perfil: null };
 
 protegerPagina({}, async ({ user, perfil }) => {
   const nombreVisible = perfil.nombre || user.email;
@@ -27,18 +34,60 @@ protegerPagina({}, async ({ user, perfil }) => {
   estado.puedeEliminar = esRolDeGestion(perfil.rol);
   filtroPeriodo.value = new Date().toISOString().slice(0, 7);
 
+  estado.usuario = user;
+  estado.perfil = perfil;
+  await cargar();
+});
+
+async function cargar() {
   mostrarCarga(lista, "Cargando registros…");
   try {
-    estado.registros = await listarRegistrosTarimas(
-      esRolDeGestion(perfil.rol) ? {} : { inspectorUid: user.uid }
-    );
+    const [porDia, antiguos] = await Promise.all([
+      listarTarimasDia(),
+      // Los antiguos son opcionales: si fallan, el historial nuevo se ve igual.
+      listarRegistrosTarimas(
+        esRolDeGestion(estado.perfil.rol) ? {} : { inspectorUid: estado.usuario.uid }
+      ).catch((error) => {
+        console.warn("No se pudieron leer los registros antiguos de tarimas:", error);
+        return [];
+      }),
+    ]);
+    estado.registros = [...porDia, ...antiguos];
+    pintarAvisoMigracion(antiguos);
     renderizar();
   } catch (error) {
     console.error("No se pudieron cargar los registros de tarimas:", error);
     lista.innerHTML = "";
     mostrarToast("No se pudo cargar el historial. Verifica tu conexión.", "error");
   }
-});
+}
+
+/** Botón (solo gestión) para pasar los registros antiguos al formato por día. */
+function pintarAvisoMigracion(antiguos) {
+  const aviso = $("aviso-migracion");
+  if (!esRolDeGestion(estado.perfil.rol) || antiguos.length === 0) {
+    aviso.classList.add("oculto");
+    return;
+  }
+  aviso.classList.remove("oculto");
+  aviso.innerHTML = `
+    <p class="texto-sm mb-1">Hay <strong>${antiguos.length}</strong> callejón(es) guardados con el formato anterior
+      (un registro por callejón). Pásalos al registro por día para que queden juntos.</p>
+    <button type="button" class="btn btn-dorado btn-sm btn-ancho-auto" id="btn-migrar">Pasar al registro por día</button>`;
+  $("btn-migrar").addEventListener("click", async (e) => {
+    if (!confirm(`¿Pasar ${antiguos.length} registro(s) antiguos al registro por día?`)) return;
+    e.target.disabled = true;
+    try {
+      const n = await migrarRegistrosTarimas(antiguos);
+      mostrarToast(`Listo: ${n} callejón(es) pasados al registro por día.`, "exito");
+      await cargar();
+    } catch (error) {
+      console.error("No se pudo migrar:", error);
+      mostrarToast("No se pudo completar. ¿Ya se publicaron las reglas nuevas de Firestore?", "error");
+      e.target.disabled = false;
+    }
+  });
+}
 
 $("btn-salir").addEventListener("click", () => cerrarSesion());
 filtroPeriodo.addEventListener("input", renderizar);
@@ -155,7 +204,10 @@ lista.addEventListener("click", async (evento) => {
 
   boton.disabled = true;
   try {
-    await eliminarRegistroTarimas(boton.dataset.eliminar);
+    const id = boton.dataset.eliminar;
+    const registro = estado.registros.find((r) => r.id === id);
+    if (registro && !registro.legado) await eliminarCallejonTarimas(registro.fecha, registro.clave);
+    else await eliminarRegistroTarimas(id);
     estado.registros = estado.registros.filter((r) => r.id !== boton.dataset.eliminar);
     renderizar();
     mostrarToast("Registro eliminado.", "exito");
