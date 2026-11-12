@@ -28,7 +28,7 @@ const lista = $("lista-registros");
 const resumen = $("resumen-periodo");
 
 // esAdmin: editar, eliminar y cambiar la fecha de un día es solo del administrador.
-const estado = { registros: [], esAdmin: false, usuario: null, perfil: null, abiertos: new Set(), editando: null };
+const estado = { registros: [], esAdmin: false, usuario: null, perfil: null, abiertos: new Set(), editando: null, editandoFecha: null };
 
 const BODEGAS = ["Mercado Agrícola", "Mercado Nacional", "Producto en Proceso"];
 const HALLAZGOS_BASE = [
@@ -161,46 +161,55 @@ function tarjetaDia(fecha, regs) {
   const unicos = (campo) => [...new Set(regs.map(campo).filter(Boolean))].join(", ");
   const abierto = estado.abiertos.has(fecha);
   const fechaSegura = escaparHtml(fecha);
+  // Cambiar la fecha mueve el día completo (solo admin y solo formato por día).
+  const puedeMover = abierto && estado.esAdmin && regs.every((r) => !r.legado);
+  const editandoFecha = puedeMover && estado.editandoFecha === fecha;
 
-  let detalle = "";
-  if (abierto) {
-    const filas = [...regs]
-      .sort((x, y) => String(x.callejon).localeCompare(String(y.callejon), "es", { numeric: true }))
-      .map(filaCallejon)
-      .join("");
-    // Cambiar la fecha mueve el día completo (solo si todo es del formato por día).
-    const moverFecha = estado.esAdmin && regs.every((r) => !r.legado)
-      ? `<div class="editor-item" style="margin-top: var(--e3);">
-          <label class="texto-sm" for="mover-${fechaSegura}"><strong>Fecha del día</strong></label>
-          <div class="flex-entre" style="gap: var(--e2); margin-top: 4px;">
-            <div class="campo" style="flex:1; min-width:0; margin-bottom:0;"><input type="date" id="mover-${fechaSegura}" value="${fechaSegura}" /></div>
-            <button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-mover="${fechaSegura}">Cambiar fecha</button>
+  const formFecha = editandoFecha
+    ? `<div class="editor-item" style="margin-top: var(--e3);">
+        <label class="texto-sm" for="mover-${fechaSegura}"><strong>Nueva fecha del día</strong></label>
+        <div style="display:flex; gap: var(--e2); flex-wrap: wrap; align-items: center; margin-top: 4px;">
+          <div class="campo" style="flex: 1 1 180px; min-width: 0; margin-bottom: 0;">
+            <input type="date" id="mover-${fechaSegura}" value="${fechaSegura}" />
           </div>
-          <p class="texto-suave texto-sm mb-0" style="margin-top: 4px;">Mueve todos los callejones de este día a la fecha nueva. Si esa fecha ya tiene registro, se juntan.</p>
-        </div>`
-      : "";
-    detalle = `<div style="margin-top: var(--e3);">${filas}${moverFecha}</div>`;
-  }
+          <button type="button" class="btn btn-dorado btn-sm btn-ancho-auto" data-mover="${fechaSegura}">Guardar fecha</button>
+          <button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-cancelar-fecha>Cancelar</button>
+        </div>
+        <p class="texto-suave texto-sm mb-0" style="margin-top: 4px;">Mueve los ${regs.length} callejón(es) de este día a la fecha nueva. Si esa fecha ya tiene registro, se juntan.</p>
+      </div>`
+    : "";
 
-  // Toda la cabecera de la tarjeta (título, resumen y botón) abre o cierra el registro.
+  const filas = abierto
+    ? `<div style="margin-top: var(--e3);">${[...regs]
+        .sort((x, y) => String(x.callejon).localeCompare(String(y.callejon), "es", { numeric: true }))
+        .map(filaCallejon)
+        .join("")}</div>`
+    : "";
+
+  // El título y el resumen también abren o cierran el registro.
   return `
     <section class="tarjeta tarjeta-dia${abierto ? " tarjeta-dia--abierta" : ""}">
-      <div class="tarjeta-dia__cabecera" data-ver="${fechaSegura}" role="button" tabindex="0" aria-expanded="${abierto}"
-        aria-label="${abierto ? "Ocultar" : "Ver"} registro del ${escaparHtml(nombreDia(fecha))}">
-      <div class="flex-entre mb-1">
-        <h2 class="tarjeta__titulo mb-0">${escaparHtml(nombreDia(fecha))}</h2>
-        <span class="badge ${nivel(pct)}">${pct.toFixed(1)}%</span>
+      <div class="tarjeta-dia__cabecera" data-ver="${fechaSegura}">
+        <div class="flex-entre mb-1">
+          <h2 class="tarjeta__titulo mb-0">${escaparHtml(nombreDia(fecha))}</h2>
+          <span class="badge ${nivel(pct)}">${pct.toFixed(1)}%</span>
+        </div>
+        <p class="texto-suave texto-sm">
+          ${regs.length} callejón(es) · ${insp.toLocaleString()} inspeccionadas · ${dan.toLocaleString()} dañadas
+          (🪵 ${suma(regs, "cntMadera")} · 🔵 ${suma(regs, "cntPlastica")})<br />
+          ${escaparHtml(unicos((r) => r.bodega))} · ${escaparHtml(unicos((r) => r.evaluador || r.inspectorNombre))}
+        </p>
       </div>
-      <p class="texto-suave texto-sm">
-        ${regs.length} callejón(es) · ${insp.toLocaleString()} inspeccionadas · ${dan.toLocaleString()} dañadas
-        (🪵 ${suma(regs, "cntMadera")} · 🔵 ${suma(regs, "cntPlastica")})<br />
-        ${escaparHtml(unicos((r) => r.bodega))} · ${escaparHtml(unicos((r) => r.evaluador || r.inspectorNombre))}
-      </p>
-      <span class="btn btn-secundario btn-sm btn-ancho-auto" aria-hidden="true">
-        ${abierto ? "Ocultar registro ▴" : "Ver registro ▾"}
-      </span>
+      <div style="display:flex; gap: var(--e2); flex-wrap: wrap;">
+        <button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-ver="${fechaSegura}" aria-expanded="${abierto}">
+          ${abierto ? "Ocultar registro ▴" : "Ver registro ▾"}
+        </button>
+        ${puedeMover && !editandoFecha
+          ? `<button type="button" class="btn btn-secundario btn-sm btn-ancho-auto" data-editar-fecha="${fechaSegura}">📅 Editar fecha</button>`
+          : ""}
       </div>
-      ${detalle}
+      ${formFecha}
+      ${filas}
     </section>`;
 }
 
@@ -246,11 +255,26 @@ lista.addEventListener("click", async (evento) => {
   const ver = evento.target.closest("[data-ver]");
   if (ver) {
     const f = ver.dataset.ver;
-    if (estado.abiertos.has(f)) estado.abiertos.delete(f); else estado.abiertos.add(f);
+    if (estado.abiertos.has(f)) {
+      estado.abiertos.delete(f);
+      if (estado.editandoFecha === f) estado.editandoFecha = null;
+    } else estado.abiertos.add(f);
     renderizar();
-    const misma = lista.querySelector(`[data-ver="${CSS.escape(f)}"]`);
+    const misma = lista.querySelector(`button[data-ver="${CSS.escape(f)}"]`);
     if (misma && ver === document.activeElement) misma.focus();
     return;
+  }
+  const editarFecha = evento.target.closest("[data-editar-fecha]");
+  if (editarFecha) {
+    estado.editandoFecha = editarFecha.dataset.editarFecha;
+    renderizar();
+    const campo = document.getElementById(`mover-${estado.editandoFecha}`);
+    if (campo) campo.focus();
+    return;
+  }
+  if (evento.target.closest("[data-cancelar-fecha]")) {
+    estado.editandoFecha = null;
+    return renderizar();
   }
   const editar = evento.target.closest("[data-editar]");
   if (editar) return abrirEdicion(estado.registros.find((r) => r.id === editar.dataset.editar));
@@ -297,6 +321,7 @@ async function moverDia(boton) {
     );
     estado.abiertos.delete(desde);
     estado.abiertos.add(hasta);
+    estado.editandoFecha = null;
     // Si la fecha nueva cae en otro mes, se cambia el filtro para seguir viéndola.
     if (filtroPeriodo.value && filtroPeriodo.value !== hasta.slice(0, 7)) filtroPeriodo.value = hasta.slice(0, 7);
     renderizar();
@@ -395,14 +420,6 @@ modal.addEventListener("click", (e) => {
     pintarHallazgosEdicion();
   }
 });
-// Teclado: Enter o espacio sobre la cabecera de un día la abre o cierra.
-lista.addEventListener("keydown", (e) => {
-  const ver = e.target.closest("[data-ver]");
-  if (!ver || (e.key !== "Enter" && e.key !== " ")) return;
-  e.preventDefault();
-  ver.click();
-});
-
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !modal.classList.contains("oculto")) cerrarEdicion();
 });
