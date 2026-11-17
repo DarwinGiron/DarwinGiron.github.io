@@ -81,6 +81,8 @@ function cargarExcelJS() {
 async function exportarExcel(panel) {
   const def = EXPORTACIONES[panel];
   if (!def) throw new Error("Esta pestaña no tiene exportación.");
+  // Las pestañas se cargan al abrirlas: aquí se descarga lo que falte.
+  await prepararExportacion(panel);
   const d = datosIndicadores;
   if (!d || !d.listo) throw new Error("Espera a que terminen de cargar los datos del período.");
   if (def.datos && d[def.datos] === undefined) {

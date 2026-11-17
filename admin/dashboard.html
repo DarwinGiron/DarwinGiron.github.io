@@ -291,7 +291,8 @@ function textoPeriodo(desdeISO, hastaISO) {
 }
 
 document.getElementById("btn-filtrar").addEventListener("click", cargarDatosYRenderizar);
-document.getElementById("incluir-borradores").addEventListener("change", cargarDatosYRenderizar);
+// Solo vuelve a filtrar los PPR ya descargados (no pide nada nuevo a la base).
+document.getElementById("incluir-borradores").addEventListener("change", (e) => cambiarBorradores(e.target.checked));
 
 // Pestañas de indicadores: la última elegida se recuerda en este navegador.
 // Botón "Descargar Excel": exporta la pestaña activa (en Resumen, todo junto).
@@ -326,6 +327,8 @@ function mostrarPanelIndicadores(panel) {
   try { localStorage.setItem("dashboard_panel", panel); } catch (e) { /* sin almacenamiento local */ }
   // Chart.js no puede medir un canvas oculto: al mostrarlo se reajustan.
   Object.values(chartsActivos).forEach((c) => c.resize());
+  // Cada pestaña descarga sus datos la primera vez que se abre.
+  mostrarIndicadoresDe(panel).then(() => Object.values(chartsActivos).forEach((c) => c.resize()));
 }
 document.querySelectorAll("#tabs-indicadores .tab").forEach((btn) =>
   btn.addEventListener("click", () => mostrarPanelIndicadores(btn.dataset.panel)));

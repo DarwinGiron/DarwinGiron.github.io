@@ -112,6 +112,16 @@ export async function listarTurnos(desde, hasta) {
 }
 
 /**
+ * Turnos de UNA persona en las fechas dadas. Cada turno tiene id fijo
+ * "fecha_persona", así que se piden directo por id: una lectura por día, en
+ * vez de bajar los turnos de todo el personal y filtrar aquí.
+ */
+export async function listarTurnosDePersona(personaId, fechas) {
+  const snaps = await Promise.all(fechas.map((f) => getDoc(doc(db, 'horarios_turnos', idTurno(f, personaId)))));
+  return snaps.filter((s) => s.exists()).map((s) => ({ id: s.id, ...s.data() }));
+}
+
+/**
  * Guarda los turnos que genera la rotación. Nunca pisa uno puesto a mano o por solicitud
  * (origen manual / solicitud); los demás se reescriben. Devuelve cuántos escribió.
  */

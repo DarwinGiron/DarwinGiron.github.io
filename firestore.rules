@@ -11,7 +11,7 @@ rules_version = '2';
 //      colecciones: usuarios (COMPARTIDA con Reportes), checklists,
 //      inspecciones (SIG-FO-115), hisopados, hisopadoConfig,
 //      supervisores_hisopado, areas_maquina_hisopado, hisopadoContadores, registrosVidrio (SIG-FO-111),
-//      sigfo111Config, registrosTarimas + tarimasDia (SIG-FO-118), liberaciones
+//      sigfo111Config, registrosTarimas + tarimasDia + resumenes (SIG-FO-118), liberaciones
 //      (SIG-FO-101), sigfo101Config, verificaciones_transporte,
 //      proveedores_transporte, horarios_personal, horarios_turnos, horarios_config,
 //      horarios_feriados, horarios_solicitudes, horarios_historial (app de Horarios, hub/horarios).
@@ -508,6 +508,28 @@ service cloud.firestore {
         && (esGestor()
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['callejones', 'actualizadoEn', 'periodo', 'ultimaClave'])
             && cambioPropioTarimas()));
+
+      allow delete: if esGestor();
+    }
+
+    // ---- resumenes (totales por mes para el Dashboard) ----------
+    // Un documento por módulo y mes, p. ej. "tarimas_2026-11". Quien guarda
+    // un callejón suma o resta su parte en la misma escritura (increment), así
+    // que cualquier usuario activo puede actualizar el resumen de tarimas,
+    // pero solo gestión puede marcarlo como "inicializado" (calculado desde
+    // cero), crear resúmenes de otros módulos o borrarlos.
+    match /resumenes/{resumenId} {
+      allow read: if esUsuarioActivo();
+
+      allow create: if esGestor()
+        || (esUsuarioActivo()
+          && resumenId.matches('tarimas_[0-9]{4}-[0-9]{2}')
+          && !('inicializado' in request.resource.data));
+
+      allow update: if esGestor()
+        || (esUsuarioActivo()
+          && resumenId.matches('tarimas_[0-9]{4}-[0-9]{2}')
+          && request.resource.data.get('inicializado', false) == resource.data.get('inicializado', false));
 
       allow delete: if esGestor();
     }

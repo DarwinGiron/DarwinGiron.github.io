@@ -15,6 +15,7 @@
 //   registrosVidrio/{autoId}                   (registro SIG-FO-111)
 //   tarimasDia/{yyyy-mm-dd}                    (registro SIG-FO-118, un día; callejones en un mapa)
 //   registrosTarimas/{autoId}                  (SIG-FO-118 antiguo, un callejón por documento)
+//   resumenes/tarimas_{yyyy-mm}                (totales del mes para el Dashboard, ver más abajo)
 //   registrosEliminados/{autoId}               (copia completa de cada registro borrado + quién y cuándo)
 // =========================================================
 
@@ -30,6 +31,7 @@ import {
   updateDoc,
   deleteDoc,
   deleteField,
+  increment,
   collection,
   query,
   where,
@@ -781,10 +783,68 @@ export function aplanarTarimasDia(fecha, datos) {
 
 const marcaTarimas = (r) => (r.creadoEn && r.creadoEn.toMillis ? r.creadoEn.toMillis() : Date.now());
 
+/*
+ * Resumen del mes para el Dashboard: resumenes/tarimas_{yyyy-mm} =
+ * { modulo, mes, callejones, inspeccionadas, madera, plastica,
+ *   porBodega: { <bodega>: { callejones, insp, madera, plastica } },
+ *   hallazgos: { <hallazgo>: n }, inicializado, actualizadoEn }.
+ * No es una copia guardada: cada vez que se agrega, edita, elimina o mueve
+ * un callejón, en la MISMA escritura se suma o resta su parte con
+ * increment(). Así el Dashboard lee un documento por mes en lugar de todos
+ * los registros. "inicializado" lo pone solo el Dashboard al calcular el mes
+ * desde cero la primera vez (o con el botón Recalcular).
+ */
+const refResumenTarimas = (mes) => doc(db, "resumenes", `tarimas_${mes}`);
+
+/** Aporte numérico de un callejón al resumen (signo +1 suma, -1 resta). */
+function aporteTarimas(c, signo) {
+  const n = (v) => signo * (Number(v) || 0);
+  const bodega = c.bodega || "Sin bodega";
+  const hallazgos = {};
+  (c.hallazgos || []).filter(Boolean).forEach((h) => { hallazgos[h] = (hallazgos[h] || 0) + signo; });
+  return {
+    callejones: signo,
+    inspeccionadas: n(c.totalInspeccionadas),
+    madera: n(c.cntMadera),
+    plastica: n(c.cntPlastica),
+    porBodega: { [bodega]: { callejones: signo, insp: n(c.totalInspeccionadas), madera: n(c.cntMadera), plastica: n(c.cntPlastica) } },
+    hallazgos,
+  };
+}
+
+/** Suma dos aportes (objetos anidados de números). */
+function sumarAportes(a, b) {
+  const r = { ...a };
+  Object.entries(b).forEach(([k, v]) => {
+    r[k] = typeof v === "object" ? sumarAportes(r[k] || {}, v) : (r[k] || 0) + v;
+  });
+  return r;
+}
+
+/** Convierte un aporte en increment() para un set con merge; omite los ceros. */
+function comoIncrementos(aporte) {
+  const r = {};
+  Object.entries(aporte).forEach(([k, v]) => {
+    if (typeof v === "object") {
+      const interno = comoIncrementos(v);
+      if (Object.keys(interno).length) r[k] = interno;
+    } else if (v) r[k] = increment(v);
+  });
+  return r;
+}
+
+/** Agrega al lote/transacción la actualización del resumen de un mes. */
+function aplicarAResumen(escritor, mes, aporte) {
+  const incrementos = comoIncrementos(aporte);
+  if (!Object.keys(incrementos).length) return;
+  escritor.set(refResumenTarimas(mes), { modulo: "tarimas", mes, actualizadoEn: serverTimestamp(), ...incrementos }, { merge: true });
+}
+
 /** Agrega un callejón al registro del día (lo crea si no existe). Devuelve su clave. */
 export async function agregarCallejonTarimas(fecha, callejon) {
   const clave = doc(collection(db, "tarimasDia")).id;
-  await setDoc(
+  const lote = writeBatch(db);
+  lote.set(
     doc(db, "tarimasDia", fecha),
     {
       fecha,
@@ -795,6 +855,8 @@ export async function agregarCallejonTarimas(fecha, callejon) {
     },
     { merge: true }
   );
+  aplicarAResumen(lote, fecha.slice(0, 7), aporteTarimas(callejon, 1));
+  await lote.commit();
   return clave;
 }
 
@@ -842,11 +904,15 @@ export async function eliminarCallejonTarimas(fecha, clave) {
       eliminadoEn: serverTimestamp(),
     });
     lote.update(referencia, quitar);
+    aplicarAResumen(lote, fecha.slice(0, 7), aporteTarimas(datos, -1));
     await lote.commit();
   } catch (error) {
     if (error?.code !== "permission-denied") throw error;
     console.warn("Sin permiso para registrosEliminados; se borra sin dejar copia.", error);
-    await updateDoc(referencia, quitar);
+    const lote = writeBatch(db);
+    lote.update(referencia, quitar);
+    aplicarAResumen(lote, fecha.slice(0, 7), aporteTarimas(datos, -1));
+    await lote.commit();
   }
 }
 
@@ -860,15 +926,10 @@ export async function editarCallejonTarimas(fecha, clave, cambios) {
     const snap = await tx.get(referencia);
     const actual = snap.exists() ? snap.data().callejones?.[clave] : null;
     if (!actual) throw new Error("El callejón ya no existe en ese día.");
-    tx.update(referencia, {
-      [`callejones.${clave}`]: {
-        ...actual,
-        ...cambios,
-        editadoPor: auth.currentUser?.uid || "",
-        editadoEn: serverTimestamp(),
-      },
-      actualizadoEn: serverTimestamp(),
-    });
+    const nuevo = { ...actual, ...cambios, editadoPor: auth.currentUser?.uid || "", editadoEn: serverTimestamp() };
+    tx.update(referencia, { [`callejones.${clave}`]: nuevo, actualizadoEn: serverTimestamp() });
+    // Al resumen solo va la diferencia: se resta lo de antes y se suma lo nuevo.
+    aplicarAResumen(tx, fecha.slice(0, 7), sumarAportes(aporteTarimas(actual, -1), aporteTarimas(nuevo, 1)));
   });
 }
 
@@ -895,6 +956,15 @@ export async function moverDiaTarimas(desde, hasta) {
       { merge: true }
     );
     tx.delete(origen);
+    // Si cambia de mes, sus totales pasan del resumen de un mes al del otro.
+    const mesAntes = desde.slice(0, 7), mesDespues = hasta.slice(0, 7);
+    if (mesAntes !== mesDespues) {
+      const callejones = Object.values(snap.data().callejones || {});
+      const total = callejones.reduce((t, c) => sumarAportes(t, aporteTarimas(c, 1)), {});
+      const menos = callejones.reduce((t, c) => sumarAportes(t, aporteTarimas(c, -1)), {});
+      aplicarAResumen(tx, mesAntes, menos);
+      aplicarAResumen(tx, mesDespues, total);
+    }
   });
 }
 
@@ -925,6 +995,8 @@ export async function eliminarRegistroTarimas(id) {
 }
 
 /**
+ * (No toca los resúmenes del Dashboard: al pasar registros antiguos conviene
+ * usar "Recalcular" en la pestaña Tarimas del Dashboard.)
  * Pasa los registros antiguos al formato por día: cada uno entra al día de su
  * fecha con su mismo id como clave (repetirlo no duplica nada) y después se
  * borra el documento viejo. Solo gestión. Devuelve cuántos se pasaron.

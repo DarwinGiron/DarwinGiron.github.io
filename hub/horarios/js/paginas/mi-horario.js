@@ -1,4 +1,4 @@
-import { getUsuarioActual, listarTurnos } from '../firebase.js';
+import { getUsuarioActual, listarTurnosDePersona } from '../firebase.js';
 import { textos } from '../textos.js';
 import { hoyIso, semanaDe, fechaCorta, fechaConDiaLargo } from '../utilidades/fechas.js';
 import { sePuedeInstalar, alCambiarInstalable, instalar } from '../instalador.js';
@@ -68,7 +68,7 @@ export async function render(contenedor) {
 
   let turnos;
   try {
-    turnos = (await listarTurnos(dias[0], dias[dias.length - 1])).filter((t) => t.usuario_id === usuario.id);
+    turnos = await listarTurnosDePersona(usuario.id, dias);
   } catch (error) {
     console.error(error);
     document.getElementById('tarjeta-hoy').textContent = textos.errores.genericoAlGuardar;

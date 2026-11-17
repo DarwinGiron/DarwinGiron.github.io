@@ -392,13 +392,15 @@ function calcularImprentas(registros) {
 // ---------------------------------------------------------------------------
 async function cargarDatosBpm(desdeISO, hastaISO) {
   const desdeMes = desdeISO.slice(0, 7), hastaMes = hastaISO.slice(0, 7);
+  // El id de cada auditoría es su mes ("aaaa-mm"): se piden solo los meses
+  // del rango, no la colección completa.
+  const idDoc = firebase.firestore.FieldPath.documentId();
   const [snap, snapConfig] = await Promise.all([
-    db.collection("auditoriasBpm").get(),
+    db.collection("auditoriasBpm").where(idDoc, ">=", desdeMes).where(idDoc, "<=", hastaMes).get(),
     db.collection("checklists").doc("auditoria-bpm").get().catch(() => null),
   ]);
   const auditorias = snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((a) => a.id >= desdeMes && a.id <= hastaMes)
     .sort((a, b) => a.id.localeCompare(b.id));
 
   // preguntaId -> { seccionId, texto, activa }
@@ -873,18 +875,111 @@ function renderVidrio(registros, meses) {
   return { urgentes: r.niveles[3], inspecciones: r.inspecciones, porMes: Object.fromEntries(meses.map((m, i) => [m, urgentesMes[i]])) };
 }
 
-function renderTarimas(registros, meses) {
-  const r = calcularTarimas(registros);
-  const porMes = agruparPorMes(registros, (x) => x.fecha);
-  const sumar = (m, campo) => (porMes[m] || []).reduce((s, reg) => s + (Number(reg[campo]) || 0), 0);
-  const tendencia = meses.map((m) => porcentaje(sumar(m, "cntMadera") + sumar(m, "cntPlastica"), sumar(m, "totalInspeccionadas")));
+/*
+ * Tarimas se puede pintar de dos fuentes con la misma forma de datos:
+ * - resúmenes del mes (resumenes/tarimas_aaaa-mm): 1 lectura por mes; se
+ *   usan cuando el rango cubre meses completos (los atajos del Dashboard).
+ * - registros crudos (tarimasDia): para rangos con medio mes.
+ * Un "resumen" = { callejones, inspeccionadas, madera, plastica,
+ *                  porBodega: { b: { callejones, insp, madera, plastica } },
+ *                  hallazgos: { h: n } }.
+ */
+function resumenTarimasVacio() {
+  return { callejones: 0, inspeccionadas: 0, madera: 0, plastica: 0, porBodega: {}, hallazgos: {} };
+}
+
+function sumarResumenTarimas(destino, r) {
+  if (!r) return destino;
+  destino.callejones += Number(r.callejones) || 0;
+  destino.inspeccionadas += Number(r.inspeccionadas) || 0;
+  destino.madera += Number(r.madera) || 0;
+  destino.plastica += Number(r.plastica) || 0;
+  Object.entries(r.porBodega || {}).forEach(([b, c]) => {
+    const d = (destino.porBodega[b] = destino.porBodega[b] || { callejones: 0, insp: 0, madera: 0, plastica: 0 });
+    d.callejones += Number(c.callejones) || 0; d.insp += Number(c.insp) || 0;
+    d.madera += Number(c.madera) || 0; d.plastica += Number(c.plastica) || 0;
+  });
+  Object.entries(r.hallazgos || {}).forEach(([h, n]) => { destino.hallazgos[h] = (destino.hallazgos[h] || 0) + (Number(n) || 0); });
+  return destino;
+}
+
+/** Resumen calculado desde los callejones (mismo resultado que los increment()). */
+function resumenTarimasDesdeRegistros(registros) {
+  return registros.reduce((acc, c) => sumarResumenTarimas(acc, {
+    callejones: 1,
+    inspeccionadas: c.totalInspeccionadas, madera: c.cntMadera, plastica: c.cntPlastica,
+    porBodega: { [c.bodega || "Sin bodega"]: { callejones: 1, insp: c.totalInspeccionadas, madera: c.cntMadera, plastica: c.cntPlastica } },
+    hallazgos: Object.fromEntries((c.hallazgos || []).filter(Boolean).map((h) => [h, 1])),
+  }), resumenTarimasVacio());
+}
+
+/** ¿El rango son meses completos? (el último puede ser el mes en curso hasta hoy) */
+function rangoDeMesesCompletos(desdeISO, hastaISO) {
+  if (!desdeISO.endsWith("-01")) return false;
+  const [a, m] = hastaISO.split("-").map(Number);
+  return hastaISO === fechaISOLocal(new Date(a, m, 0)) || hastaISO >= fechaISOLocal(new Date());
+}
+
+const refResumenTarimas = (mes) => db.collection("resumenes").doc(`tarimas_${mes}`);
+
+/**
+ * Resúmenes de tarimas de los meses pedidos. El mes que aún no tiene resumen
+ * (o todos, con recalcular) se calcula una vez desde sus registros y se
+ * guarda marcado como "inicializado"; de ahí en adelante lo mantienen al día
+ * las pantallas que guardan, con increment().
+ */
+async function cargarResumenesTarimas(meses, { recalcular = false } = {}) {
+  const snaps = await Promise.all(meses.map((m) => refResumenTarimas(m).get()));
+  const porMes = {};
+  await Promise.all(meses.map(async (m, i) => {
+    const snap = snaps[i];
+    if (!recalcular && snap.exists && snap.data().inicializado) {
+      porMes[m] = snap.data();
+      return;
+    }
+    const [a, mm] = m.split("-").map(Number);
+    const resumen = resumenTarimasDesdeRegistros(await cargarTarimas(`${m}-01`, fechaISOLocal(new Date(a, mm, 0))));
+    try {
+      await refResumenTarimas(m).set({
+        ...resumen, modulo: "tarimas", mes: m, inicializado: true,
+        actualizadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn(`No se pudo guardar el resumen de tarimas de ${m}; se usa el cálculo de esta vez.`, err);
+    }
+    porMes[m] = resumen;
+  }));
+  return porMes;
+}
+
+/** { total, porMes } a partir de resúmenes por mes. */
+function agregadoTarimas(porMes, meses) {
+  const total = resumenTarimasVacio();
+  meses.forEach((m) => sumarResumenTarimas(total, porMes[m]));
+  return { total, porMes };
+}
+
+/** { total, porMes } a partir de los registros crudos. */
+function agregadoTarimasDesdeRegistros(registros, meses) {
+  const grupos = agruparPorMes(registros, (x) => x.fecha);
+  return agregadoTarimas(Object.fromEntries(meses.map((m) => [m, resumenTarimasDesdeRegistros(grupos[m] || [])])), meses);
+}
+
+function renderTarimas(agregado, meses, { desdeResumen = false } = {}) {
+  const t = agregado.total;
+  const danadas = t.madera + t.plastica;
+  const pctTotal = porcentaje(danadas, t.inspeccionadas);
+  const mes = (m) => agregado.porMes[m] || resumenTarimasVacio();
+  const tendencia = meses.map((m) => porcentaje(mes(m).madera + mes(m).plastica, mes(m).inspeccionadas));
+  const porBodega = Object.entries(t.porBodega).filter(([, c]) => c.callejones > 0).sort((a, b) => a[0].localeCompare(b[0]));
+  const hallazgos = Object.entries(t.hallazgos).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
 
   document.getElementById("panel-tarimas").innerHTML = `
     <div class="kpis">
-      ${kpiHtml(textoPct(r.porcentaje), "Tarimas dañadas", `${r.danadas.toLocaleString()} de ${r.inspeccionadas.toLocaleString()}`)}
-      ${kpiHtml(r.callejones, "Callejones inspeccionados")}
-      ${kpiHtml(r.madera.toLocaleString(), "Madera dañada")}
-      ${kpiHtml(r.plastica.toLocaleString(), "Plástica dañada")}
+      ${kpiHtml(textoPct(pctTotal), "Tarimas dañadas", `${danadas.toLocaleString()} de ${t.inspeccionadas.toLocaleString()}`)}
+      ${kpiHtml(t.callejones, "Callejones inspeccionados")}
+      ${kpiHtml(t.madera.toLocaleString(), "Madera dañada")}
+      ${kpiHtml(t.plastica.toLocaleString(), "Plástica dañada")}
     </div>
     <div class="grid-2">
       <div class="tarjeta">
@@ -899,21 +994,49 @@ function renderTarimas(registros, meses) {
     <div class="grid-2">
       <div class="tarjeta">
         <h3>Por bodega</h3>
-        ${tablaHtml(["Bodega", "Callejones", "Inspeccionadas", "Madera", "Plástica", "% daño"], r.porBodega.map(([bodega, c]) =>
+        ${tablaHtml(["Bodega", "Callejones", "Inspeccionadas", "Madera", "Plástica", "% daño"], porBodega.map(([bodega, c]) =>
           `<tr><td>${escHtml(bodega)}</td><td>${c.callejones}</td><td>${c.insp.toLocaleString()}</td><td>${c.madera}</td><td>${c.plastica}</td><td>${textoPct(porcentaje(c.madera + c.plastica, c.insp))}</td></tr>`))}
       </div>
       <div class="tarjeta">
         <h3>Hallazgos más frecuentes</h3>
-        ${tablaHtml(["Hallazgo", "Callejones"], r.hallazgos.map(([h, n]) => `<tr><td>${escHtml(h)}</td><td>${n}</td></tr>`), "Sin hallazgos registrados.")}
+        ${tablaHtml(["Hallazgo", "Callejones"], hallazgos.map(([h, n]) => `<tr><td>${escHtml(h)}</td><td>${n}</td></tr>`), "Sin hallazgos registrados.")}
       </div>
-    </div>`;
+    </div>
+    <p class="ayuda" style="margin-top:12px;">
+      ${desdeResumen
+        ? `Totales del mes que se actualizan al guardar, editar o eliminar cada callejón (1 lectura por mes).
+           <button type="button" class="btn btn-secundario btn-sm" id="btn-recalcular-tarimas" style="margin-left:6px;">Recalcular</button>`
+        : "El rango incluye meses incompletos: se calculó con los registros de cada día."}
+    </p>`;
 
   graficaPorcentajeConMeta("grafica-tarimas-mes", meses.map(etiquetaMes), tendencia, null, "% dañadas");
   graficaApilada("grafica-tarimas-tipo", meses.map(etiquetaMes), [
-    { etiqueta: "Madera", datos: meses.map((m) => sumar(m, "cntMadera")), color: COLOR_CUMPLE },
-    { etiqueta: "Plástica", datos: meses.map((m) => sumar(m, "cntPlastica")), color: COLOR_SERIE },
+    { etiqueta: "Madera", datos: meses.map((m) => mes(m).madera), color: COLOR_CUMPLE },
+    { etiqueta: "Plástica", datos: meses.map((m) => mes(m).plastica), color: COLOR_SERIE },
   ]);
-  return { final: r.porcentaje, callejones: r.callejones, porMes: Object.fromEntries(meses.map((m, i) => [m, tendencia[i]])) };
+  const boton = document.getElementById("btn-recalcular-tarimas");
+  if (boton) boton.addEventListener("click", () => recalcularTarimas(boton));
+  return { final: pctTotal, callejones: t.callejones, porMes: Object.fromEntries(meses.map((m, i) => [m, tendencia[i]])) };
+}
+
+/** Botón "Recalcular": vuelve a calcular desde los registros los meses del rango. */
+async function recalcularTarimas(boton) {
+  const e = estadoInd;
+  if (!e) return;
+  if (!confirm("¿Recalcular los totales de tarimas de los meses del rango desde los registros de cada día?")) return;
+  boton.disabled = true;
+  boton.textContent = "Recalculando…";
+  try {
+    const porMes = await cargarResumenesTarimas(e.meses, { recalcular: true });
+    if (e !== estadoInd) return;
+    e.datos.resultados.tarimas = renderTarimas(agregadoTarimas(porMes, e.meses), e.meses, { desdeResumen: true });
+    if (e.resumenPintado) renderResumen(e.datos.resultados, e.meses);
+  } catch (err) {
+    console.error("Recalcular tarimas:", err);
+    alert("No se pudo recalcular. Intenta de nuevo.");
+    boton.disabled = false;
+    boton.textContent = "Recalcular";
+  }
 }
 
 function renderHisopado(registros, meses) {
@@ -1006,8 +1129,124 @@ function renderResumen(res, meses) {
 }
 
 // ---------------------------------------------------------------------------
-// PUNTO DE ENTRADA: carga y pinta todos los módulos del rango.
+// PUNTO DE ENTRADA
+// Cada pestaña se descarga solo cuando se abre (y una sola vez por rango).
+// "Resumen" necesita el número final de todos los módulos, así que al abrirlo
+// se cargan todos. "Incluir borradores" vuelve a filtrar lo ya descargado.
 // ---------------------------------------------------------------------------
+let estadoInd = null;
+
+/** Por módulo: obtener(e) descarga; pintar(e, datos) dibuja y devuelve { final, porMes, … }. */
+const MODULOS_IND = {
+  ppr: {
+    panel: "panel-ppr",
+    obtener: (e) => cargarDatosPPR(e.desdeISO, e.hastaISO),
+    pintar: (e, crudo) => { e.pprCrudo = crudo; return pintarPPR(e); },
+  },
+  contenedores: {
+    panel: "panel-contenedores",
+    obtener: (e) => consultarRangoISO("verificaciones_transporte", "fecha", e.desdeISO, e.hastaISO),
+    pintar: (e, regs) => renderContenedores((e.datos.contenedores = regs), e.meses),
+  },
+  imprentas: {
+    panel: "panel-imprentas",
+    obtener: (e) => consultarRangoISO("liberaciones", "fecha", e.desdeISO, e.hastaISO),
+    pintar: (e, regs) => renderImprentas((e.datos.imprentas = regs), e.meses),
+  },
+  bpm: {
+    panel: "panel-bpm",
+    obtener: (e) => cargarDatosBpm(e.desdeISO, e.hastaISO),
+    pintar: (e, datos) => renderBpm((e.datos.bpm = datos), e.meses),
+  },
+  vidrio: {
+    panel: "panel-vidrio",
+    obtener: (e) => consultarRangoISO("registrosVidrio", "fecha", e.desdeISO, e.hastaISO),
+    pintar: (e, regs) => renderVidrio((e.datos.vidrio = regs), e.meses),
+  },
+  tarimas: {
+    panel: "panel-tarimas",
+    obtener: async (e) => (rangoDeMesesCompletos(e.desdeISO, e.hastaISO)
+      ? { porMes: await cargarResumenesTarimas(e.meses) }
+      : { registros: await cargarTarimas(e.desdeISO, e.hastaISO) }),
+    pintar: (e, d) => {
+      if (d.registros) {
+        e.datos.tarimas = d.registros; // la exportación a Excel usa los registros
+        return renderTarimas(agregadoTarimasDesdeRegistros(d.registros, e.meses), e.meses);
+      }
+      return renderTarimas(agregadoTarimas(d.porMes, e.meses), e.meses, { desdeResumen: true });
+    },
+  },
+  hisopado: {
+    panel: "panel-hisopado",
+    obtener: (e) => consultarRangoISO("hisopados", "fecha", e.desdeISO, e.hastaISO),
+    pintar: (e, regs) => renderHisopado((e.datos.hisopado = regs), e.meses),
+  },
+};
+
+function pintarPPR(e) {
+  const crudo = e.pprCrudo;
+  const recorridos = e.opciones.incluirBorradores ? crudo.recorridos : crudo.recorridos.filter((r) => r.estado === "enviada");
+  const ppr = { ...crudo, recorridos, excluidos: crudo.recorridos.length - recorridos.length };
+  e.datos.ppr = ppr;
+  return renderPPR(ppr, e.meses);
+}
+
+/** Descarga y pinta un módulo una sola vez por rango (si cambió el rango, no pinta). */
+function asegurarModulo(e, clave) {
+  if (!e.cargas[clave]) {
+    const m = MODULOS_IND[clave];
+    e.cargas[clave] = m.obtener(e)
+      .then((datos) => {
+        if (e !== estadoInd) return;
+        e.datos.resultados[clave] = m.pintar(e, datos);
+      })
+      .catch((err) => {
+        if (e === estadoInd) pintarError(m.panel, err);
+      });
+  }
+  return e.cargas[clave];
+}
+
+/** Carga lo que necesita la pestaña visible. La llama el Dashboard al cambiar de pestaña. */
+async function mostrarIndicadoresDe(panel) {
+  const e = estadoInd;
+  if (!e) return;
+  if (panel === "resumen") {
+    await Promise.all(Object.keys(MODULOS_IND).map((c) => asegurarModulo(e, c)));
+    if (e !== estadoInd) return;
+    renderResumen(e.datos.resultados, e.meses);
+    e.resumenPintado = true;
+  } else if (MODULOS_IND[panel]) {
+    await asegurarModulo(e, panel);
+  }
+}
+
+/** "Incluir borradores": solo vuelve a filtrar los PPR ya descargados. */
+function cambiarBorradores(incluir) {
+  const e = estadoInd;
+  if (!e) return;
+  e.opciones.incluirBorradores = incluir;
+  if (!e.pprCrudo) return;
+  e.datos.resultados.ppr = pintarPPR(e);
+  if (e.resumenPintado) renderResumen(e.datos.resultados, e.meses);
+}
+
+/** Antes de exportar a Excel: descarga lo que esa exportación necesita. */
+async function prepararExportacion(panel) {
+  const e = estadoInd;
+  if (!e) return;
+  const claves = panel === "resumen" ? Object.keys(MODULOS_IND) : MODULOS_IND[panel] ? [panel] : [];
+  await Promise.all(claves.map((c) => asegurarModulo(e, c)));
+  // Si Tarimas se pintó con los resúmenes, el Excel necesita los registros.
+  if (claves.includes("tarimas") && e.datos.tarimas === undefined) {
+    e.datos.tarimas = await cargarTarimas(e.desdeISO, e.hastaISO);
+  }
+}
+
+function panelIndicadoresVisible() {
+  return document.querySelector("#tabs-indicadores .tab.activo")?.dataset.panel || "resumen";
+}
+
 /**
  * @param {string} desdeISO "aaaa-mm-dd"
  * @param {string} hastaISO "aaaa-mm-dd"
@@ -1016,47 +1255,16 @@ function renderResumen(res, meses) {
  */
 async function cargarIndicadores(desdeISO, hastaISO, todosReportes, opciones = {}) {
   const meses = mesesEnRango(desdeISO, hastaISO);
-  const resultados = {};
-  const ejecutar = async (clave, idPanel, fn) => {
-    try {
-      resultados[clave] = await fn();
-    } catch (err) {
-      pintarError(idPanel, err);
-    }
-  };
-
-  ["panel-ppr", "panel-contenedores", "panel-imprentas", "panel-bpm", "panel-vidrio", "panel-tarimas", "panel-hisopado"].forEach((id) => {
-    document.getElementById(id).innerHTML = `<div class="tarjeta"><p class="ayuda">Cargando…</p></div>`;
-  });
-
   // Lo que se cargó se guarda tal cual para la exportación a Excel
   // (js/exportar-excel.js): exporta exactamente lo que se ve en pantalla.
-  const datos = { desdeISO, hastaISO, meses, resultados };
+  const datos = { desdeISO, hastaISO, meses, resultados: {}, reportes: todosReportes, listo: true };
   datosIndicadores = datos;
-  const guardar = (clave, valor) => { datos[clave] = valor; return valor; };
+  const e = { desdeISO, hastaISO, meses, opciones: { ...opciones }, datos, cargas: {}, resumenPintado: false };
+  estadoInd = e;
 
-  await Promise.all([
-    ejecutar("ppr", "panel-ppr", async () => {
-      const ppr = await cargarDatosPPR(desdeISO, hastaISO);
-      const total = ppr.recorridos.length;
-      if (!opciones.incluirBorradores) ppr.recorridos = ppr.recorridos.filter((r) => r.estado === "enviada");
-      ppr.excluidos = total - ppr.recorridos.length;
-      return renderPPR(guardar("ppr", ppr), meses);
-    }),
-    ejecutar("contenedores", "panel-contenedores", async () =>
-      renderContenedores(guardar("contenedores", await consultarRangoISO("verificaciones_transporte", "fecha", desdeISO, hastaISO)), meses)),
-    ejecutar("imprentas", "panel-imprentas", async () =>
-      renderImprentas(guardar("imprentas", await consultarRangoISO("liberaciones", "fecha", desdeISO, hastaISO)), meses)),
-    ejecutar("bpm", "panel-bpm", async () => renderBpm(guardar("bpm", await cargarDatosBpm(desdeISO, hastaISO)), meses)),
-    ejecutar("vidrio", "panel-vidrio", async () =>
-      renderVidrio(guardar("vidrio", await consultarRangoISO("registrosVidrio", "fecha", desdeISO, hastaISO)), meses)),
-    ejecutar("tarimas", "panel-tarimas", async () =>
-      renderTarimas(guardar("tarimas", await cargarTarimas(desdeISO, hastaISO)), meses)),
-    ejecutar("hisopado", "panel-hisopado", async () =>
-      renderHisopado(guardar("hisopado", await consultarRangoISO("hisopados", "fecha", desdeISO, hastaISO)), meses)),
-  ]);
-  guardar("reportes", todosReportes);
-  resultados.reportes = renderReportesPorMes(todosReportes, meses);
-  renderResumen(resultados, meses);
-  datos.listo = true;
+  Object.values(MODULOS_IND).forEach(({ panel }) => {
+    document.getElementById(panel).innerHTML = `<div class="tarjeta"><p class="ayuda">Cargando…</p></div>`;
+  });
+  datos.resultados.reportes = renderReportesPorMes(todosReportes, meses);
+  await mostrarIndicadoresDe(panelIndicadoresVisible());
 }
