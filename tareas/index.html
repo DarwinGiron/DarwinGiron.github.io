@@ -198,10 +198,11 @@ const firebaseConfig = {
   projectId: "reportes-5e94c",
   appId: "1:596353467554:web:b1eb2ae5d5072a07eac3fb"
 };
-/* Nombre propio de la app de Firebase: así la sesión de Tareas se guarda
-   aparte de la del hub (mismo dominio y misma apiKey). Entrar o salir aquí
-   no abre ni cierra la sesión del hub. */
-const NOMBRE_APP = "tareas";
+/* Se usa la app de Firebase por defecto, igual que el hub: mismo dominio y
+   misma apiKey, así que la sesión es la MISMA. Quien ya entró al hub entra
+   directo aquí con su cuenta, y "Salir" cierra la sesión en los dos.
+   Por eso aquí nunca se cierra la sesión por cuenta propia (p. ej. si la
+   persona aún no tiene perfil en Tareas): solo con el botón Salir. */
 
 /* ---------- utilidades de fecha ---------- */
 const $root = document.getElementById("root");
@@ -740,7 +741,7 @@ function render() {
   $root.innerHTML = "";
   const tabs = [["lista", "Lista"], ["calendario", "Calendario"]]; if (isAdmin()) tabs.push(["equipo", "Equipo"]);
   $root.appendChild(h("header", null, h("div", { class: "wrap" },
-    h("div", { class: "hrow" }, h("div", { class: "app" }, "Control de tareas"), h("div", { class: "who" }, S.me.name, h("button", { type: "button", onclick: () => signOut(auth) }, "Salir"))),
+    h("div", { class: "hrow" }, h("div", { class: "app" }, "Control de tareas"), h("div", { class: "who" }, S.me.name, h("button", { type: "button", title: "Cierra la sesión aquí y en el hub", onclick: () => signOut(auth) }, "Salir"))),
     h("div", { class: "tabs", role: "tablist" }, tabs.map(t => h("button", { role: "tab", type: "button", "aria-selected": S.view === t[0], onclick: () => { S.view = t[0]; render(); } }, t[1]))))));
   const main = h("main", { id: "main" });
   main.appendChild(S.view === "lista" ? viewLista() : S.view === "calendario" ? viewCalendario() : viewEquipo());
@@ -770,6 +771,19 @@ function loginView(msg) {
   } }, "Olvidé mi contraseña");
   $root.appendChild(h("div", { class: "login" }, h("div", { class: "login-card" }, h("h1", null, "Control de tareas"), h("p", null, "Entra con tu correo para ver tus tareas."), form, forgot)));
 }
+/* Cuenta con sesión abierta (p. ej. del hub) pero sin perfil en Tareas. */
+function sinPerfilView(user, msg) {
+  S.me = null;
+  $root.innerHTML = "";
+  $root.appendChild(h("div", { class: "login" }, h("div", { class: "login-card" },
+    h("h1", null, "Control de tareas"),
+    h("p", null, "Entraste como ", h("b", null, user.email || "tu cuenta"), "."),
+    h("p", { class: "err", role: "alert" }, msg),
+    h("div", { class: "stack" },
+      h("a", { class: "btn block", href: "/hub/", style: "display:grid;place-items:center;text-decoration:none" }, "Volver al hub"),
+      h("button", { class: "btn ghost block", type: "button", onclick: () => signOut(auth) }, "Entrar con otra cuenta")))));
+}
+
 function stopListeners() { unsubs.forEach(u => u()); unsubs = []; stopOcc(); }
 
 /* Registros (occ): se escuchan solo desde una fecha, no la colección completa.
@@ -831,19 +845,19 @@ function boot() {
       h("p", null, "Abre este archivo y pega los datos de tu app web de Firebase en el bloque ", h("code", null, "firebaseConfig"), ". Después sube el archivo de nuevo.")));
     return;
   }
-  app = initializeApp(firebaseConfig, NOMBRE_APP); auth = getAuth(app); db = getFirestore(app);
+  app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app);
   loginView();
   onAuthStateChanged(auth, async user => {
     stopListeners();
     if (!user) { S.me = null; S.users = {}; S.series = {}; S.occ = {}; loginView(); return; }
     try {
       const snap = await getDoc(doc(db, "users", user.uid));
-      // La sesión es solo de Tareas (NOMBRE_APP), así que cerrarla no afecta al hub.
-      if (!snap.exists()) { await signOut(auth); loginView("Tu usuario todavía no está configurado en Tareas. Pide acceso al administrador."); return; }
+      // Sin perfil en Tareas: se avisa SIN cerrar la sesión (es la misma del hub).
+      if (!snap.exists()) { sinPerfilView(user, "Tu cuenta todavía no está configurada en Tareas. Pide acceso al administrador."); return; }
       S.me = Object.assign({ uid: user.uid }, snap.data()); S.users[user.uid] = snap.data();
       S.date = today(); S.cal = S.date.slice(0, 7); S.view = "lista";
       startListeners(); render();
-    } catch (e) { console.error(e); await signOut(auth); loginView("No se pudo cargar tu perfil. Revisa tu conexión."); }
+    } catch (e) { console.error(e); sinPerfilView(user, "No se pudo cargar tu perfil de Tareas. Revisa tu conexión y recarga la página."); }
   });
 }
 boot();
