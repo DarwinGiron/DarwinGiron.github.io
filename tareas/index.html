@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control de tareas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0f2547; --navy-2:#1d3c6e; --ink:#13203a; --gold:#c9a227; --gold-soft:#f7edc8; --gold-ink:#5e4a00;
+    --bg:#f1f4f9; --card:#fff; --line:#d5ddeb; --muted:#52607c; --ok:#1c7a45; --ok-soft:#e4f4ea;
+    --off:#7a87a2; --danger:#a8261f; --danger-soft:#fbeceb;
+    --f-head:"Bricolage Grotesque","Figtree",system-ui,sans-serif;
+    --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{color-scheme:light;-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:var(--f-body);background:var(--bg);color:var(--ink);font-size:16px;line-height:1.35}
+  button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink)}
+  button{cursor:pointer}
+  input::placeholder,textarea::placeholder{color:#6b778f;opacity:1}
+  :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  [hidden]{display:none !important}
+  .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .wrap{max-width:680px;margin:0 auto}
+
+  /* acceso */
+  .login{min-height:100vh;display:grid;place-items:center;padding:20px;background:var(--navy)}
+  .login-card{width:100%;max-width:380px;background:#fff;border-radius:18px;padding:26px 22px;border-top:5px solid var(--gold)}
+  .login-card h1{font-family:var(--f-head);font-size:26px;margin:0 0 4px;letter-spacing:-.4px}
+  .login-card p{margin:0 0 18px;color:var(--muted)}
+  .stack{display:flex;flex-direction:column;gap:12px}
+  .err{color:var(--danger);font-size:14px;font-weight:600;min-height:20px;margin:0}
+  .link{background:none;border:0;color:var(--navy-2);font-weight:600;text-decoration:underline;padding:10px 0;min-height:44px}
+
+  /* campos */
+  .fld label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px}
+  .fld input,.fld select,.fld textarea{width:100%;min-width:0;min-height:46px;border:1.5px solid var(--line);border-radius:10px;padding:0 12px;background:#fff;color-scheme:light;-webkit-text-fill-color:var(--ink)}
+  .fld textarea{padding:10px 12px;min-height:70px;resize:vertical}
+  .fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--navy)}
+  .btn{min-height:46px;padding:0 18px;border:0;border-radius:12px;background:var(--navy);color:#fff !important;font-weight:700}
+  .btn.gold{background:var(--gold);color:var(--navy) !important}
+  .btn.ghost{background:#fff;color:var(--navy) !important;border:1.5px solid var(--line)}
+  .btn.danger{background:var(--danger)}
+  .btn.block{width:100%}
+  .btn:disabled{opacity:.55;cursor:default}
+
+  /* encabezado */
+  header{background:var(--navy);color:#fff;padding:12px 16px 0;border-bottom:4px solid var(--gold)}
+  .hrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .hrow .app{font-family:var(--f-head);font-weight:700;font-size:18px}
+  .who{font-size:13px;color:#c9d4ea;text-align:right}
+  .who button{background:none;border:0;color:#fff;text-decoration:underline;font-weight:600;min-height:44px;padding:0 0 0 10px}
+  .tabs{display:flex;gap:4px;margin-top:6px}
+  .tabs button{flex:1;min-height:44px;border:0;background:transparent;color:#c9d4ea;font-weight:700;border-radius:12px 12px 0 0}
+  .tabs button[aria-selected="true"]{background:var(--bg);color:var(--navy)}
+
+  main{max-width:680px;margin:0 auto;padding:14px 14px 110px}
+
+  /* navegación de fecha */
+  .daterow{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .nav{flex:none;width:44px;height:44px;border-radius:12px;border:0;background:var(--navy);color:#fff;font-size:22px;display:grid;place-items:center}
+  .datebox{position:relative;flex:1;min-width:0;height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#fff;border:1.5px solid var(--line)}
+  .datebox:focus-within{outline:3px solid var(--gold);outline-offset:2px}
+  .datebox h2{margin:0;font-family:var(--f-head);font-weight:700;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 10px}
+  .datebox input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;margin:0;border:0}
+  .today-btn{flex:none;height:44px;padding:0 14px;border:0;border-radius:12px;background:var(--gold);color:var(--navy);font-weight:700}
+
+  .seg{display:flex;background:#e3e8f2;border-radius:12px;padding:3px;margin-bottom:12px}
+  .seg button{flex:1;min-height:44px;border:0;border-radius:10px;background:transparent;font-weight:600;color:var(--muted)}
+  .seg button[aria-pressed="true"]{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(15,37,71,.2)}
+  .filter{margin-bottom:12px}
+
+  /* resumen */
+  .summary{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px;margin-bottom:14px}
+  .sum-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .count{font-family:var(--f-head);font-weight:700;font-size:22px;letter-spacing:-.3px}
+  .count small{font-family:var(--f-body);font-weight:500;font-size:15px;color:var(--muted)}
+  .time{white-space:nowrap;font-weight:700;font-size:17px;color:var(--gold-ink);background:var(--gold-soft);border-radius:999px;padding:4px 12px;font-variant-numeric:tabular-nums}
+  .bar{height:10px;background:#e3e8f2;border-radius:99px;overflow:hidden;margin-top:10px}
+  .bar i{display:block;height:100%;width:0;background:var(--ok);border-radius:99px;transition:width .25s}
+  .carry-note{margin:8px 0 0;font-size:14px;color:var(--danger);font-weight:600}
+
+  .sect{font-family:var(--f-head);font-size:17px;margin:18px 2px 8px}
+  .sect.late{color:var(--danger)}
+  .dayhead{font-family:var(--f-head);font-size:17px;margin:18px 2px 8px;display:flex;justify-content:space-between;align-items:baseline}
+  .dayhead small{font-family:var(--f-body);color:var(--muted);font-weight:600;font-size:14px}
+
+  /* tarjeta */
+  .task{background:var(--card);border:1px solid var(--line);border-left:6px solid var(--gold);border-radius:14px;padding:12px;margin-bottom:12px}
+  .task.done{border-left-color:var(--ok);background:#fbfefc}
+  .task.late{border-left-color:var(--danger)}
+  .top{display:flex;align-items:center;gap:8px}
+  .tx{flex:1;min-width:0}
+  .title{font-size:17px;font-weight:600;word-break:break-word}
+  .task.done .title{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1.5px}
+  .meta{font-size:13.5px;color:var(--muted);margin-top:2px}
+  .status{font-weight:700}
+  .status.ok{color:var(--ok)} .status.bad{color:var(--danger)} .status.wait{color:var(--gold-ink)}
+  .sw{position:relative;flex:none;width:58px;height:44px;display:block}
+  .sw input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:2}
+  .sw .track{position:absolute;left:3px;top:7px;width:52px;height:30px;border-radius:99px;background:var(--off);transition:background .18s}
+  .sw .track::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .18s}
+  .sw input:checked + .track{background:var(--ok)}
+  .sw input:checked + .track::after{transform:translateX(22px)}
+  .sw input:focus-visible + .track{outline:3px solid var(--gold);outline-offset:3px}
+  .more{flex:none;width:44px;height:44px;border:0;background:none;border-radius:12px;font-size:22px;color:var(--muted);line-height:1}
+  .more:active{background:#e9eef7}
+
+  .times{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;min-height:44px}
+  .now{min-height:44px;padding:0 16px;border:0;border-radius:12px;background:var(--navy);color:#fff;font-weight:700}
+  .now.stop{background:var(--gold);color:var(--navy)}
+  .dur{margin-left:auto;font-weight:700;font-size:17px;color:var(--gold-ink);background:var(--gold-soft);border-radius:999px;padding:6px 14px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .noteline{margin-top:10px}
+  .ev{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .chip{display:inline-flex;align-items:center;max-width:100%;border:1.5px solid var(--line);border-radius:999px;background:#fff;min-height:44px}
+  .chip button{border:0;background:none;min-height:44px;padding:0 12px;font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip .x{padding:0 10px;color:var(--muted);font-size:18px;max-width:none}
+  .attach{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1.5px dashed var(--off);border-radius:999px;font-weight:600;color:var(--navy);cursor:pointer;position:relative}
+  .attach input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  .attach:focus-within{outline:3px solid var(--gold);outline-offset:2px}
+
+  .empty{background:var(--card);border:1.5px dashed var(--line);border-radius:14px;text-align:center;padding:26px 18px;color:var(--muted)}
+  .empty b{display:block;color:var(--ink);font-size:17px;margin-bottom:4px}
+
+  /* calendario */
+  .cal{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:14px}
+  .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .dow{text-align:center;font-size:13px;font-weight:700;color:var(--muted);padding:4px 0}
+  .day{position:relative;min-height:54px;border:1.5px solid transparent;border-radius:10px;background:#f6f8fc;padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .day.out{opacity:.45}
+  .day.today{border-color:var(--gold)}
+  .day[aria-pressed="true"]{background:var(--navy);color:#fff}
+  .day .n{font-weight:700;font-size:15px}
+  .dots{display:flex;gap:3px;min-height:8px;align-items:center}
+  .dot{width:8px;height:8px;border-radius:50%}
+  .dot.ok{background:var(--ok)} .dot.bad{background:var(--danger)} .dot.wait{background:var(--gold)}
+  .day[aria-pressed="true"] .dot.wait{background:#f1d36a}
+  .day .c{font-size:11px;font-weight:600;color:var(--muted)}
+  .day[aria-pressed="true"] .c{color:#c9d4ea}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:8px}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+
+  /* equipo */
+  .person{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+  .person .nm{font-weight:700;font-size:17px}
+  .person .em{font-size:13.5px;color:var(--muted);word-break:break-all}
+  .person .st{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .pill{border-radius:999px;padding:4px 12px;font-weight:700;font-size:14px;background:#eef1f7}
+  .pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.bad{background:var(--danger-soft);color:var(--danger)}
+
+  /* botón flotante */
+  .fab{position:fixed;right:16px;bottom:18px;min-height:56px;padding:0 22px;border:0;border-radius:999px;background:var(--gold);color:var(--navy);font-weight:700;box-shadow:0 8px 20px rgba(15,37,71,.3);z-index:5}
+
+  /* hoja modal */
+  .ov{position:fixed;inset:0;background:rgba(15,37,71,.55);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+  .sheet{width:100%;max-width:560px;max-height:92vh;overflow:auto;background:#fff;border-radius:20px 20px 0 0;padding:18px 16px 20px}
+  .sheet h3{font-family:var(--f-head);font-size:20px;margin:0 0 4px}
+  .sheet p{margin:0 0 12px;color:var(--muted)}
+  .sheet .row{display:flex;gap:10px}
+  .sheet .row > *{flex:1;min-width:0}
+  .opt{display:block;width:100%;text-align:left;min-height:52px;padding:10px 14px;margin-bottom:8px;border:1.5px solid var(--line);background:#fff;border-radius:12px;font-weight:600}
+  .opt small{display:block;font-weight:400;color:var(--muted)}
+  .opt.danger{color:var(--danger);border-color:#e6b9b6}
+  .dchips{display:flex;gap:6px;flex-wrap:wrap}
+  .dchips label{position:relative}
+  .dchips input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+  .dchips span{display:grid;place-items:center;min-width:44px;min-height:44px;border:1.5px solid var(--line);border-radius:12px;font-weight:700;background:#fff}
+  .dchips input:checked + span{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .dchips input:focus-visible + span{outline:3px solid var(--gold);outline-offset:2px}
+  .viewer img{max-width:100%;border-radius:10px;display:block;margin:8px 0}
+  .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);max-width:92vw;background:var(--navy);color:#fff;border-radius:12px;padding:12px 16px;font-weight:600;z-index:30;box-shadow:0 8px 24px rgba(15,37,71,.35)}
+  .setup{max-width:520px;margin:40px auto;padding:20px;background:#fff;border-radius:16px;border-top:5px solid var(--gold)}
+  .setup code{background:#eef1f7;padding:2px 6px;border-radius:6px}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="motor.js"></script>
+<script type="module">
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ============================================================
+   CONFIGURACIÓN: pega aquí los datos de tu app web de Firebase
+   (Configuración del proyecto > Tus apps > Configuración SDK)
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "PEGAR_AQUI",
+  authDomain: "PEGAR_AQUI",
+  projectId: "PEGAR_AQUI",
+  appId: "PEGAR_AQUI"
+};
+
+/* ---------- utilidades de fecha ---------- */
+const $root = document.getElementById("root");
+const pad = n => (n < 10 ? "0" : "") + n;
+const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+const parse = s => { const p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
+const today = () => ymd(new Date());
+const nowTime = () => { const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+const longDate = s => cap(parse(s).toLocaleDateString("es-GT", { weekday: "long", day: "numeric", month: "long" }));
+const shortDate = s => { const p = s.split("-"); return p[2] + "/" + p[1]; };
+const mondayOf = s => { const d = parse(s); const k = (d.getDay() + 6) % 7; d.setDate(d.getDate() - k); return ymd(d); };
+const DOW = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const DOW1 = ["D", "L", "M", "M", "J", "V", "S"];
+
+/* Motor de repetición: está en motor.js (se carga arriba como window.Motor) */
+const { lastBusinessDay, occursOn } = window.Motor;
+
+function describeRule(s) {
+  const r = s.rule || { type: "once" };
+  switch (r.type) {
+    case "once": return "No se repite";
+    case "daily": return "Todos los días";
+    case "weekdays": return "Lunes a viernes";
+    case "weekly": return "Cada semana: " + (r.days || []).slice().sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map(i => DOW[i].slice(0, 3).toLowerCase()).join(", ");
+    case "monthly": return r.lastBusinessDay ? "Último día hábil de cada mes" : "Cada mes, el día " + r.dayOfMonth;
+    case "months": return "Cada " + r.interval + " meses";
+    case "yearly": return "Cada año";
+  }
+  return "";
+}
+
+/* ---------- estado ---------- */
+const S = {
+  me: null, users: {}, series: {}, occ: {},
+  view: "lista", mode: "dia", date: today(), cal: today().slice(0, 7), filter: "all"
+};
+let auth, db, app, unsubs = [];
+const isAdmin = () => S.me && S.me.role === "admin";
+
+/* ---------- DOM ---------- */
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const k in (attrs || {})) {
+    const v = attrs[k];
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.slice(0, 2) === "on") el.addEventListener(k.slice(2), v);
+    else if (k === "value") el.value = v;
+    else if (k === "checked") el.checked = !!v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  kids.flat().forEach(c => { if (c !== null && c !== undefined && c !== false) el.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+  return el;
+}
+let toastTimer;
+function toast(msg) {
+  document.querySelectorAll(".toast").forEach(t => t.remove());
+  const t = h("div", { class: "toast", role: "status" }, msg);
+  document.body.appendChild(t); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), 3500);
+}
+function sheet(title, build) {
+  const ov = h("div", { class: "ov" });
+  const box = h("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-label": title });
+  const close = () => { ov.remove(); document.removeEventListener("keydown", esc); };
+  const esc = e => { if (e.key === "Escape") close(); };
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  document.addEventListener("keydown", esc);
+  ov.appendChild(box); document.body.appendChild(ov);
+  box.appendChild(h("h3", null, title));
+  build(box, close);
+  const f = box.querySelector("input,select,textarea,button"); if (f) setTimeout(() => f.focus(), 30);
+}
+const fld = (label, input, id) => h("div", { class: "fld" }, h("label", { for: id }, label), input);
+
+/* ---------- datos derivados ---------- */
+function visibleSeries() {
+  return Object.values(S.series).filter(s => s.active !== false && (!isAdmin() || S.filter === "all" || s.assigneeUid === S.filter));
+}
+const occKey = (sid, date) => sid + "_" + date;
+function itemsFor(date) {
+  const out = [];
+  visibleSeries().forEach(s => {
+    if (!occursOn(s, date)) return;
+    const o = S.occ[occKey(s.id, date)];
+    if (o && o.skipped) return;
+    out.push({ s, date, key: occKey(s.id, date), occ: o || null });
+  });
+  out.sort((a, b) => {
+    const am = (a.occ && a.occ.start) || "99:99", bm = (b.occ && b.occ.start) || "99:99";
+    return am === bm ? a.s.title.localeCompare(b.s.title) : am < bm ? -1 : 1;
+  });
+  return out;
+}
+function carriedItems() {
+  const t = today(), out = [];
+  for (let i = 1; i <= 45; i++) {
+    const d = addDays(t, -i);
+    itemsFor(d).forEach(it => { if (!(it.occ && (it.occ.done || it.occ.closed))) out.push(it); });
+  }
+  return out.sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+function minutes(t) { if (!t) return null; const p = t.split(":"); return +p[0] * 60 + +p[1]; }
+function duration(o) {
+  if (!o) return null; const a = minutes(o.start), b = minutes(o.end);
+  if (a === null || b === null) return null; let d = b - a; if (d < 0) d += 1440; return d;
+}
+const fmtDur = m => Math.floor(m / 60) + " h " + pad(m % 60) + " min";
+function statusOf(it) {
+  const o = it.occ || {};
+  if (o.done) return o.doneOn && o.doneOn > it.date ? { t: "Ejecutada con retraso (" + shortDate(o.doneOn) + ")", c: "ok" } : { t: "Ejecutada", c: "ok" };
+  if (it.date < today()) return { t: "No cumplida", c: "bad" };
+  return { t: "Pendiente", c: "wait" };
+}
+const nameOf = uid => (S.users[uid] && S.users[uid].name) || (S.me && uid === S.me.uid ? S.me.name : "Sin nombre");
+const canEditSeries = s => isAdmin() || s.createdBy === S.me.uid;
+
+/* ---------- escritura ---------- */
+async function saveOcc(it, patch) {
+  try {
+    await setDoc(doc(db, "occ", it.key), Object.assign(
+      { seriesId: it.s.id, date: it.date, assigneeUid: it.s.assigneeUid },
+      patch, { updatedAt: serverTimestamp() }), { merge: true });
+  } catch (e) { toast("No se pudo guardar. Revisa tu conexión."); console.error(e); }
+}
+
+/* ---------- evidencia ---------- */
+function readAsDataURL(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); }); }
+function compressImage(file) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      let max = 1280, q = 0.72, out;
+      for (let i = 0; i < 6; i++) {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        out = c.toDataURL("image/jpeg", q);
+        if (out.length < 600000) break;
+        max = Math.round(max * 0.8); q = Math.max(0.5, q - 0.05);
+      }
+      URL.revokeObjectURL(url); out.length < 900000 ? res(out) : rej(new Error("grande"));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("imagen")); };
+    img.src = url;
+  });
+}
+async function attach(it, files) {
+  const base = (it.occ && it.occ.evidence) || [];
+  const added = [];
+  toast("Adjuntando…");
+  for (const f of files) {
+    try {
+      let data, type = f.type || "application/octet-stream";
+      if (type.indexOf("image/") === 0) { data = await compressImage(f); type = "image/jpeg"; }
+      else {
+        if (f.size > 500 * 1024) { toast("«" + f.name + "» pesa más de 500 KB. Reduce el archivo o usa una foto."); continue; }
+        data = await readAsDataURL(f);
+      }
+      const id = (Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+      // la ocurrencia debe existir antes que su evidencia
+      await setDoc(doc(db, "occ", it.key), { seriesId: it.s.id, date: it.date, assigneeUid: it.s.assigneeUid, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, "occ", it.key, "files", id), { assigneeUid: it.s.assigneeUid, name: f.name, type, data, createdAt: serverTimestamp() });
+      added.push({ id, name: f.name, type });
+    } catch (e) { toast("No se pudo adjuntar «" + f.name + "»."); console.error(e); }
+  }
+  if (added.length) { await saveOcc(it, { evidence: base.concat(added) }); toast("Evidencia adjuntada"); }
+}
+async function openEvidence(it, ev) {
+  try {
+    const snap = await getDoc(doc(db, "occ", it.key, "files", ev.id));
+    if (!snap.exists()) { toast("No se encontró el archivo."); return; }
+    const d = snap.data();
+    // seguridad: solo se muestran archivos guardados como data: (nunca otra clase de enlace)
+    if (typeof d.data !== "string" || d.data.indexOf("data:") !== 0) { toast("El archivo no es válido."); return; }
+    sheet(ev.name, (box, close) => {
+      const v = h("div", { class: "viewer" });
+      if (d.type.indexOf("image/") === 0) v.appendChild(h("img", { src: d.data, alt: ev.name }));
+      v.appendChild(h("a", { class: "btn gold", href: d.data, download: ev.name, style: "display:inline-flex;align-items:center;text-decoration:none" }, "Descargar"));
+      box.appendChild(v); box.appendChild(h("div", { style: "margin-top:12px" }, h("button", { class: "btn ghost block", onclick: close }, "Cerrar")));
+    });
+  } catch (e) { toast("No se pudo abrir el archivo."); }
+}
+async function removeEvidence(it, ev) {
+  try { await deleteDoc(doc(db, "occ", it.key, "files", ev.id)); } catch (e) {}
+  await saveOcc(it, { evidence: ((it.occ && it.occ.evidence) || []).filter(x => x.id !== ev.id) });
+}
+
+/* ---------- tarjeta de tarea ---------- */
+function card(it, carried) {
+  const o = it.occ || {}, s = it.s, st = statusOf(it);
+  const done = !!o.done;
+  const title = o.titleOverride || s.title;
+  const el = h("article", { class: "task" + (done ? " done" : "") + (!done && it.date < today() ? " late" : "") });
+
+  const cb = h("input", { type: "checkbox", role: "switch", id: "done-" + it.key, checked: done, "aria-label": "Ejecutada: " + title });
+  cb.addEventListener("change", () => saveOcc(it, { done: cb.checked, doneOn: cb.checked ? today() : "" }));
+  const sw = h("label", { class: "sw" }, cb, h("span", { class: "track", "aria-hidden": "true" }));
+
+  const meta = h("div", { class: "meta" },
+    h("span", { class: "status " + st.c }, carried ? "No cumplida el " + shortDate(it.date) : st.t),
+    " · " + describeRule(s) + (isAdmin() ? " · " + nameOf(s.assigneeUid) : ""));
+  const more = h("button", { class: "more", type: "button", "aria-label": "Más opciones: " + title, onclick: () => taskMenu(it, carried) }, "⋯");
+  el.appendChild(h("div", { class: "top" }, sw, h("div", { class: "tx" }, h("div", { class: "title" }, title), meta, s.notes ? h("div", { class: "meta" }, s.notes) : null), more));
+
+  const id = k => k + "-" + it.key;
+  const tin = k => h("input", { type: "time", id: id(k), value: o[k] || "" });
+  const sIn = tin("start"), eIn = tin("end");
+  sIn.addEventListener("change", () => saveOcc(it, { start: sIn.value }));
+  eIn.addEventListener("change", () => saveOcc(it, { end: eIn.value }));
+  el.appendChild(h("div", { class: "times" }, fld("Inicio", sIn, id("start")), fld("Fin", eIn, id("end"))));
+
+  const act = h("div", { class: "actions" });
+  if (!o.start) act.appendChild(h("button", { class: "now", type: "button", onclick: () => saveOcc(it, { start: nowTime() }) }, "Iniciar ahora"));
+  else if (!o.end) act.appendChild(h("button", { class: "now stop", type: "button", onclick: () => saveOcc(it, { end: nowTime() }) }, "Terminar ahora"));
+  const d = duration(o); if (d !== null) act.appendChild(h("div", { class: "dur" }, fmtDur(d)));
+  el.appendChild(act);
+
+  const note = h("input", { type: "text", id: id("note"), value: o.note || "", placeholder: "Comentario (opcional)", maxlength: "300" });
+  note.addEventListener("change", () => saveOcc(it, { note: note.value.trim() }));
+  el.appendChild(h("div", { class: "noteline fld" }, h("label", { class: "vh", for: id("note") }, "Comentario"), note));
+
+  const ev = h("div", { class: "ev" });
+  (o.evidence || []).forEach(e => ev.appendChild(h("span", { class: "chip" },
+    h("button", { type: "button", onclick: () => openEvidence(it, e), title: e.name }, "📎 " + e.name),
+    h("button", { type: "button", class: "x", "aria-label": "Quitar " + e.name, onclick: () => { if (confirm("¿Quitar «" + e.name + "»?")) removeEvidence(it, e); } }, "×"))));
+  const fi = h("input", { type: "file", multiple: true, accept: "image/*,.pdf,.doc,.docx,.xls,.xlsx", "aria-label": "Adjuntar foto o archivo" });
+  fi.addEventListener("change", () => { if (fi.files.length) attach(it, Array.from(fi.files)); });
+  ev.appendChild(h("label", { class: "attach" }, "+ Evidencia (opcional)", fi));
+  el.appendChild(ev);
+  return el;
+}
+
+/* ---------- menú y edición ---------- */
+function taskMenu(it, carried) {
+  const s = it.s, rep = (s.rule || {}).type !== "once";
+  sheet(it.occ && it.occ.titleOverride || s.title, (box, close) => {
+    box.appendChild(h("p", null, longDate(it.date) + " · " + describeRule(s)));
+    if (canEditSeries(s)) box.appendChild(h("button", { class: "opt", onclick: () => { close(); editFlow(it); } }, "Editar tarea"));
+    if (carried) box.appendChild(h("button", { class: "opt", onclick: async () => { close(); await saveOcc(it, { closed: true }); toast("Ya no se arrastra. Queda como No cumplida en su día."); } }, "Dejar de arrastrar", h("small", null, "Se mantiene registrada como no cumplida el " + shortDate(it.date))));
+    if (rep) box.appendChild(h("button", { class: "opt", onclick: async () => { close(); await saveOcc(it, { skipped: true }); toast("Omitida solo el " + shortDate(it.date)); } }, "Omitir solo esta vez", h("small", null, "Desaparece del " + shortDate(it.date) + " y no cuenta como incumplida")));
+    if (canEditSeries(s)) box.appendChild(h("button", { class: "opt danger", onclick: () => { close(); deleteFlow(it); } }, rep ? "Eliminar tarea…" : "Eliminar tarea"));
+    box.appendChild(h("button", { class: "btn ghost block", onclick: close }, "Cerrar"));
+  });
+}
+function deleteFlow(it) {
+  const s = it.s, rep = (s.rule || {}).type !== "once";
+  sheet("Eliminar tarea", (box, close) => {
+    box.appendChild(h("p", null, "«" + s.title + "»"));
+    const run = async fn => { close(); try { await fn(); toast("Tarea eliminada"); } catch (e) { toast("No se pudo eliminar."); } };
+    if (!rep) { box.appendChild(h("button", { class: "opt danger", onclick: () => run(() => deleteDoc(doc(db, "series", s.id))) }, "Eliminar")); }
+    else {
+      box.appendChild(h("button", { class: "opt", onclick: () => run(() => setDoc(doc(db, "occ", it.key), { seriesId: s.id, date: it.date, assigneeUid: s.assigneeUid, skipped: true, updatedAt: serverTimestamp() }, { merge: true })) }, "Solo esta vez", h("small", null, "Se omite el " + shortDate(it.date))));
+      box.appendChild(h("button", { class: "opt danger", onclick: () => run(() => s.startDate >= it.date ? deleteDoc(doc(db, "series", s.id)) : updateDoc(doc(db, "series", s.id), { endDate: addDays(it.date, -1) })) }, "Esta y las siguientes", h("small", null, "Se conserva el historial anterior al " + shortDate(it.date))));
+    }
+    box.appendChild(h("button", { class: "btn ghost block", onclick: close }, "Cancelar"));
+  });
+}
+function editFlow(it) {
+  const s = it.s, rep = (s.rule || {}).type !== "once";
+  if (!rep) return seriesForm(s, it.date, "all");
+  sheet("¿Qué quieres cambiar?", (box, close) => {
+    box.appendChild(h("button", { class: "opt", onclick: () => { close(); onlyOnce(it); } }, "Solo esta vez", h("small", null, "Cambiar el nombre solo el " + shortDate(it.date))));
+    box.appendChild(h("button", { class: "opt", onclick: () => { close(); seriesForm(s, it.date, "following"); } }, "Esta y las siguientes", h("small", null, "Cambiar repetición, fechas o responsable desde el " + shortDate(it.date))));
+    box.appendChild(h("button", { class: "btn ghost block", onclick: close }, "Cancelar"));
+  });
+}
+function onlyOnce(it) {
+  sheet("Solo el " + shortDate(it.date), (box, close) => {
+    const t = h("input", { id: "oo", type: "text", value: (it.occ && it.occ.titleOverride) || it.s.title, maxlength: "120" });
+    box.appendChild(fld("Nombre de la tarea", t, "oo"));
+    box.appendChild(h("div", { class: "row", style: "margin-top:14px" },
+      h("button", { class: "btn ghost", onclick: close }, "Cancelar"),
+      h("button", { class: "btn", onclick: async () => { const v = t.value.trim(); if (!v) return; close(); await saveOcc(it, { titleOverride: v === it.s.title ? "" : v }); } }, "Guardar")));
+  });
+}
+
+/* ---------- formulario de tarea ---------- */
+function seriesForm(s, date, scope) {
+  const editing = !!s;
+  const startDefault = editing ? date : date;
+  sheet(editing ? "Editar tarea" : "Nueva tarea", (box, close) => {
+    const r = (s && s.rule) || { type: "once" };
+    const title = h("input", { id: "f-t", type: "text", maxlength: "120", value: s ? s.title : "", placeholder: "Ej. Revisión de trampas de plagas" });
+    const type = h("select", { id: "f-r" },
+      [["once", "No se repite"], ["daily", "Todos los días"], ["weekdays", "Lunes a viernes"], ["weekly", "Cada semana"], ["monthly", "Cada mes"], ["months", "Cada varios meses"], ["yearly", "Cada año"]]
+        .map(o => h("option", { value: o[0], selected: o[0] === r.type }, o[1])));
+    const sdate = h("input", { id: "f-s", type: "date", value: startDefault });
+    const edate = h("input", { id: "f-e", type: "date", value: (s && s.endDate) || "" });
+    const notes = h("textarea", { id: "f-n", maxlength: "300", placeholder: "Instrucciones o detalle (opcional)" }); notes.value = (s && s.notes) || "";
+
+    const days = [1, 2, 3, 4, 5, 6, 0];
+    const dchips = h("div", { class: "dchips", role: "group", "aria-label": "Días de la semana" }, days.map(d => h("label", null,
+      h("input", { type: "checkbox", value: d, checked: (r.days || []).indexOf(d) >= 0 || (!s && d === parse(date).getDay() && false), "aria-label": DOW[d] }),
+      h("span", { "aria-hidden": "true" }, DOW1[d]))));
+    const weekly = h("div", { class: "fld" }, h("label", null, "Días"), dchips);
+
+    const dom = h("input", { id: "f-d", type: "number", min: "1", max: "31", value: r.dayOfMonth || parse(date).getDate() });
+    const lbd = h("input", { type: "checkbox", id: "f-l", checked: !!r.lastBusinessDay });
+    const monthly = h("div", null, fld("Día del mes", dom, "f-d"),
+      h("label", { style: "display:flex;align-items:center;gap:10px;min-height:44px;margin-top:6px;font-weight:600" }, lbd, "En lugar de eso, el último día hábil del mes"));
+    const interval = h("select", { id: "f-i" }, [2, 3, 4, 6].map(n => h("option", { value: n, selected: (r.interval || 3) === n }, "Cada " + n + " meses")));
+    const months = fld("Frecuencia", interval, "f-i");
+    const hint = h("p", { style: "margin:-4px 0 0;font-size:13.5px" });
+
+    const assignee = h("select", { id: "f-a" });
+    if (isAdmin()) {
+      Object.keys(S.users).sort((a, b) => nameOf(a).localeCompare(nameOf(b))).forEach(uid => assignee.appendChild(h("option", { value: uid, selected: uid === (s ? s.assigneeUid : S.me.uid) }, nameOf(uid))));
+    }
+    const err = h("p", { class: "err", role: "alert" });
+
+    const sync = () => {
+      const t = type.value;
+      weekly.hidden = t !== "weekly"; monthly.hidden = t !== "monthly"; months.hidden = t !== "months";
+      dom.disabled = lbd.checked;
+      edate.closest(".fld").hidden = t === "once";
+      hint.textContent = t === "months" || t === "yearly" ? "Se repite el mismo día del mes que la fecha de inicio." : "";
+    };
+    [type, lbd].forEach(x => x.addEventListener("change", sync));
+
+    box.appendChild(fld("Tarea", title, "f-t"));
+    box.appendChild(fld("Repetición", type, "f-r"));
+    box.appendChild(weekly); box.appendChild(monthly); box.appendChild(months); box.appendChild(hint);
+    box.appendChild(h("div", { class: "row" }, fld(editing && scope === "following" ? "Desde" : "Inicio", sdate, "f-s"), fld("Termina (opcional)", edate, "f-e")));
+    if (isAdmin()) box.appendChild(fld("Asignar a", assignee, "f-a"));
+    box.appendChild(fld("Notas", notes, "f-n"));
+    box.appendChild(err);
+    sync();
+
+    const save = h("button", { class: "btn", type: "button" }, "Guardar");
+    save.addEventListener("click", async () => {
+      err.textContent = "";
+      const t = title.value.trim(); if (!t) { err.textContent = "Escribe el nombre de la tarea."; title.focus(); return; }
+      if (!sdate.value) { err.textContent = "Elige la fecha de inicio."; return; }
+      const rule = { type: type.value };
+      if (rule.type === "weekly") { rule.days = Array.from(dchips.querySelectorAll("input:checked")).map(x => +x.value); if (!rule.days.length) { err.textContent = "Elige al menos un día de la semana."; return; } }
+      if (rule.type === "monthly") { if (lbd.checked) rule.lastBusinessDay = true; else { const n = +dom.value; if (!(n >= 1 && n <= 31)) { err.textContent = "El día del mes debe estar entre 1 y 31."; return; } rule.dayOfMonth = n; } }
+      if (rule.type === "months") rule.interval = +interval.value;
+      const end = rule.type === "once" ? "" : edate.value;
+      if (end && end < sdate.value) { err.textContent = "La fecha final no puede ser anterior al inicio."; return; }
+      const data = { title: t, notes: notes.value.trim(), rule, startDate: sdate.value, endDate: end, assigneeUid: isAdmin() ? assignee.value : S.me.uid, active: true };
+      save.disabled = true;
+      try {
+        if (!editing) { data.createdBy = S.me.uid; await addDoc(collection(db, "series"), data); }
+        else if (scope === "following" && s.startDate < date) {
+          await updateDoc(doc(db, "series", s.id), { endDate: addDays(date, -1) });
+          data.startDate = sdate.value; data.createdBy = s.createdBy; await addDoc(collection(db, "series"), data);
+        } else await updateDoc(doc(db, "series", s.id), data);
+        close(); toast("Tarea guardada");
+      } catch (e) { console.error(e); err.textContent = "No se pudo guardar. Revisa tu conexión o tus permisos."; save.disabled = false; }
+    });
+    box.appendChild(h("div", { class: "row", style: "margin-top:6px" }, h("button", { class: "btn ghost", type: "button", onclick: close }, "Cancelar"), save));
+  });
+}
+
+/* ---------- vistas ---------- */
+function summaryEl(items, carriedCount) {
+  const done = items.filter(i => i.occ && i.occ.done).length, total = items.length;
+  let mins = 0; items.forEach(i => { const d = duration(i.occ); if (d !== null) mins += d; });
+  const pct = total ? Math.round(done * 100 / total) : 0;
+  const bar = h("div", { class: "bar", role: "progressbar", "aria-label": "Avance", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": pct }, h("i", { style: "width:" + pct + "%" }));
+  return h("section", { class: "summary", "aria-label": "Resumen" },
+    h("div", { class: "sum-row" }, h("div", { class: "count" }, String(done), " ", h("small", null, "de " + total + (total === 1 ? " ejecutada" : " ejecutadas"))), h("div", { class: "time" }, fmtDur(mins))),
+    bar, carriedCount ? h("p", { class: "carry-note" }, carriedCount + (carriedCount === 1 ? " tarea pendiente de días anteriores" : " tareas pendientes de días anteriores")) : null);
+}
+function emptyEl() { return h("div", { class: "empty" }, h("b", null, "No hay tareas para este día"), "Toca «Nueva tarea» para programar una."); }
+
+function dayList(date, withCarry) {
+  const frag = document.createDocumentFragment();
+  const items = itemsFor(date);
+  const carried = withCarry && date === today() ? carriedItems() : [];
+  frag.appendChild(summaryEl(items, carried.length));
+  if (carried.length) {
+    frag.appendChild(h("h3", { class: "sect late" }, "Pendientes de días anteriores"));
+    carried.forEach(it => frag.appendChild(card(it, true)));
+    frag.appendChild(h("h3", { class: "sect" }, "Para hoy"));
+  }
+  if (!items.length) frag.appendChild(emptyEl()); else items.forEach(it => frag.appendChild(card(it, false)));
+  return frag;
+}
+function dateRow(label, prev, next, showToday, onPick) {
+  const inp = h("input", { type: "date", value: S.date, "aria-label": "Elegir fecha" });
+  inp.addEventListener("change", () => { if (inp.value) onPick(inp.value); });
+  return h("div", { class: "daterow" },
+    h("button", { class: "nav", type: "button", "aria-label": "Anterior", onclick: prev }, "‹"),
+    h("div", { class: "datebox" }, h("h2", null, label), inp),
+    h("button", { class: "nav", type: "button", "aria-label": "Siguiente", onclick: next }, "›"),
+    showToday ? h("button", { class: "today-btn", type: "button", onclick: () => { S.date = today(); S.cal = S.date.slice(0, 7); render(); } }, "Hoy") : null);
+}
+function filterEl() {
+  if (!isAdmin()) return null;
+  const sel = h("select", { id: "flt", "aria-label": "Persona" }, h("option", { value: "all" }, "Todo el equipo"),
+    Object.keys(S.users).sort((a, b) => nameOf(a).localeCompare(nameOf(b))).map(u => h("option", { value: u, selected: S.filter === u }, nameOf(u))));
+  sel.addEventListener("change", () => { S.filter = sel.value; render(); });
+  return h("div", { class: "fld filter" }, h("label", { for: "flt" }, "Persona"), sel);
+}
+function viewLista() {
+  const f = document.createDocumentFragment();
+  const week = S.mode === "semana";
+  const mon = mondayOf(S.date);
+  const label = week ? "Semana del " + parse(mon).getDate() + " al " + parse(addDays(mon, 6)).getDate() + " de " + parse(addDays(mon, 6)).toLocaleDateString("es-GT", { month: "long" }) : longDate(S.date);
+  const step = week ? 7 : 1;
+  f.appendChild(dateRow(label, () => { S.date = addDays(S.date, -step); render(); }, () => { S.date = addDays(S.date, step); render(); }, S.date !== today() && !(week && mondayOf(today()) === mon), v => { S.date = v; render(); }));
+  f.appendChild(h("div", { class: "seg", role: "group", "aria-label": "Ver por" },
+    h("button", { type: "button", "aria-pressed": !week, onclick: () => { S.mode = "dia"; render(); } }, "Día"),
+    h("button", { type: "button", "aria-pressed": week, onclick: () => { S.mode = "semana"; render(); } }, "Semana")));
+  const fe = filterEl(); if (fe) f.appendChild(fe);
+  if (!week) f.appendChild(dayList(S.date, true));
+  else {
+    let all = [];
+    for (let i = 0; i < 7; i++) all = all.concat(itemsFor(addDays(mon, i)));
+    f.appendChild(summaryEl(all, 0));
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(mon, i), items = itemsFor(d);
+      f.appendChild(h("div", { class: "dayhead" }, h("span", null, DOW[parse(d).getDay()] + " " + parse(d).getDate()), h("small", null, items.length ? items.filter(x => x.occ && x.occ.done).length + "/" + items.length : "Sin tareas")));
+      items.forEach(it => f.appendChild(card(it, false)));
+    }
+  }
+  return f;
+}
+function viewCalendario() {
+  const f = document.createDocumentFragment();
+  const [y, m] = S.cal.split("-").map(Number);
+  const shift = n => { const d = new Date(y, m - 1 + n, 1); S.cal = d.getFullYear() + "-" + pad(d.getMonth() + 1); render(); };
+  const label = cap(new Date(y, m - 1, 1).toLocaleDateString("es-GT", { month: "long", year: "numeric" }));
+  f.appendChild(h("div", { class: "daterow" },
+    h("button", { class: "nav", type: "button", "aria-label": "Mes anterior", onclick: () => shift(-1) }, "‹"),
+    h("div", { class: "datebox" }, h("h2", null, label)),
+    h("button", { class: "nav", type: "button", "aria-label": "Mes siguiente", onclick: () => shift(1) }, "›"),
+    h("button", { class: "today-btn", type: "button", onclick: () => { S.date = today(); S.cal = S.date.slice(0, 7); render(); } }, "Hoy")));
+  const fe = filterEl(); if (fe) f.appendChild(fe);
+  const grid = h("div", { class: "calgrid" });
+  [1, 2, 3, 4, 5, 6, 0].forEach(d => grid.appendChild(h("div", { class: "dow", "aria-hidden": "true" }, DOW1[d])));
+  const first = new Date(y, m - 1, 1), lead = (first.getDay() + 6) % 7, dim = new Date(y, m, 0).getDate();
+  for (let i = 0; i < lead; i++) grid.appendChild(h("div"));
+  const t = today();
+  for (let d = 1; d <= dim; d++) {
+    const ds = y + "-" + pad(m) + "-" + pad(d), items = itemsFor(ds), total = items.length;
+    const done = items.filter(i => i.occ && i.occ.done).length, missed = items.filter(i => !(i.occ && i.occ.done) && ds < t).length, wait = total - done - missed;
+    const dots = h("div", { class: "dots", "aria-hidden": "true" });
+    if (done) dots.appendChild(h("span", { class: "dot ok" })); if (missed) dots.appendChild(h("span", { class: "dot bad" })); if (wait) dots.appendChild(h("span", { class: "dot wait" }));
+    grid.appendChild(h("button", { type: "button", class: "day" + (ds === t ? " today" : ""), "aria-pressed": ds === S.date, "aria-label": longDate(ds) + ": " + (total ? done + " de " + total + " ejecutadas" : "sin tareas"), onclick: () => { S.date = ds; render(); } },
+      h("span", { class: "n" }, String(d)), dots, h("span", { class: "c" }, total ? done + "/" + total : "")));
+  }
+  f.appendChild(h("div", { class: "cal" }, grid, h("div", { class: "legend" },
+    h("span", null, h("i", { class: "dot ok" }), "Ejecutada"), h("span", null, h("i", { class: "dot wait" }), "Pendiente"), h("span", null, h("i", { class: "dot bad" }), "No cumplida"))));
+  f.appendChild(h("h3", { class: "sect" }, longDate(S.date)));
+  f.appendChild(dayList(S.date, true));
+  return f;
+}
+function viewEquipo() {
+  const f = document.createDocumentFragment();
+  const t = today(), since = addDays(t, -45);
+  const list = Object.keys(S.users).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+  f.appendChild(h("div", { class: "dayhead" }, h("span", null, "Equipo"), h("button", { class: "btn gold", type: "button", onclick: addUserForm }, "Agregar persona")));
+  list.forEach(uid => {
+    const u = S.users[uid];
+    const mine = Object.values(S.series).filter(s => s.active !== false && s.assigneeUid === uid);
+    let tt = 0, td = 0, missed = 0;
+    mine.forEach(s => {
+      if (occursOn(s, t)) { const o = S.occ[occKey(s.id, t)]; if (!(o && o.skipped)) { tt++; if (o && o.done) td++; } }
+      for (let d = since; d < t; d = addDays(d, 1)) if (occursOn(s, d)) { const o = S.occ[occKey(s.id, d)]; if (!(o && (o.done || o.skipped))) missed++; }
+    });
+    f.appendChild(h("div", { class: "person" },
+      h("div", { class: "nm" }, u.name + (u.role === "admin" ? " (administrador)" : "")), h("div", { class: "em" }, u.email),
+      h("div", { class: "st" }, h("span", { class: "pill" + (tt && td === tt ? " ok" : "") }, "Hoy: " + td + " de " + tt), h("span", { class: "pill" + (missed ? " bad" : " ok") }, "No cumplidas (45 días): " + missed)),
+      h("button", { class: "link", type: "button", onclick: async () => { try { await sendPasswordResetEmail(auth, u.email); toast("Se envió el enlace de nueva contraseña a " + u.email); } catch (e) { toast("No se pudo enviar el correo."); } } }, "Enviar enlace para cambiar contraseña")));
+  });
+  return f;
+}
+function addUserForm() {
+  sheet("Agregar persona", (box, close) => {
+    const n = h("input", { id: "u-n", type: "text", maxlength: "80", autocomplete: "off" });
+    const e = h("input", { id: "u-e", type: "email", autocomplete: "off", inputmode: "email" });
+    const p = h("input", { id: "u-p", type: "text", autocomplete: "off", placeholder: "Mínimo 6 caracteres" });
+    const err = h("p", { class: "err", role: "alert" });
+    box.appendChild(h("p", null, "Crea su acceso. Después podrá cambiar la contraseña con el enlace que le envíes desde esta pantalla."));
+    box.appendChild(h("div", { class: "stack" }, fld("Nombre", n, "u-n"), fld("Correo", e, "u-e"), fld("Contraseña temporal", p, "u-p"), err));
+    const go = h("button", { class: "btn", type: "button" }, "Crear acceso");
+    go.addEventListener("click", async () => {
+      err.textContent = "";
+      if (!n.value.trim() || !e.value.trim() || p.value.length < 6) { err.textContent = "Completa nombre, correo y una contraseña de al menos 6 caracteres."; return; }
+      go.disabled = true;
+      let sec, creado = false;
+      try {
+        sec = initializeApp(firebaseConfig, "sec" + Date.now());
+        const cred = await createUserWithEmailAndPassword(getAuth(sec), e.value.trim(), p.value);
+        creado = true;
+        await setDoc(doc(db, "users", cred.user.uid), { name: n.value.trim(), email: e.value.trim(), role: "member" });
+        close(); toast("Acceso creado para " + n.value.trim());
+      } catch (x) {
+        err.textContent = creado ? "Se creó el acceso pero no se pudo guardar el perfil. Avisa al administrador del sistema."
+          : x.code === "auth/email-already-in-use" ? "Ese correo ya tiene acceso." : x.code === "auth/invalid-email" ? "El correo no es válido." : x.code === "auth/weak-password" ? "La contraseña es muy débil (mínimo 6 caracteres)." : "No se pudo crear el acceso.";
+        go.disabled = false;
+      } finally {
+        // cierra la app secundaria para no dejar sesiones ni conexiones abiertas
+        if (sec) { try { await signOut(getAuth(sec)); } catch (_) {} try { await deleteApp(sec); } catch (_) {} }
+      }
+    });
+    box.appendChild(h("div", { class: "row", style: "margin-top:12px" }, h("button", { class: "btn ghost", type: "button", onclick: close }, "Cancelar"), go));
+  });
+}
+
+/* ---------- estructura principal ---------- */
+/* Dibujo diferido: los datos que llegan de Firestore piden redibujar, pero si la persona
+   está escribiendo (comentario, hora, fecha) se espera a que salga del campo; así no se
+   pierde el foco, el cursor ni el texto. Las acciones del usuario siguen dibujando al instante. */
+let renderTimer = null, renderPending = false;
+function isTyping() {
+  const a = document.activeElement;
+  if (!a || !$root.contains(a)) return false;
+  return a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && ["checkbox", "radio", "button", "file", "submit"].indexOf(a.type) < 0);
+}
+function scheduleRender() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => { if (isTyping()) renderPending = true; else { renderPending = false; render(); } }, 60);
+}
+$root.addEventListener("focusout", () => {
+  if (renderPending) setTimeout(() => { if (!isTyping()) { renderPending = false; render(); } }, 0);
+});
+
+function render() {
+  if (!S.me) return;
+  clearTimeout(renderTimer); renderPending = false;
+  const keepScroll = window.scrollY;
+  // se recuerda qué control tenía el foco (por id o, si no tiene, por su posición) para devolvérselo al redibujar
+  const FOCUSABLE = "input,button,select,textarea";
+  const act = document.activeElement, inRoot = act && act !== document.body && $root.contains(act);
+  const keepId = inRoot && act.id ? act.id : null;
+  const keepIdx = inRoot ? Array.prototype.indexOf.call($root.querySelectorAll(FOCUSABLE), act) : -1;
+  $root.innerHTML = "";
+  const tabs = [["lista", "Lista"], ["calendario", "Calendario"]]; if (isAdmin()) tabs.push(["equipo", "Equipo"]);
+  $root.appendChild(h("header", null, h("div", { class: "wrap" },
+    h("div", { class: "hrow" }, h("div", { class: "app" }, "Control de tareas"), h("div", { class: "who" }, S.me.name, h("button", { type: "button", onclick: () => signOut(auth) }, "Salir"))),
+    h("div", { class: "tabs", role: "tablist" }, tabs.map(t => h("button", { role: "tab", type: "button", "aria-selected": S.view === t[0], onclick: () => { S.view = t[0]; render(); } }, t[1]))))));
+  const main = h("main", { id: "main" });
+  main.appendChild(S.view === "lista" ? viewLista() : S.view === "calendario" ? viewCalendario() : viewEquipo());
+  $root.appendChild(main);
+  $root.appendChild(h("button", { class: "fab", type: "button", onclick: () => seriesForm(null, S.date, "all") }, "+ Nueva tarea"));
+  window.scrollTo(0, keepScroll);
+  const again = (keepId && document.getElementById(keepId)) || (keepIdx >= 0 ? $root.querySelectorAll(FOCUSABLE)[keepIdx] : null);
+  if (again) again.focus({ preventScroll: true });
+}
+
+/* ---------- acceso ---------- */
+function loginView(msg) {
+  $root.innerHTML = "";
+  const email = h("input", { id: "l-e", type: "email", autocomplete: "username", inputmode: "email" });
+  const pass = h("input", { id: "l-p", type: "password", autocomplete: "current-password" });
+  const err = h("p", { class: "err", role: "alert" }, msg || "");
+  const go = h("button", { class: "btn block", type: "submit" }, "Entrar");
+  const form = h("form", { class: "stack" }, fld("Correo", email, "l-e"), fld("Contraseña", pass, "l-p"), err, go);
+  form.addEventListener("submit", async ev => {
+    ev.preventDefault(); err.textContent = ""; go.disabled = true;
+    try { await signInWithEmailAndPassword(auth, email.value.trim(), pass.value); }
+    catch (x) { err.textContent = ["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found", "auth/invalid-email"].indexOf(x.code) >= 0 ? "Correo o contraseña incorrectos." : x.code === "auth/too-many-requests" ? "Demasiados intentos. Espera unos minutos." : "No se pudo entrar. Revisa tu conexión."; go.disabled = false; }
+  });
+  const forgot = h("button", { class: "link", type: "button", onclick: async () => {
+    if (!email.value.trim()) { err.textContent = "Escribe tu correo y vuelve a tocar este botón."; email.focus(); return; }
+    try { await sendPasswordResetEmail(auth, email.value.trim()); err.style.color = "var(--ok)"; err.textContent = "Te enviamos un enlace para crear una contraseña nueva."; } catch (x) { err.textContent = "No se pudo enviar el correo."; }
+  } }, "Olvidé mi contraseña");
+  $root.appendChild(h("div", { class: "login" }, h("div", { class: "login-card" }, h("h1", null, "Control de tareas"), h("p", null, "Entra con tu correo para ver tus tareas."), form, forgot)));
+}
+function stopListeners() { unsubs.forEach(u => u()); unsubs = []; }
+function startListeners() {
+  stopListeners();
+  const uid = S.me.uid, adm = isAdmin();
+  const sQ = adm ? collection(db, "series") : query(collection(db, "series"), where("assigneeUid", "==", uid));
+  const oQ = adm ? collection(db, "occ") : query(collection(db, "occ"), where("assigneeUid", "==", uid));
+  const fail = e => { console.error(e); toast("Sin conexión con el servidor."); };
+  unsubs.push(onSnapshot(sQ, snap => { S.series = {}; snap.forEach(d => { S.series[d.id] = Object.assign({ id: d.id }, d.data()); }); scheduleRender(); }, fail));
+  unsubs.push(onSnapshot(oQ, snap => { S.occ = {}; snap.forEach(d => { S.occ[d.id] = d.data(); }); scheduleRender(); }, fail));
+  if (adm) unsubs.push(onSnapshot(collection(db, "users"), snap => { S.users = {}; snap.forEach(d => { S.users[d.id] = d.data(); }); scheduleRender(); }, fail));
+}
+
+function boot() {
+  if (firebaseConfig.apiKey === "PEGAR_AQUI") {
+    $root.appendChild(h("div", { class: "setup" }, h("h1", { style: "font-family:var(--f-head);margin-top:0" }, "Falta conectar Firebase"),
+      h("p", null, "Abre este archivo y pega los datos de tu app web de Firebase en el bloque ", h("code", null, "firebaseConfig"), ". Después sube el archivo de nuevo.")));
+    return;
+  }
+  app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app);
+  loginView();
+  onAuthStateChanged(auth, async user => {
+    stopListeners();
+    if (!user) { S.me = null; S.users = {}; S.series = {}; S.occ = {}; loginView(); return; }
+    try {
+      const snap = await getDoc(doc(db, "users", user.uid));
+      if (!snap.exists()) { await signOut(auth); loginView("Tu usuario todavía no está configurado. Pide acceso al administrador."); return; }
+      S.me = Object.assign({ uid: user.uid }, snap.data()); S.users[user.uid] = snap.data();
+      S.date = today(); S.cal = S.date.slice(0, 7); S.view = "lista";
+      startListeners(); render();
+    } catch (e) { console.error(e); await signOut(auth); loginView("No se pudo cargar tu perfil. Revisa tu conexión."); }
+  });
+}
+boot();
+</script>
+</body>
+</html>
