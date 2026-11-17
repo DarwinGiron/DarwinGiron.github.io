@@ -11,6 +11,7 @@ App web de un solo archivo (`index.html` + `motor.js`) para controlar las tareas
 | Archivo | Para qué sirve |
 |---|---|
 | `index.html` | La app (pantallas, Firebase, lógica). Aquí se pega `firebaseConfig`. |
+| `tareas.css` | Estilos propios de esta sección. Debe subirse junto a `index.html`. |
 | `motor.js` | Motor de repetición (`occursOn`, `lastBusinessDay`). Debe subirse junto a `index.html`. |
 | `firestore.tareas.rules` | Reglas de seguridad de las colecciones `users`, `series` y `occ`. **No se publica completo** (ver paso 3). |
 | `pruebas/motor.test.js` | Pruebas del motor, sin dependencias. |
@@ -78,4 +79,4 @@ Como `firebase.json` no existe en esta carpeta, créalo antes con `{"firestore":
 - "Esta y las siguientes" al editar crea una serie nueva desde esa fecha; los registros ya hechos quedan con la serie anterior.
 - Las evidencias se guardan dentro de Firestore (fotos comprimidas o archivos de hasta 500 KB).
 - El comentario y la evidencia de cada tarea se ven y se editan en su ventana de detalle (tocar la tarea). Ya no se registran horas de inicio y fin; lo que estaba guardado se conserva en la base, solo no se muestra.
-- Usa la hoja de estilos del hub (`/css/estilos.css`) y su modo oscuro automático (`/js/tema-horario.js`), y los avisos de `hub/js/utils.js`: por eso debe servirse desde el mismo sitio que el hub.
+- Tiene su propia hoja de estilos, `tareas.css` (paleta coral `#FF9575`, menta `#E7F9F4`, crema `#F8F1E4` y azul noche `#06112D`, fuente Outfit); no usa la del hub. Sí usa los avisos de `hub/js/utils.js`, así que debe servirse desde el mismo sitio que el hub.

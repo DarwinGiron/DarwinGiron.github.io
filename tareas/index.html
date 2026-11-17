@@ -2,163 +2,16 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<!-- Modo oscuro automático 19:00–06:00, igual que el resto de la plataforma. -->
-<script src="/js/tema-horario.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0a1f38">
+<meta name="theme-color" content="#FCF9F4">
 <title>Control de tareas · SGI</title>
-<!-- Misma hoja de estilos y tema que el hub: encabezado, botones, tarjetas,
-     campos, avisos y ventanas son los mismos componentes. Aquí abajo solo va
-     lo propio de Tareas, siempre con los tokens del hub (funciona de día y
-     de noche sin colores fijos). -->
-<link rel="stylesheet" href="/css/estilos.css">
-<style>
-  /* ---------- Cabecera: selector de persona (solo gestión) ---------- */
-  .filtro-persona { margin-bottom: var(--e4); }
-  .filtro-persona select { min-height: var(--toque-sm); }
-
-  /* ---------- Fecha y semana ---------- */
-  .dia-titulo { display: flex; align-items: center; justify-content: space-between; gap: var(--e3); margin-bottom: var(--e3); }
-  .dia-titulo h2 { margin: 0; font-size: var(--txt-xl); letter-spacing: -0.015em; }
-  .semana { display: grid; grid-template-columns: 36px repeat(7, 1fr) 36px; gap: var(--e1); align-items: stretch; margin-bottom: var(--e4); }
-  .semana__flecha { border: 0; background: none; color: var(--tinta-2); font-size: 22px; border-radius: var(--r-md); cursor: pointer; min-height: var(--toque); }
-  .semana__flecha:hover { background: var(--superficie-hundida); }
-  .semana__dia {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-    min-height: var(--toque); padding: 6px 0; border: 1px solid transparent; border-radius: var(--r-md);
-    background: var(--superficie); color: var(--tinta); cursor: pointer; font: inherit;
-  }
-  .semana__dia small { font-size: var(--txt-2xs); font-weight: 700; color: var(--tinta-3); text-transform: uppercase; letter-spacing: .04em; }
-  .semana__dia b { font-size: var(--txt-base); font-variant-numeric: tabular-nums; }
-  .semana__dia.es-hoy { border-color: var(--dorado-500); }
-  /* marino-700 es azul de día y dorado de noche (tokens del hub) */
-  .semana__dia[aria-pressed="true"] { background: var(--marino-700); border-color: var(--marino-700); color: #fff; }
-  .semana__dia[aria-pressed="true"] small { color: rgba(255,255,255,.75); }
-  .punto { width: 6px; height: 6px; border-radius: 50%; background: transparent; }
-  .punto.ok { background: var(--estado-bien-mark); }
-  .punto.mal { background: var(--estado-critico-mark); }
-  .punto.pend { background: var(--borde-fuerte); }
-  :root[data-theme="dark"] .semana__dia[aria-pressed="true"],
-  :root[data-theme="dark"] .semana__dia[aria-pressed="true"] small { color: #0d0c09; }
-  :root[data-theme="dark"] .semana__dia[aria-pressed="true"] .punto.pend { background: rgba(13,12,9,.45); }
-
-  /* ---------- Avance del día ---------- */
-  .avance-dia { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e3); margin-bottom: var(--e2); }
-  .avance-dia strong { font-size: var(--txt-xl); font-variant-numeric: tabular-nums; }
-  .avance-dia span { color: var(--tinta-2); font-size: var(--txt-md); }
-
-  /* ---------- Lista de tareas ---------- */
-  .lista-tareas { list-style: none; margin: 0; padding: 0; }
-  .fila-tarea { display: flex; align-items: center; gap: var(--e3); padding: var(--e2) 0; border-top: 1px solid var(--borde); }
-  .fila-tarea:first-child { border-top: 0; }
-  .marca {
-    flex: none; width: var(--toque); height: var(--toque); display: grid; place-items: center;
-    border: 0; background: none; border-radius: 50%; cursor: pointer; padding: 0;
-  }
-  .marca::before {
-    content: ""; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--borde-fuerte);
-    box-sizing: border-box; transition: background var(--tr-rapida), border-color var(--tr-rapida);
-  }
-  .marca:hover::before { border-color: var(--marino-500); }
-  .marca[aria-checked="true"]::before {
-    border-color: var(--estado-bien-mark);
-    background: var(--estado-bien-mark) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/16px no-repeat;
-  }
-  .fila-tarea__cuerpo {
-    flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: var(--e2) 0;
-    font: inherit; color: inherit; cursor: pointer; display: flex; align-items: center; gap: var(--e2);
-  }
-  .fila-tarea__textos { flex: 1; min-width: 0; }
-  .fila-tarea__titulo { font-weight: 650; font-size: var(--txt-base); line-height: 1.3; overflow-wrap: anywhere; }
-  .fila-tarea__meta { margin-top: 2px; font-size: var(--txt-sm); color: var(--tinta-3); display: flex; flex-wrap: wrap; gap: 2px var(--e2); align-items: center; }
-  .fila-tarea__chevron { flex: none; color: var(--tinta-3); font-size: 20px; line-height: 1; }
-  .fila-tarea.hecha .fila-tarea__titulo { color: var(--tinta-3); text-decoration: line-through; text-decoration-thickness: 1.5px; }
-  .seccion-lista { margin: var(--e5) 0 var(--e2); font-size: var(--txt-sm); font-weight: 700; color: var(--tinta-2); text-transform: uppercase; letter-spacing: .05em; }
-
-  /* ---------- Atrasadas ---------- */
-  .atrasadas__cabecera {
-    width: 100%; display: flex; align-items: center; gap: var(--e3); border: 0; background: none;
-    font: inherit; color: inherit; text-align: left; cursor: pointer; padding: 0; min-height: var(--toque-sm);
-  }
-  .atrasadas__cabecera .cifra { font-size: var(--txt-xl); font-weight: 800; color: var(--estado-critico-ink); font-variant-numeric: tabular-nums; }
-  .atrasadas__cabecera .textos { flex: 1; min-width: 0; }
-  .atrasadas__cabecera .textos b { display: block; }
-  .atrasadas__cabecera .textos span { font-size: var(--txt-sm); color: var(--tinta-2); }
-  .grupo-atrasado { border-top: 1px solid var(--borde); padding: var(--e3) 0; }
-  .grupo-atrasado__fila { display: flex; align-items: center; gap: var(--e3); }
-  .grupo-atrasado__fila .textos { flex: 1; min-width: 0; }
-  .grupo-atrasado__fila .textos b { display: block; overflow-wrap: anywhere; }
-  .grupo-atrasado__fila .textos span { font-size: var(--txt-sm); color: var(--tinta-3); }
-  .grupo-atrasado__dias { display: flex; flex-wrap: wrap; gap: var(--e2); margin-top: var(--e3); }
-  .chip-dia {
-    display: inline-flex; align-items: center; gap: 6px; min-height: var(--toque-sm); padding: 0 var(--e3);
-    border: 1px solid var(--borde-fuerte); border-radius: var(--r-full); background: var(--superficie);
-    font: inherit; font-size: var(--txt-sm); font-weight: 600; color: var(--tinta); cursor: pointer;
-  }
-  .chip-dia:hover { border-color: var(--marino-500); }
-
-  /* ---------- Calendario del mes ---------- */
-  .mes-nav { display: grid; grid-template-columns: var(--toque) 1fr var(--toque); align-items: center; gap: var(--e2); margin-bottom: var(--e3); }
-  .mes-nav h2 { margin: 0; text-align: center; font-size: var(--txt-lg); }
-  .mes { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-  .mes__dow { text-align: center; font-size: var(--txt-2xs); font-weight: 700; color: var(--tinta-3); padding: 4px 0; text-transform: uppercase; }
-  .mes__dia {
-    min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-    border: 1px solid transparent; border-radius: var(--r-md); background: var(--superficie-hundida);
-    font: inherit; color: var(--tinta); cursor: pointer; padding: 4px 2px;
-  }
-  .mes__dia b { font-size: var(--txt-md); font-variant-numeric: tabular-nums; }
-  .mes__dia small { font-size: var(--txt-2xs); color: var(--tinta-3); font-variant-numeric: tabular-nums; }
-  .mes__dia.ok { background: var(--estado-bien-suave); }
-  .mes__dia.mal { background: var(--estado-critico-suave); }
-  .mes__dia.ok small { color: var(--estado-bien-ink); }
-  .mes__dia.mal small { color: var(--estado-critico-ink); }
-  .mes__dia.es-hoy { border-color: var(--dorado-500); }
-  .mes__dia.sin { background: transparent; }
-  .leyenda { display: flex; flex-wrap: wrap; gap: var(--e4); margin-top: var(--e3); font-size: var(--txt-xs); color: var(--tinta-2); }
-  .leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; margin-right: 6px; vertical-align: -2px; }
-
-  /* ---------- Equipo ---------- */
-  .persona { display: flex; align-items: center; gap: var(--e3); padding: var(--e3) 0; border-top: 1px solid var(--borde); }
-  .persona:first-child { border-top: 0; }
-  .persona .textos { flex: 1; min-width: 0; }
-  .persona .textos b { display: block; }
-  .persona .textos span { font-size: var(--txt-sm); color: var(--tinta-3); overflow-wrap: anywhere; }
-  body.tema-hub .enlace { border: 0; background: none; padding: 0; margin-top: 2px; font: inherit; font-size: var(--txt-sm); font-weight: 600; color: var(--marino-600); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; min-height: 32px; text-align: left; }
-  .persona .cifras { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-
-  /* ---------- Detalle de una tarea (ventana) ---------- */
-  .detalle-meta { color: var(--tinta-2); font-size: var(--txt-md); margin: 0 0 var(--e4); }
-  .evidencias { display: flex; flex-wrap: wrap; gap: var(--e2); align-items: center; }
-  .evidencia { display: inline-flex; align-items: center; max-width: 100%; border: 1px solid var(--borde-fuerte); border-radius: var(--r-full); background: var(--superficie); }
-  .evidencia button { border: 0; background: none; font: inherit; font-size: var(--txt-sm); font-weight: 600; color: var(--tinta); min-height: var(--toque-sm); padding: 0 var(--e3); cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .evidencia .quitar { color: var(--tinta-3); padding: 0 var(--e3) 0 0; }
-  .adjuntar { position: relative; overflow: hidden; }
-  .adjuntar input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .adjuntar:focus-within { box-shadow: 0 0 0 3px var(--anillo-foco); }
-  .opciones { display: flex; flex-direction: column; gap: var(--e2); margin-top: var(--e5); padding-top: var(--e4); border-top: 1px solid var(--borde); }
-  body.tema-hub .opciones .btn { width: 100%; }
-  .visor img { max-width: 100%; border-radius: var(--r-md); display: block; margin-bottom: var(--e3); }
-
-  /* ---------- Formulario ---------- */
-  .dias-semana { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--e1); }
-  .dias-semana label { position: relative; }
-  .dias-semana input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
-  .dias-semana span { display: grid; place-items: center; min-height: var(--toque-sm); border: 1px solid var(--borde-fuerte); border-radius: var(--r-md); font-weight: 700; background: var(--superficie); }
-  .dias-semana input:checked + span { background: var(--marino-700); color: #fff; border-color: var(--marino-700); }
-  .dias-semana input:focus-visible + span { box-shadow: 0 0 0 3px var(--anillo-foco); }
-  :root[data-theme="dark"] .dias-semana input:checked + span { color: #0d0c09; }
-  .acciones-modal { display: flex; gap: var(--e3); margin-top: var(--e5); }
-  .acciones-modal .btn { flex: 1; }
-  .error-form { color: var(--estado-critico-ink); font-weight: 600; font-size: var(--txt-sm); min-height: 1.2em; margin: 0; }
-
-  /* ---------- Botón flotante ---------- */
-  body.tema-hub .fab { width: auto; position: fixed; right: max(var(--e4), env(safe-area-inset-right)); bottom: max(var(--e4), env(safe-area-inset-bottom)); z-index: 40; box-shadow: var(--sombra-3); border-radius: var(--r-full); padding-inline: var(--e5); }
-
-  .cargando-app { min-height: 100svh; display: grid; place-items: center; color: var(--tinta-3); }
-</style>
+<!-- Estilo propio de esta sección (no usa la hoja del hub): tareas.css -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tareas.css">
 </head>
-<body class="tema-hub">
+<body>
 <div id="root"><div class="cargando-app">Cargando…</div></div>
 
 <script src="motor.js"></script>
@@ -434,13 +287,13 @@ function abrirTarea(it, carried) {
   const actual = () => Object.assign({}, it, { occ: S.occ[it.key] || it.occ || null });
   const close = sheet(tituloDe(it), (box, cerrar) => {
     box.appendChild(h("p", { class: "detalle-meta" }, longDate(it.date) + " · " + describeRule(s) + (isAdmin() ? " · " + nameOf(s.assigneeUid) : "")));
-    if (s.notes) box.appendChild(h("p", { class: "texto-sm", style: "margin:0 0 var(--e4)" }, s.notes));
+    if (s.notes) box.appendChild(h("p", { class: "texto-sm", style: "margin:0 0 16px" }, s.notes));
 
     const zonaEstado = h("div");
     const pintarEstado = () => {
       const cur = actual(), done = !!(cur.occ && cur.occ.done), st = estadoDe(cur);
       zonaEstado.innerHTML = "";
-      zonaEstado.appendChild(h("div", { class: "flex-entre", style: "margin-bottom:var(--e4)" }, h("span", { class: "badge " + st.c }, st.t)));
+      zonaEstado.appendChild(h("div", { class: "flex-entre", style: "margin-bottom:16px" }, h("span", { class: "badge " + st.c }, st.t)));
       zonaEstado.appendChild(done
         ? h("button", { class: "btn btn-secundario", type: "button", onclick: async () => { await marcar(cur, false); } }, "Desmarcar (volver a pendiente)")
         : h("button", { class: "btn btn-primario", type: "button", onclick: async () => { if (await marcar(cur, true)) { toast("¡Hecha!", "exito"); cerrar(); } } }, "✓ Marcar como hecha"));
@@ -450,7 +303,7 @@ function abrirTarea(it, carried) {
     const nota = h("textarea", { id: "d-nota", maxlength: "300", rows: "3", placeholder: "Opcional: qué se hizo, novedades…" });
     nota.value = (it.occ && it.occ.note) || "";
     nota.addEventListener("change", () => saveOcc(actual(), { note: nota.value.trim() }).then(okk => okk && toast("Comentario guardado", "exito")));
-    box.appendChild(h("div", { style: "margin-top:var(--e5)" }, campo("Comentario", nota, "d-nota")));
+    box.appendChild(h("div", { style: "margin-top:20px" }, campo("Comentario", nota, "d-nota")));
 
     const evid = h("div", { class: "evidencias" });
     const pintarEvidencias = () => {
@@ -538,7 +391,7 @@ function seriesForm(s, date, scope) {
     const dom = h("input", { id: "f-d", type: "number", min: "1", max: "31", inputmode: "numeric", value: r.dayOfMonth || parse(date).getDate() });
     const lbd = h("input", { type: "checkbox", id: "f-l", checked: !!r.lastBusinessDay });
     const monthly = h("div", null, campo("Día del mes", dom, "f-d"),
-      h("label", { class: "check-linea", style: "display:flex;align-items:center;gap:10px;min-height:44px;margin:-8px 0 var(--e4);font-weight:600" }, lbd, "Mejor el último día hábil del mes"));
+      h("label", { class: "check-linea", style: "display:flex;align-items:center;gap:10px;min-height:44px;margin:-8px 0 16px;font-weight:600" }, lbd, "Mejor el último día hábil del mes"));
     const interval = h("select", { id: "f-i" }, [2, 3, 4, 6].map(n => h("option", { value: n, selected: (r.interval || 3) === n }, "Cada " + n + " meses")));
     const months = campo("Frecuencia", interval, "f-i", "El mismo día del mes que la fecha de inicio.");
 
@@ -640,10 +493,10 @@ function tarjetaAtrasadas() {
         h("button", { class: "btn btn-secundario btn-sm btn-ancho-auto", type: "button", "aria-expanded": abiertoG ? "true" : "false",
           onclick: () => { abiertoG ? S.gruposAbiertos.delete(g.s.id) : S.gruposAbiertos.add(g.s.id); render(); } }, abiertoG ? "Ocultar" : "Ver días")));
     if (abiertoG) {
-      fila.appendChild(h("p", { class: "texto-sm texto-suave", style: "margin:var(--e3) 0 0" }, "Toca un día para abrirlo y marcarlo como hecho (queda como hecho con retraso)."));
+      fila.appendChild(h("p", { class: "texto-sm texto-suave", style: "margin:12px 0 0" }, "Toca un día para abrirlo y marcarlo como hecho (queda como hecho con retraso)."));
       fila.appendChild(h("div", { class: "grupo-atrasado__dias" }, g.items.map(it =>
         h("button", { class: "chip-dia", type: "button", onclick: () => abrirTarea(it, true) }, DOW[parse(it.date).getDay()].slice(0, 3) + " " + shortDate(it.date)))));
-      fila.appendChild(h("button", { class: "btn btn-texto btn-sm btn-ancho-auto", type: "button", style: "margin-top:var(--e2)",
+      fila.appendChild(h("button", { class: "btn btn-texto btn-sm btn-ancho-auto", type: "button", style: "margin-top:8px",
         onclick: () => { if (confirm("¿Quitar de atrasadas los " + n + " días de «" + g.s.title + "»? Quedan registrados como no cumplidos.")) descartarGrupo(g.items); } },
         "Quitar todos de atrasadas"));
     }
@@ -665,16 +518,16 @@ function viewHoy() {
   const hechas = items.filter(i => i.occ && i.occ.done).length, total = items.length;
   if (!total) {
     f.appendChild(h("section", { class: "tarjeta" }, h("div", { class: "estado-vacio" },
-      h("b", { style: "color:var(--tinta);font-size:var(--txt-base)" }, "No hay tareas para este día"),
+      h("b", { style: "color:var(--tinta);font-size:17px" }, "No hay tareas para este día"),
       h("span", null, "Toca «Nueva tarea» para programar una."))));
     return f;
   }
   const pct = Math.round(hechas * 100 / total);
-  f.appendChild(h("section", { class: "tarjeta" },
-    h("div", { class: "avance-dia" }, h("strong", null, hechas + " de " + total), h("span", null, hechas === total ? "¡Todo hecho!" : (total === 1 ? "tarea hecha" : "tareas hechas"))),
+  f.appendChild(h("section", { class: "tarjeta tarjeta--noche", "aria-label": "Avance del día" },
+    h("div", { class: "avance-dia" }, h("strong", null, hechas + " de " + total), h("span", null, hechas === total ? "¡Todo hecho! 🎉" : (total === 1 ? "tarea hecha" : "tareas hechas"))),
     h("div", { class: "barra-progreso", role: "progressbar", "aria-label": "Avance del día", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(pct) },
-      h("div", { class: "barra-progreso__valor", style: "width:" + pct + "%" })),
-    h("ul", { class: "lista-tareas", style: "margin-top:var(--e3)" }, items.map(filaTarea))));
+      h("div", { class: "barra-progreso__valor", style: "width:" + pct + "%" }))));
+  f.appendChild(h("ul", { class: "lista-tareas", "aria-label": "Tareas del día" }, items.map(filaTarea)));
   return f;
 }
 function viewCalendario() {
@@ -700,9 +553,9 @@ function viewCalendario() {
       h("b", null, String(d)), h("small", null, e.total ? e.hechas + "/" + e.total : "")));
   }
   f.appendChild(h("section", { class: "tarjeta" }, grid, h("div", { class: "leyenda" },
-    h("span", null, h("i", { style: "background:var(--estado-bien-suave)" }), "Todo hecho"),
-    h("span", null, h("i", { style: "background:var(--superficie-hundida)" }), "Pendiente"),
-    h("span", null, h("i", { style: "background:var(--estado-critico-suave)" }), "Quedó algo sin hacer"))));
+    h("span", null, h("i", { style: "background:var(--menta)" }), "Todo hecho"),
+    h("span", null, h("i", { style: "background:var(--crema)" }), "Pendiente"),
+    h("span", null, h("i", { style: "background:var(--coral-suave)" }), "Quedó algo sin hacer"))));
   f.appendChild(h("p", { class: "texto-sm texto-suave texto-centro" }, "Toca un día para ver y marcar sus tareas."));
   return f;
 }
@@ -710,7 +563,7 @@ function viewEquipo() {
   const f = document.createDocumentFragment();
   const t = today(), since = addDays(t, -DIAS_ATRASO);
   const list = Object.keys(S.users).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
-  f.appendChild(h("div", { class: "flex-entre", style: "margin-bottom:var(--e3)" },
+  f.appendChild(h("div", { class: "flex-entre", style: "margin-bottom:12px" },
     h("p", { class: "texto-sm texto-suave", style: "margin:0" }, list.length + (list.length === 1 ? " persona" : " personas")),
     h("button", { class: "btn btn-secundario btn-sm btn-ancho-auto", type: "button", onclick: addUserForm }, "+ Agregar persona")));
   const card = h("section", { class: "tarjeta" });
@@ -788,6 +641,12 @@ $root.addEventListener("focusout", () => {
   if (renderPending) setTimeout(() => { if (!isTyping()) { renderPending = false; render(); } }, 0);
 });
 
+/* Iconos de las pestañas (SVG fijos del código, sin datos del usuario). */
+const ICONOS_TAB = {
+  hoy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>',
+  calendario: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  equipo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 7.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/></svg>'
+};
 const ETIQUETA_ROL = { admin: "Administrador", coordinador: "Coordinador de SGIA", inspector: "Inspector" };
 function render() {
   if (!S.me) return;
@@ -803,17 +662,21 @@ function render() {
   $root.innerHTML = "";
 
   const rol = S.me.rolHub ? (ETIQUETA_ROL[S.me.rolHub] || S.me.rolHub) : (isAdmin() ? "Administrador" : "Miembro");
+  const primerNombre = String(S.me.name || "").split(" ")[0] || "";
   const header = h("header", { class: "app-header" },
     h("div", { class: "app-header__marca" },
-      h("a", { href: "/hub/", class: "app-header__logo", style: "text-decoration:none;color:inherit", "aria-label": "Volver al hub" }, "PPR"),
-      h("div", { class: "app-header__titulos" }, h("div", { class: "titulo" }, "Control de tareas"), h("div", { class: "subtitulo" }, S.me.name + " · " + rol))),
+      h("a", { href: "/hub/", class: "app-header__logo", title: "Volver al hub", "aria-label": "Volver al hub" }, "✓"),
+      h("div", { class: "app-header__titulos" }, h("div", { class: "titulo" }, "Hola" + (primerNombre ? ", " + primerNombre : "")), h("div", { class: "subtitulo" }, "Control de tareas · " + rol))),
     h("div", { class: "app-header__acciones" },
       h("span", { class: "avatar avatar--claro avatar--sm", "aria-hidden": "true" }, iniciales(S.me.name || S.me.email || "?")),
       h("button", { class: "btn btn-texto btn-sm", type: "button", title: "Cierra la sesión aquí y en el hub", onclick: () => signOut(auth) }, "Salir")));
 
   const tabs = [["hoy", "Tareas"], ["calendario", "Calendario"]]; if (isAdmin()) tabs.push(["equipo", "Equipo"]);
-  const nav = h("nav", { class: "tabs", role: "tablist", "aria-label": "Secciones" }, tabs.map(t =>
-    h("button", { class: "tabs__item" + (S.view === t[0] ? " activo" : ""), role: "tab", type: "button", "aria-selected": S.view === t[0] ? "true" : "false", onclick: () => { S.view = t[0]; render(); } }, t[1])));
+  const nav = h("nav", { class: "tabs", role: "tablist", "aria-label": "Secciones" }, tabs.map(t => {
+    const b = h("button", { class: "tabs__item" + (S.view === t[0] ? " activo" : ""), role: "tab", type: "button", "aria-selected": S.view === t[0] ? "true" : "false", onclick: () => { S.view = t[0]; render(); window.scrollTo(0, 0); } });
+    b.innerHTML = ICONOS_TAB[t[0]]; b.appendChild(document.createTextNode(t[1]));
+    return b;
+  }));
 
   const main = h("main", { class: "app-main", id: "main" }, nav);
   main.appendChild(S.view === "hoy" ? viewHoy() : S.view === "calendario" ? viewCalendario() : viewEquipo());
@@ -828,7 +691,7 @@ function render() {
 function pantallaAcceso(...contenido) {
   $root.innerHTML = "";
   $root.appendChild(h("main", { class: "pantalla-acceso" }, h("div", { class: "acceso-caja" },
-    h("header", { class: "acceso-marca" }, h("div", { class: "acceso-marca__logo" }, "PPR"), h("div", { class: "acceso-marca__codigo" }, "COGUSA"),
+    h("header", { class: "acceso-marca" }, h("div", { class: "acceso-marca__logo", "aria-hidden": "true" }, "✓"), h("div", { class: "acceso-marca__codigo" }, "COGUSA · SGI"),
       h("p", { class: "acceso-marca__nombre" }, "Control de tareas")),
     h("section", { class: "acceso-tarjeta" }, contenido))));
 }
@@ -837,19 +700,19 @@ function loginView(msg) {
   const pass = h("input", { id: "l-p", type: "password", autocomplete: "current-password", placeholder: "••••••••" });
   const err = h("p", { class: "error-form", role: "alert" }, msg || "");
   const go = h("button", { class: "btn btn-primario", type: "submit" }, "Entrar");
-  const form = h("form", { novalidate: true }, campo("Correo electrónico", email, "l-e"), campo("Contraseña", pass, "l-p"), err, h("div", { style: "margin-top:var(--e3)" }, go));
+  const form = h("form", { novalidate: true }, campo("Correo electrónico", email, "l-e"), campo("Contraseña", pass, "l-p"), err, h("div", { style: "margin-top:12px" }, go));
   form.addEventListener("submit", async ev => {
     ev.preventDefault(); err.textContent = ""; go.disabled = true;
     try { await signInWithEmailAndPassword(auth, email.value.trim(), pass.value); }
     catch (x) { err.textContent = ["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found", "auth/invalid-email"].indexOf(x.code) >= 0 ? "Correo o contraseña incorrectos." : x.code === "auth/too-many-requests" ? "Demasiados intentos. Espera unos minutos." : "No se pudo entrar. Revisa tu conexión."; go.disabled = false; }
   });
-  const forgot = h("button", { class: "btn btn-texto btn-sm", type: "button", style: "margin-top:var(--e3)", onclick: async () => {
+  const forgot = h("button", { class: "btn btn-texto btn-sm", type: "button", style: "margin-top:12px", onclick: async () => {
     if (!email.value.trim()) { err.textContent = "Escribe tu correo y vuelve a tocar este botón."; email.focus(); return; }
-    try { await sendPasswordResetEmail(auth, email.value.trim()); err.style.color = "var(--estado-bien-ink)"; err.textContent = "Te enviamos un enlace para crear una contraseña nueva."; } catch (x) { err.textContent = "No se pudo enviar el correo."; }
+    try { await sendPasswordResetEmail(auth, email.value.trim()); err.style.color = "var(--menta-tinta)"; err.textContent = "Te enviamos un enlace para crear una contraseña nueva."; } catch (x) { err.textContent = "No se pudo enviar el correo."; }
   } }, "Olvidé mi contraseña");
   pantallaAcceso(
-    h("h1", { style: "font-size:var(--txt-lg);margin-bottom:var(--e2)" }, "Iniciar sesión"),
-    h("p", { class: "texto-suave texto-sm", style: "margin-bottom:var(--e5)" }, "Es la misma cuenta del hub. Si ya entraste allí, no hace falta volver a hacerlo."),
+    h("h1", { style: "font-size:22px;margin-bottom:8px" }, "Iniciar sesión"),
+    h("p", { class: "texto-suave texto-sm", style: "margin-bottom:20px" }, "Es la misma cuenta del hub. Si ya entraste allí, no hace falta volver a hacerlo."),
     form, forgot);
 }
 function stopListeners() { unsubs.forEach(u => u()); unsubs = []; stopOcc(); }
@@ -935,11 +798,11 @@ async function perfilDe(user) {
 function sinPerfilView(user, msg) {
   S.me = null;
   pantallaAcceso(
-    h("h1", { style: "font-size:var(--txt-lg);margin-bottom:var(--e2)" }, "Aún no tienes acceso"),
-    h("p", { class: "texto-sm", style: "margin-bottom:var(--e2)" }, "Entraste como ", h("b", null, user.email || "tu cuenta"), "."),
-    h("p", { class: "error-form", role: "alert", style: "margin-bottom:var(--e5)" }, msg),
+    h("h1", { style: "font-size:22px;margin-bottom:8px" }, "Aún no tienes acceso"),
+    h("p", { class: "texto-sm", style: "margin-bottom:8px" }, "Entraste como ", h("b", null, user.email || "tu cuenta"), "."),
+    h("p", { class: "error-form", role: "alert", style: "margin-bottom:20px" }, msg),
     h("a", { class: "btn btn-primario", href: "/hub/", style: "text-decoration:none" }, "Volver al hub"),
-    h("button", { class: "btn btn-secundario", type: "button", style: "margin-top:var(--e3)", onclick: () => signOut(auth) }, "Entrar con otra cuenta"));
+    h("button", { class: "btn btn-secundario", type: "button", style: "margin-top:12px", onclick: () => signOut(auth) }, "Entrar con otra cuenta"));
 }
 
 function boot() {
