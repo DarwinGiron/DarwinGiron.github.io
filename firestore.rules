@@ -618,10 +618,14 @@ service cloud.firestore {
     function tareasFirmado() {
       return request.auth != null;
     }
+    // Administra Tareas quien tenga role 'admin' en users, o quien sea de
+    // gestión en el hub (usuarios: admin o coordinador, activo): mismas cuentas
+    // y misma sesión que el hub. El resto del hub entra como member.
     function tareasAdmin() {
       return tareasFirmado()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        && ((exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+          || esGestor());
     }
 
     // Perfiles: cada persona lee solo el suyo; solo el administrador lee la

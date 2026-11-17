@@ -771,6 +771,23 @@ function loginView(msg) {
   } }, "Olvidé mi contraseña");
   $root.appendChild(h("div", { class: "login" }, h("div", { class: "login-card" }, h("h1", null, "Control de tareas"), h("p", null, "Entra con tu correo para ver tus tareas."), form, forgot)));
 }
+/* Perfil de Tareas: el de users si existe; si no, el del hub (usuarios), con
+   gestión del hub (admin/coordinador) como admin y el resto como member.
+   Las reglas de Firestore aplican el mismo criterio (tareasAdmin). */
+const ROLES_GESTION_HUB = ["admin", "coordinador"];
+function perfilDesdeHub(u) {
+  if (!u || u.activo === false) return null;
+  return { name: u.nombre || u.correo || "Sin nombre", email: u.correo || "", role: ROLES_GESTION_HUB.indexOf(u.rol) >= 0 ? "admin" : "member", rolHub: u.rol || "", desdeHub: true };
+}
+async function perfilDe(user) {
+  const propio = await getDoc(doc(db, "users", user.uid));
+  if (propio.exists()) return propio.data();
+  const hub = await getDoc(doc(db, "usuarios", user.uid));
+  const p = hub.exists() ? perfilDesdeHub(hub.data()) : null;
+  if (p && !p.email) p.email = user.email || "";
+  return p;
+}
+
 /* Cuenta con sesión abierta (p. ej. del hub) pero sin perfil en Tareas. */
 function sinPerfilView(user, msg) {
   S.me = null;
@@ -835,7 +852,16 @@ function startListeners() {
   const sQ = adm ? collection(db, "series") : query(collection(db, "series"), where("assigneeUid", "==", uid));
   const fail = e => { console.error(e); toast("Sin conexión con el servidor."); };
   unsubs.push(onSnapshot(sQ, snap => { S.series = {}; snap.forEach(d => { S.series[d.id] = Object.assign({ id: d.id }, d.data()); }); scheduleRender(); }, fail));
-  if (adm) unsubs.push(onSnapshot(collection(db, "users"), snap => { S.users = {}; snap.forEach(d => { S.users[d.id] = d.data(); }); scheduleRender(); }, fail));
+  if (adm) {
+    // Equipo = perfiles propios de Tareas (users) + personas activas del hub
+    // (usuarios). Si alguien está en los dos, manda su perfil de users.
+    let propios = {}, delHub = {};
+    const juntar = () => { S.users = Object.assign({}, delHub, propios); S.users[uid] = S.users[uid] || S.me; scheduleRender(); };
+    unsubs.push(onSnapshot(collection(db, "users"), snap => { propios = {}; snap.forEach(d => { propios[d.id] = d.data(); }); juntar(); }, fail));
+    unsubs.push(onSnapshot(collection(db, "usuarios"), snap => {
+      delHub = {}; snap.forEach(d => { const p = perfilDesdeHub(d.data()); if (p) delHub[d.id] = p; }); juntar();
+    }, e => console.warn("No se pudo leer el personal del hub:", e)));
+  }
   asegurarOcc();
 }
 
@@ -851,10 +877,10 @@ function boot() {
     stopListeners();
     if (!user) { S.me = null; S.users = {}; S.series = {}; S.occ = {}; loginView(); return; }
     try {
-      const snap = await getDoc(doc(db, "users", user.uid));
-      // Sin perfil en Tareas: se avisa SIN cerrar la sesión (es la misma del hub).
-      if (!snap.exists()) { sinPerfilView(user, "Tu cuenta todavía no está configurada en Tareas. Pide acceso al administrador."); return; }
-      S.me = Object.assign({ uid: user.uid }, snap.data()); S.users[user.uid] = snap.data();
+      const perfil = await perfilDe(user);
+      // Sin perfil en Tareas ni en el hub: se avisa SIN cerrar la sesión (es la misma del hub).
+      if (!perfil) { sinPerfilView(user, "Tu cuenta todavía no está configurada en Tareas. Pide acceso al administrador."); return; }
+      S.me = Object.assign({ uid: user.uid }, perfil); S.users[user.uid] = perfil;
       S.date = today(); S.cal = S.date.slice(0, 7); S.view = "lista";
       startListeners(); render();
     } catch (e) { console.error(e); sinPerfilView(user, "No se pudo cargar tu perfil de Tareas. Revisa tu conexión y recarga la página."); }

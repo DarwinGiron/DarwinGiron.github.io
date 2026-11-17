@@ -16,7 +16,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ===== INICIO BLOQUE TAREAS =====
+    // NOTA: en el firestore.rules de la raíz (el que se publica), tareasAdmin()
+// también acepta a gestión del hub (esGestor(): usuarios admin/coordinador).
+// Este archivo suelto solo sirve para las pruebas de tareas/pruebas.
+// ===== INICIO BLOQUE TAREAS =====
     function tareasFirmado() {
       return request.auth != null;
     }
