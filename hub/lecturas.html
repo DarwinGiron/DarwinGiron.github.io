@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <script src="/js/tema-horario.js"></script>
+  <base href="/hub/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1f38" />
+  <title>Consumo de lecturas · COGUSA</title>
+  <link rel="stylesheet" href="/css/estilos.css" />
+  <style>
+    .barra-dia { display: grid; grid-template-columns: 92px 1fr 70px; align-items: center; gap: var(--e3); font-size: var(--txt-sm); padding: 4px 0; }
+    .barra-dia__pista { height: 10px; border-radius: var(--r-full); background: var(--superficie-hundida); overflow: hidden; }
+    .barra-dia__valor { height: 100%; border-radius: var(--r-full); background: linear-gradient(90deg, var(--marino-600), var(--marino-500)); }
+    .barra-dia b { text-align: right; font-variant-numeric: tabular-nums; }
+    .num { text-align: right !important; font-variant-numeric: tabular-nums; }
+    .tabla-muestreo td.pagina { white-space: normal; min-width: 180px; }
+    .tabla-muestreo td.pagina small { display: block; color: var(--tinta-3); }
+    .fila-grande td { background: var(--estado-alerta-suave); }
+  </style>
+</head>
+<body class="tema-hub">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__marca">
+        <a href="index.html" class="app-header__logo" style="text-decoration:none;color:inherit">PPR</a>
+        <div class="app-header__titulos">
+          <div class="titulo">Consumo de lecturas</div>
+          <div class="subtitulo" id="texto-usuario">—</div>
+        </div>
+      </div>
+      <div class="app-header__acciones">
+        <span class="avatar avatar--claro avatar--sm" id="avatar-usuario" aria-hidden="true">—</span>
+        <button id="btn-salir" class="btn btn-texto btn-sm" type="button">Salir</button>
+      </div>
+    </header>
+
+    <main class="app-main app-main--ancho">
+      <a href="configuraciones.html" class="btn btn-secundario btn-sm btn-ancho-auto mb-2">← Configuraciones</a>
+      <p class="texto-suave texto-sm">
+        Cuántos documentos trae de Firestore cada pantalla, por colección. Lo anota cada navegador
+        mientras se usa la plataforma y lo junta aquí por día (en hora local del dispositivo).
+      </p>
+
+      <div class="segmentos mb-2" role="group" aria-label="Período">
+        <label style="flex:1"><input type="radio" name="periodo" value="1" /><span class="segmento">Hoy</span></label>
+        <label style="flex:1"><input type="radio" name="periodo" value="7" checked /><span class="segmento">7 días</span></label>
+        <label style="flex:1"><input type="radio" name="periodo" value="30" /><span class="segmento">30 días</span></label>
+      </div>
+
+      <div class="fichas" id="fichas"></div>
+
+      <section class="tarjeta">
+        <h2 class="tarjeta__titulo">Por día</h2>
+        <div id="por-dia"></div>
+      </section>
+
+      <section class="tarjeta">
+        <div class="flex-entre mb-1">
+          <h2 class="tarjeta__titulo mb-0">Por pantalla y colección</h2>
+          <span class="badge badge-alerta" title="Consultas que trajeron 100 documentos o más">≥100 = consulta grande</span>
+        </div>
+        <div class="tabla-scroll">
+          <table class="tabla-muestreo">
+            <thead>
+              <tr><th>Pantalla</th><th>Colección</th><th class="num">Consultas</th><th class="num">Documentos</th><th class="num">Prom. por consulta</th><th class="num">Grandes</th></tr>
+            </thead>
+            <tbody id="tabla"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <p class="texto-xs texto-suave">
+        No incluye lo que Firestore sirve desde la caché del navegador (no se cobra) ni las lecturas que hacen las
+        reglas de seguridad (una por petición, para revisar el perfil). Una consulta sin resultados cuenta como 1.
+        La cifra oficial de cobro está en la consola de Firebase → Firestore → Uso.
+      </p>
+    </main>
+  </div>
+
+  <script type="module" src="/hub/js/lecturas.js"></script>
+</body>
+</html>

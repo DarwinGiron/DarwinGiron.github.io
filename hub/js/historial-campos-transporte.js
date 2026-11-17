@@ -23,7 +23,7 @@ import {
   orderBy,
   where,
   limit,
-} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+} from "/hub/js/firestore-medido.js";
 import { configurarAutocompletado } from "./autocompletado.js";
 import { formatearPlaca } from "./utils.js";
 

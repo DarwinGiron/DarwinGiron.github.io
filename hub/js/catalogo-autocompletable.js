@@ -16,7 +16,7 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
-} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+} from "/hub/js/firestore-medido.js";
 import { configurarAutocompletado } from "./autocompletado.js";
 
 /**

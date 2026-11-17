@@ -12,7 +12,7 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, updateDoc, query, where, writeBatch,
   orderBy, limit,
-} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+} from "/hub/js/firestore-medido.js";
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 import { auth, db } from '../../js/firebase-config.js';
 import { obtenerPerfil, esRolDeGestion, cerrarSesion as cerrarSesionHub, obtenerRutaLogin } from '../../js/auth.js';

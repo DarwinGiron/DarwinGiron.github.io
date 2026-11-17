@@ -16,7 +16,7 @@
 import { protegerPagina, cerrarSesion, etiquetaRol } from "../js/auth.js";
 import { iniciales, forzarMayusculas, forzarFormatoPlaca } from "../js/utils.js";
 import { db } from "../js/firebase-config.js";
-import { collection, doc, getDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, doc, getDoc, addDoc, serverTimestamp } from "/hub/js/firestore-medido.js";
 import {
   configurarAutocompletadoProveedor,
   registrarProveedorSiNoExiste,

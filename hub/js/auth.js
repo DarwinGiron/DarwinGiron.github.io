@@ -8,7 +8,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, getDoc } from "/hub/js/firestore-medido.js";
 import { auth, db } from "./firebase-config.js";
 
 // Rutas absolutas: el hub vive siempre en /hub/ dentro de este sitio.

@@ -11,7 +11,7 @@ rules_version = '2';
 //      colecciones: usuarios (COMPARTIDA con Reportes), checklists,
 //      inspecciones (SIG-FO-115), hisopados, hisopadoConfig,
 //      supervisores_hisopado, areas_maquina_hisopado, hisopadoContadores, registrosVidrio (SIG-FO-111),
-//      sigfo111Config, registrosTarimas + tarimasDia + resumenes (SIG-FO-118), liberaciones
+//      sigfo111Config, registrosTarimas + tarimasDia + resumenes (SIG-FO-118), lecturas, liberaciones
 //      (SIG-FO-101), sigfo101Config, verificaciones_transporte,
 //      proveedores_transporte, horarios_personal, horarios_turnos, horarios_config,
 //      horarios_feriados, horarios_solicitudes, horarios_historial (app de Horarios, hub/horarios).
@@ -531,6 +531,19 @@ service cloud.firestore {
           && resumenId.matches('tarimas_[0-9]{4}-[0-9]{2}')
           && request.resource.data.get('inicializado', false) == resource.data.get('inicializado', false));
 
+      allow delete: if esGestor();
+    }
+
+    // ---- lecturas (medidor de consumo, js/medidor-lecturas.js) --
+    // Un documento por día ("aaaa-mm-dd") con cuántas consultas y documentos
+    // trajo cada página de cada colección. Cualquier usuario activo suma sus
+    // conteos (increment) en un solo campo "paginas" + "total"; solo gestión
+    // lo ve o lo borra.
+    match /lecturas/{dia} {
+      allow read: if esGestor();
+      allow create, update: if esUsuarioActivo()
+        && dia.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && request.resource.data.keys().hasOnly(['paginas', 'total', 'actualizadoEn']);
       allow delete: if esGestor();
     }
 

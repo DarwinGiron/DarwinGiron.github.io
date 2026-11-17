@@ -23,7 +23,7 @@
 // =========================================================
 
 import { db } from "./firebase-config.js";
-import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, getDoc, setDoc, serverTimestamp } from "/hub/js/firestore-medido.js";
 
 const RUTA_CONFIG = ["checklists", "auditoria-bpm"];
 
