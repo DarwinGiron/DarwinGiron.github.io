@@ -587,5 +587,71 @@ service cloud.firestore {
         && request.resource.data.nombre.size() > 0;
       allow update, delete: if esGestor();
     }
+
+    // ------------------------------------------------------------------
+    // APP "Control de tareas" (carpeta tareas/): colecciones users, series, occ.
+    // Copia del bloque de tareas/firestore.tareas.rules; mantenerlos iguales.
+    // ------------------------------------------------------------------
+    // ===== INICIO BLOQUE TAREAS =====
+    function tareasFirmado() {
+      return request.auth != null;
+    }
+    function tareasAdmin() {
+      return tareasFirmado()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Perfiles: cada persona lee solo el suyo; solo el administrador lee la
+    // lista y crea, cambia o borra perfiles (nadie se da a sí mismo el rol).
+    match /users/{uid} {
+      allow read: if tareasFirmado() && (request.auth.uid == uid || tareasAdmin());
+      allow create, update, delete: if tareasAdmin();
+    }
+
+    // Series (la regla de repetición). Un member solo ve, crea, edita y borra
+    // las suyas, y siempre asignadas a sí mismo.
+    match /series/{id} {
+      allow read: if tareasFirmado() && (tareasAdmin() || resource.data.assigneeUid == request.auth.uid);
+      allow create: if tareasFirmado() && (tareasAdmin()
+        || (request.resource.data.assigneeUid == request.auth.uid
+            && request.resource.data.createdBy == request.auth.uid));
+      allow update: if tareasFirmado() && (tareasAdmin()
+        || (resource.data.createdBy == request.auth.uid
+            && resource.data.assigneeUid == request.auth.uid
+            && request.resource.data.assigneeUid == request.auth.uid
+            && request.resource.data.createdBy == request.auth.uid));
+      // En un borrado no existe request.resource: solo se mira el documento actual.
+      allow delete: if tareasFirmado() && (tareasAdmin()
+        || (resource.data.createdBy == request.auth.uid
+            && resource.data.assigneeUid == request.auth.uid));
+    }
+
+    // Registro de cada ocurrencia (ejecutada, horas, comentario, evidencia).
+    // El id es siempre "<idSerie>_<AAAA-MM-DD>".
+    match /occ/{id} {
+      allow read: if tareasFirmado() && (tareasAdmin() || resource.data.assigneeUid == request.auth.uid);
+      allow create: if tareasFirmado() && (tareasAdmin()
+        || (request.resource.data.assigneeUid == request.auth.uid
+            && id == request.resource.data.seriesId + '_' + request.resource.data.date
+            && get(/databases/$(database)/documents/series/$(request.resource.data.seriesId)).data.assigneeUid == request.auth.uid));
+      allow update: if tareasFirmado() && (tareasAdmin()
+        || (resource.data.assigneeUid == request.auth.uid
+            && request.resource.data.assigneeUid == request.auth.uid
+            && request.resource.data.seriesId == resource.data.seriesId
+            && request.resource.data.date == resource.data.date));
+      allow delete: if tareasFirmado() && (tareasAdmin() || resource.data.assigneeUid == request.auth.uid);
+
+      // Archivos de evidencia (fotos comprimidas o documentos pequeños).
+      match /files/{fileId} {
+        allow read: if tareasFirmado() && (tareasAdmin() || resource.data.assigneeUid == request.auth.uid);
+        allow create: if tareasFirmado() && (tareasAdmin()
+          || (request.resource.data.assigneeUid == request.auth.uid
+              && get(/databases/$(database)/documents/occ/$(id)).data.assigneeUid == request.auth.uid));
+        allow delete: if tareasFirmado() && (tareasAdmin() || resource.data.assigneeUid == request.auth.uid);
+        allow update: if false;
+      }
+    }
+    // ===== FIN BLOQUE TAREAS =====
   }
 }
