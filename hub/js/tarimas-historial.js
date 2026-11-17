@@ -2,7 +2,7 @@
 // tarimas-historial.js
 // Controlador de sig-fo-118/historial.html — registros de tarimas ya
 // guardados, agrupados por día (un registro por día con sus callejones),
-// filtrables por período, con el indicador del mes.
+// filtrables por período (el indicador del mes está en el Dashboard).
 //
 // Fuente: tarimasDia (un documento por día). Mientras queden registros del
 // formato antiguo (registrosTarimas, uno por callejón) también se muestran, y
@@ -25,7 +25,6 @@ const $ = (id) => document.getElementById(id);
 const filtroPeriodo = $("filtro-periodo");
 const filtroBusqueda = $("filtro-busqueda");
 const lista = $("lista-registros");
-const resumen = $("resumen-periodo");
 
 // esAdmin: editar, eliminar y cambiar la fecha de un día es solo del administrador.
 const estado = { registros: [], esAdmin: false, usuario: null, perfil: null, abiertos: new Set(), editando: null, editandoFecha: null };
@@ -120,21 +119,6 @@ function renderizar() {
       .toLowerCase()
       .includes(termino);
   });
-
-  const insp = visibles.reduce((a, r) => a + (r.totalInspeccionadas || 0), 0);
-  const dan = visibles.reduce((a, r) => a + (r.danadas || 0), 0);
-  const madera = visibles.reduce((a, r) => a + (r.cntMadera || 0), 0);
-  const plastica = visibles.reduce((a, r) => a + (r.cntPlastica || 0), 0);
-  const pct = insp > 0 ? (dan / insp) * 100 : 0;
-  resumen.innerHTML = `
-    <div class="flex-entre mb-1">
-      <h2 class="tarjeta__titulo mb-0">Indicador del período</h2>
-      <span class="badge ${nivel(pct)}">${pct.toFixed(2)}%</span>
-    </div>
-    <p class="texto-suave texto-sm mb-0">
-      ${visibles.length} callejón(es) · ${insp.toLocaleString()} inspeccionadas ·
-      ${dan.toLocaleString()} dañadas (🪵 ${madera} · 🔵 ${plastica})
-    </p>`;
 
   if (visibles.length === 0) {
     lista.innerHTML = `<div class="tarjeta"><p class="texto-suave texto-sm mb-0">No hay registros para este filtro.</p></div>`;
