@@ -185,18 +185,23 @@
 <script type="module">
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, serverTimestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ============================================================
-   CONFIGURACIÓN: pega aquí los datos de tu app web de Firebase
-   (Configuración del proyecto > Tus apps > Configuración SDK)
+   CONFIGURACIÓN: el mismo proyecto de Firebase del hub SGI
+   (hub/js/firebase-config.js). La apiKey de una app web no es un
+   secreto: lo que protege los datos son las reglas de Firestore.
    ============================================================ */
 const firebaseConfig = {
-  apiKey: "PEGAR_AQUI",
-  authDomain: "PEGAR_AQUI",
-  projectId: "PEGAR_AQUI",
-  appId: "PEGAR_AQUI"
+  apiKey: "AIzaSyAn-pxaMeu5R2V8FqMT_Gvrp1KL2XPLUd4",
+  authDomain: "reportes-5e94c.firebaseapp.com",
+  projectId: "reportes-5e94c",
+  appId: "1:596353467554:web:b1eb2ae5d5072a07eac3fb"
 };
+/* Nombre propio de la app de Firebase: así la sesión de Tareas se guarda
+   aparte de la del hub (mismo dominio y misma apiKey). Entrar o salir aquí
+   no abre ni cierra la sesión del hub. */
+const NOMBRE_APP = "tareas";
 
 /* ---------- utilidades de fecha ---------- */
 const $root = document.getElementById("root");
@@ -346,7 +351,6 @@ function compressImage(file) {
   });
 }
 async function attach(it, files) {
-  const base = (it.occ && it.occ.evidence) || [];
   const added = [];
   toast("Adjuntando…");
   for (const f of files) {
@@ -364,7 +368,9 @@ async function attach(it, files) {
       added.push({ id, name: f.name, type });
     } catch (e) { toast("No se pudo adjuntar «" + f.name + "»."); console.error(e); }
   }
-  if (added.length) { await saveOcc(it, { evidence: base.concat(added) }); toast("Evidencia adjuntada"); }
+  // arrayUnion agrega sin reescribir la lista: si otro celular adjuntó algo al
+  // mismo tiempo, no se pierde.
+  if (added.length) { await saveOcc(it, { evidence: arrayUnion(...added) }); toast("Evidencia adjuntada"); }
 }
 async function openEvidence(it, ev) {
   try {
@@ -383,7 +389,9 @@ async function openEvidence(it, ev) {
 }
 async function removeEvidence(it, ev) {
   try { await deleteDoc(doc(db, "occ", it.key, "files", ev.id)); } catch (e) {}
-  await saveOcc(it, { evidence: ((it.occ && it.occ.evidence) || []).filter(x => x.id !== ev.id) });
+  // Se quita la entrada exacta guardada (mismo objeto { id, name, type }).
+  const guardada = ((it.occ && it.occ.evidence) || []).find(x => x.id === ev.id) || ev;
+  await saveOcc(it, { evidence: arrayRemove(guardada) });
 }
 
 /* ---------- tarjeta de tarea ---------- */
@@ -721,6 +729,7 @@ $root.addEventListener("focusout", () => {
 
 function render() {
   if (!S.me) return;
+  asegurarOcc(); // si la vista va más atrás de lo que se escucha, se amplía
   clearTimeout(renderTimer); renderPending = false;
   const keepScroll = window.scrollY;
   // se recuerda qué control tenía el foco (por id o, si no tiene, por su posición) para devolvérselo al redibujar
@@ -761,16 +770,59 @@ function loginView(msg) {
   } }, "Olvidé mi contraseña");
   $root.appendChild(h("div", { class: "login" }, h("div", { class: "login-card" }, h("h1", null, "Control de tareas"), h("p", null, "Entra con tu correo para ver tus tareas."), form, forgot)));
 }
-function stopListeners() { unsubs.forEach(u => u()); unsubs = []; }
+function stopListeners() { unsubs.forEach(u => u()); unsubs = []; stopOcc(); }
+
+/* Registros (occ): se escuchan solo desde una fecha, no la colección completa.
+   Hay un documento por tarea por día y crece sin límite; leerlo todo en cada
+   apertura costaría miles de lecturas. Por defecto: los últimos DIAS_ATRAS días
+   (lo que usan "pendientes de días anteriores" y el Equipo) y todo lo futuro.
+   Si la vista va más atrás (calendario o semana anteriores), se amplía. */
+const DIAS_ATRAS = 45;
+let occUnsub = null, occDesde = null, occSinIndice = false;
+function stopOcc() { if (occUnsub) occUnsub(); occUnsub = null; occDesde = null; }
+
+/** Primera fecha que necesita la vista actual. */
+function fechaMinimaVista() {
+  const fechas = [addDays(today(), -DIAS_ATRAS), S.date];
+  if (S.view === "lista" && S.mode === "semana") fechas.push(mondayOf(S.date));
+  if (S.view === "calendario") fechas.push(S.cal + "-01");
+  return fechas.sort()[0];
+}
+
+/** (Re)abre la escucha de occ si la vista necesita fechas anteriores a las que ya hay. */
+function asegurarOcc() {
+  if (!S.me) return;
+  const desde = fechaMinimaVista();
+  if (occUnsub && occDesde <= desde) return;
+  if (occUnsub) occUnsub();
+  occDesde = desde;
+  const uid = S.me.uid, adm = isAdmin();
+  const base = collection(db, "occ");
+  // El member necesita el índice compuesto occ (assigneeUid, date) de
+  // firestore.indexes.json. Si aún no existe, se usa la consulta sin fecha
+  // para que la app siga funcionando (y se avisa en la consola).
+  const q = adm ? query(base, where("date", ">=", desde))
+    : occSinIndice ? query(base, where("assigneeUid", "==", uid))
+    : query(base, where("assigneeUid", "==", uid), where("date", ">=", desde));
+  occUnsub = onSnapshot(q, snap => {
+    S.occ = {}; snap.forEach(d => { S.occ[d.id] = d.data(); }); scheduleRender();
+  }, e => {
+    if (!adm && !occSinIndice && e.code === "failed-precondition") {
+      console.warn("Falta el índice occ (assigneeUid, date). Créalo con el enlace de este error:", e.message);
+      occSinIndice = true; occUnsub = null; occDesde = null; asegurarOcc(); return;
+    }
+    console.error(e); toast("Sin conexión con el servidor.");
+  });
+}
+
 function startListeners() {
   stopListeners();
   const uid = S.me.uid, adm = isAdmin();
   const sQ = adm ? collection(db, "series") : query(collection(db, "series"), where("assigneeUid", "==", uid));
-  const oQ = adm ? collection(db, "occ") : query(collection(db, "occ"), where("assigneeUid", "==", uid));
   const fail = e => { console.error(e); toast("Sin conexión con el servidor."); };
   unsubs.push(onSnapshot(sQ, snap => { S.series = {}; snap.forEach(d => { S.series[d.id] = Object.assign({ id: d.id }, d.data()); }); scheduleRender(); }, fail));
-  unsubs.push(onSnapshot(oQ, snap => { S.occ = {}; snap.forEach(d => { S.occ[d.id] = d.data(); }); scheduleRender(); }, fail));
   if (adm) unsubs.push(onSnapshot(collection(db, "users"), snap => { S.users = {}; snap.forEach(d => { S.users[d.id] = d.data(); }); scheduleRender(); }, fail));
+  asegurarOcc();
 }
 
 function boot() {
@@ -779,14 +831,15 @@ function boot() {
       h("p", null, "Abre este archivo y pega los datos de tu app web de Firebase en el bloque ", h("code", null, "firebaseConfig"), ". Después sube el archivo de nuevo.")));
     return;
   }
-  app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app);
+  app = initializeApp(firebaseConfig, NOMBRE_APP); auth = getAuth(app); db = getFirestore(app);
   loginView();
   onAuthStateChanged(auth, async user => {
     stopListeners();
     if (!user) { S.me = null; S.users = {}; S.series = {}; S.occ = {}; loginView(); return; }
     try {
       const snap = await getDoc(doc(db, "users", user.uid));
-      if (!snap.exists()) { await signOut(auth); loginView("Tu usuario todavía no está configurado. Pide acceso al administrador."); return; }
+      // La sesión es solo de Tareas (NOMBRE_APP), así que cerrarla no afecta al hub.
+      if (!snap.exists()) { await signOut(auth); loginView("Tu usuario todavía no está configurado en Tareas. Pide acceso al administrador."); return; }
       S.me = Object.assign({ uid: user.uid }, snap.data()); S.users[user.uid] = snap.data();
       S.date = today(); S.cal = S.date.slice(0, 7); S.view = "lista";
       startListeners(); render();

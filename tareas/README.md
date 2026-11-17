@@ -47,12 +47,11 @@ Qué garantizan estas reglas: un member solo lee y escribe lo suyo, no puede cre
    - `role`: `admin`
 3. Con ese admin, el resto del equipo se agrega desde la pestaña **Equipo → Agregar persona** (crea su acceso con role `member`). Quien tenga cuenta de Firebase pero no documento en `users` verá "Tu usuario todavía no está configurado".
 
-### 5. Pegar `firebaseConfig`
-1. Firebase → **Configuración del proyecto → Tus apps → app web** (si no hay una, créala con `</>`) → **Configuración del SDK**.
-2. Copia los valores `apiKey`, `authDomain`, `projectId` y `appId`.
-3. Pégalos en el bloque `firebaseConfig` de `index.html` (busca `PEGAR_AQUI`).
+### 5. `firebaseConfig` (ya está puesto)
+`index.html` ya trae la configuración del mismo proyecto del hub SGI (`hub/js/firebase-config.js`). La app se inicia con el nombre propio `"tareas"`, así que su sesión se guarda **aparte** de la del hub aunque estén en el mismo dominio: entrar o salir de Tareas no abre ni cierra la sesión del hub.
 
-> La `apiKey` de una app web de Firebase **no es un secreto**: identifica el proyecto, y lo que protege los datos son las reglas del paso 3. Aun así, no subas contraseñas ni claves de servicio al repositorio.
+### 5b. Índice para las consultas de los members
+Para no leer el historial completo, cada persona solo escucha sus registros (`occ`) desde hace 45 días (o desde el mes que esté viendo en el calendario). Esa consulta necesita el índice compuesto `occ (assigneeUid, date)`, que está en `firestore.indexes.json`. Créalo una vez en **Firestore → Índices → Compuestos → Crear índice** (colección `occ`, campos `assigneeUid` ascendente y `date` ascendente), o con el enlace que aparece en la consola del navegador. Mientras no exista, la app sigue funcionando con la consulta sin fecha (más lecturas).
 
 ### 6. Publicar en GitHub Pages
 1. Crea un repositorio y sube `index.html` y `motor.js` (en la raíz; el resto de archivos son opcionales).
