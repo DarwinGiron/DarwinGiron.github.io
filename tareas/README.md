@@ -77,4 +77,5 @@ Como `firebase.json` no existe en esta carpeta, créalo antes con `{"firestore":
 - El "último día hábil" descarta sábado y domingo; **no conoce feriados**.
 - "Esta y las siguientes" al editar crea una serie nueva desde esa fecha; los registros ya hechos quedan con la serie anterior.
 - Las evidencias se guardan dentro de Firestore (fotos comprimidas o archivos de hasta 500 KB).
-- Si alguien está escribiendo un comentario o una hora, los cambios que llegan de otros dispositivos se muestran al salir de ese campo.
+- El comentario y la evidencia de cada tarea se ven y se editan en su ventana de detalle (tocar la tarea). Ya no se registran horas de inicio y fin; lo que estaba guardado se conserva en la base, solo no se muestra.
+- Usa la hoja de estilos del hub (`/css/estilos.css`) y su modo oscuro automático (`/js/tema-horario.js`), y los avisos de `hub/js/utils.js`: por eso debe servirse desde el mismo sitio que el hub.
